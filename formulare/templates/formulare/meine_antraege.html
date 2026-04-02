@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+
+{% block title %}Meine Anträge{% endblock %}
+
+{% block content %}
+<div class="container py-4" style="max-width:800px;">
+    <a href="{% url 'formulare:liste' %}" class="text-muted text-decoration-none small">&larr; Zurück</a>
+    <h1 class="h3 fw-bold mt-2 mb-4" style="color:#1a4d2e;">Meine Anträge</h1>
+
+    {% if sitzungen %}
+    <div class="table-responsive">
+        <table class="table table-hover align-middle">
+            <thead>
+                <tr>
+                    <th>Antrag</th>
+                    <th>Status</th>
+                    <th>Gestartet</th>
+                    <th>Abgeschlossen</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for s in sitzungen %}
+            <tr>
+                <td class="fw-semibold">{{ s.pfad.name }}</td>
+                <td>
+                    {% if s.status == "laufend" %}
+                    <span class="badge bg-warning text-dark">Laufend</span>
+                    {% elif s.status == "abgeschlossen" %}
+                    <span class="badge bg-success">Abgeschlossen</span>
+                    {% else %}
+                    <span class="badge bg-secondary">Abgebrochen</span>
+                    {% endif %}
+                </td>
+                <td class="text-muted small">{{ s.gestartet_am|date:"d.m.Y H:i" }}</td>
+                <td class="text-muted small">{{ s.abgeschlossen_am|date:"d.m.Y H:i"|default:"–" }}</td>
+                <td class="d-flex gap-2 flex-wrap">
+                    {% if s.status == "laufend" %}
+                    <a href="{% url 'formulare:pfad_schritt' s.pk %}" class="btn btn-sm btn-outline-primary">Weiter</a>
+                    {% elif s.status == "abgeschlossen" %}
+                    <a href="{% url 'formulare:pfad_abgeschlossen' s.pk %}" class="btn btn-sm btn-outline-secondary">Ansehen</a>
+                    <a href="{% url 'formulare:sitzung_pdf' s.pk %}" class="btn btn-sm btn-outline-success">&#128196; PDF</a>
+                    {% endif %}
+                    <form method="post" action="{% url 'formulare:sitzung_loeschen' s.pk %}">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-sm btn-outline-danger"
+                                data-confirm="Antrag &quot;{{ s.pfad.name }}&quot; wirklich löschen? Dieser Vorgang kann nicht rückgängig gemacht werden.">
+                            Löschen
+                        </button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="alert alert-info">Noch keine Anträge gestellt.</div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+{% load static %}
+<script src="{% static 'js/meine_antraege.js' %}"></script>
+{% endblock %}

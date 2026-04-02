@@ -22,6 +22,7 @@ urlpatterns = [
     # ---------------------------------------------------------------------------
     path("", include("core.urls")),
     path("formulare/", include("formulare.urls")),
+    path("antrag/", include(("formulare.public_urls", "formulare_pub"))),
     path("workflow/", include("workflow.urls")),
     path("dokumente/", include("dokumente.urls")),
     path("kommunikation/", include("kommunikation.urls")),

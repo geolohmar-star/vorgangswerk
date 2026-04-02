@@ -1,0 +1,56 @@
+<div class="col-md-6">
+    <div class="card h-100 {% if not pfad.aktiv %}border-secondary opacity-75{% endif %}">
+        <div class="card-body">
+            <div class="d-flex justify-content-between align-items-start mb-2">
+                <h5 class="card-title fw-semibold mb-0">{{ pfad.name }}</h5>
+                <div class="d-flex gap-1 flex-wrap justify-content-end">
+                    {% if not pfad.aktiv %}<span class="badge bg-secondary">Inaktiv</span>{% endif %}
+                    {% if pfad.oeffentlich %}<span class="badge bg-info text-dark">Oeffentlich</span>{% endif %}
+                    {% if pfad.kuerzel %}<span class="badge bg-success">{{ pfad.kuerzel }}</span>{% endif %}
+                </div>
+            </div>
+            {% if pfad.beschreibung %}
+            <p class="card-text text-muted small">{{ pfad.beschreibung }}</p>
+            {% endif %}
+            <div class="text-muted small mb-3">
+                {{ pfad.schritte.count }} Schritt{{ pfad.schritte.count|pluralize:"e" }}
+                &middot;
+                {{ pfad.sitzungen.count }} Einreichung{{ pfad.sitzungen.count|pluralize:"en" }}
+            </div>
+            {% if ist_editor %}
+            <form method="post" action="{% url 'formulare:pfad_kategorie_setzen' pfad.pk %}" class="mb-2">
+                {% csrf_token %}
+                <div class="input-group input-group-sm">
+                    <input type="text" name="kategorie" class="form-control form-control-sm"
+                           value="{{ pfad.kategorie }}" placeholder="Kategorie">
+                    <button type="submit" class="btn btn-outline-secondary btn-sm">Setzen</button>
+                </div>
+            </form>
+            {% endif %}
+            <div class="d-flex gap-2 flex-wrap">
+                {% if pfad.aktiv %}
+                <a href="{% url 'formulare:pfad_starten' pfad.pk %}" class="btn btn-vw btn-sm">
+                    Antrag stellen
+                </a>
+                {% endif %}
+                <a href="{% url 'formulare:pfad_blockansicht' pfad.pk %}" class="btn btn-outline-primary btn-sm">
+                    Blockansicht
+                </a>
+                {% if ist_editor %}
+                <a href="{% url 'formulare:pfad_auswertung' pfad.pk %}" class="btn btn-outline-primary btn-sm">
+                    Auswertung
+                </a>
+                <a href="{% url 'formulare:pfad_editor' pfad.pk %}" class="btn btn-outline-secondary btn-sm">
+                    Bearbeiten
+                </a>
+                <form method="post" action="{% url 'formulare:pfad_loeschen' pfad.pk %}"
+                      data-loeschen-form data-name="{{ pfad.name }}"
+                      data-anzahl="{{ pfad.sitzungen.count }}">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-outline-danger btn-sm">Loeschen</button>
+                </form>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>

@@ -1,0 +1,156 @@
+{% extends "base.html" %}
+
+{% block title %}Auswertung – {{ pfad.name }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .auswertung-table th { white-space: nowrap; font-size: 0.8rem; }
+    .auswertung-table td { font-size: 0.85rem; max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .auswertung-table td.wrap { white-space: normal; }
+    .filter-bar { background: #f8f9fa; border-radius: 8px; padding: 1rem 1.25rem; margin-bottom: 1.25rem; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4" style="max-width:1400px;">
+
+    <div class="d-flex align-items-center gap-2 mb-1 flex-wrap">
+        <a href="{% url 'formulare:liste' %}" class="text-muted text-decoration-none small">&larr; Pfad-Liste</a>
+        <span class="text-muted small">/</span>
+        <span class="text-muted small">{{ pfad.name }}</span>
+    </div>
+    <div class="d-flex align-items-start justify-content-between flex-wrap gap-2 mb-4">
+        <div>
+            <h1 class="h3 fw-bold mb-1" style="color:#1a4d2e;">Auswertung – {{ pfad.name }}</h1>
+            <p class="text-muted small mb-0">
+                {% if pfad.kuerzel %}<span class="badge bg-secondary me-1">{{ pfad.kuerzel }}</span>{% endif %}
+                {{ gesamt }} Einträge gefunden
+            </p>
+        </div>
+        <div class="d-flex gap-2">
+            <a href="?{{ filter_qs }}&format=csv" class="btn btn-outline-success btn-sm">
+                &#8595; CSV exportieren
+            </a>
+        </div>
+    </div>
+
+    <!-- Filterleiste -->
+    <form method="get" class="filter-bar">
+        <div class="row g-2 align-items-end">
+            <div class="col-md-3">
+                <label class="form-label fw-semibold small mb-1">Status</label>
+                <select name="status" class="form-select form-select-sm">
+                    <option value="">Alle Status</option>
+                    {% for wert, anzeige in status_choices %}
+                    <option value="{{ wert }}" {% if status_filter == wert %}selected{% endif %}>{{ anzeige }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label fw-semibold small mb-1">Von</label>
+                <input type="date" name="datum_von" value="{{ datum_von }}" class="form-control form-control-sm">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label fw-semibold small mb-1">Bis</label>
+                <input type="date" name="datum_bis" value="{{ datum_bis }}" class="form-control form-control-sm">
+            </div>
+            <div class="col-md-3">
+                <label class="form-label fw-semibold small mb-1">Suche</label>
+                <input type="text" name="suche" value="{{ suche }}" placeholder="Beliebiger Feldwert …"
+                       class="form-control form-control-sm">
+            </div>
+            <div class="col-md-2 d-flex gap-2">
+                <button type="submit" class="btn btn-success btn-sm w-100">Filtern</button>
+                <a href="{% url 'formulare:pfad_auswertung' pfad.pk %}" class="btn btn-outline-secondary btn-sm">&#10005;</a>
+            </div>
+        </div>
+    </form>
+
+    {% if zeilen %}
+    <div class="table-responsive">
+        <table class="table table-hover table-sm table-bordered auswertung-table">
+            <thead class="table-light sticky-top">
+                <tr>
+                    <th>Vorgangsnr.</th>
+                    <th>Datum</th>
+                    <th>Status</th>
+                    <th>Einreicher</th>
+                    {% for sp in spalten %}
+                    <th title="{{ sp.id }}">{{ sp.label }}</th>
+                    {% endfor %}
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for zeile in zeilen %}
+                <tr>
+                    <td class="fw-semibold text-nowrap">
+                        {{ zeile.sitzung.vorgangsnummer|default:"—" }}
+                    </td>
+                    <td class="text-muted text-nowrap">
+                        {{ zeile.datum|date:"d.m.Y H:i"|default:"—" }}
+                    </td>
+                    <td>
+                        {% if zeile.sitzung.status == "abgeschlossen" %}
+                        <span class="badge bg-success">{{ zeile.sitzung.get_status_display }}</span>
+                        {% elif zeile.sitzung.status == "abgebrochen" %}
+                        <span class="badge bg-danger">{{ zeile.sitzung.get_status_display }}</span>
+                        {% else %}
+                        <span class="badge bg-secondary">{{ zeile.sitzung.get_status_display }}</span>
+                        {% endif %}
+                    </td>
+                    <td class="text-nowrap">{{ zeile.wer }}</td>
+                    {% for wert in zeile.werte %}
+                    <td title="{{ wert }}">{{ wert|default:"—"|truncatechars:40 }}</td>
+                    {% endfor %}
+                    <td class="text-nowrap">
+                        <a href="{% url 'formulare:sitzung_pdf' zeile.sitzung.pk %}"
+                           class="btn btn-outline-secondary btn-sm" title="PDF">&#128462;</a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Paginierung -->
+    {% if paginator.num_pages > 1 %}
+    <nav class="mt-3">
+        <ul class="pagination pagination-sm justify-content-center flex-wrap">
+            {% if seite.has_previous %}
+            <li class="page-item">
+                <a class="page-link" href="?{{ filter_qs }}&seite={{ seite.previous_page_number }}">&laquo;</a>
+            </li>
+            {% endif %}
+            {% for num in paginator.page_range %}
+            {% if num == seite.number %}
+            <li class="page-item active"><span class="page-link">{{ num }}</span></li>
+            {% elif num >= seite.number|add:"-3" and num <= seite.number|add:"3" %}
+            <li class="page-item">
+                <a class="page-link" href="?{{ filter_qs }}&seite={{ num }}">{{ num }}</a>
+            </li>
+            {% endif %}
+            {% endfor %}
+            {% if seite.has_next %}
+            <li class="page-item">
+                <a class="page-link" href="?{{ filter_qs }}&seite={{ seite.next_page_number }}">&raquo;</a>
+            </li>
+            {% endif %}
+        </ul>
+        <p class="text-center text-muted small">
+            Seite {{ seite.number }} von {{ paginator.num_pages }} &middot; {{ gesamt }} Einträge gesamt
+        </p>
+    </nav>
+    {% endif %}
+
+    {% else %}
+    <div class="alert alert-info">
+        Keine Einträge für die gewählten Filter.
+        {% if status_filter or datum_von or datum_bis or suche %}
+        <a href="{% url 'formulare:pfad_auswertung' pfad.pk %}" class="alert-link">Filter zurücksetzen</a>
+        {% endif %}
+    </div>
+    {% endif %}
+
+</div>
+{% endblock %}

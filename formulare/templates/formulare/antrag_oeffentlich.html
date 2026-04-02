@@ -1,0 +1,33 @@
+{% extends "formulare/base_public.html" %}
+
+{% block title %}{{ pfad.name }}{% endblock %}
+
+{% block content %}
+<div class="container py-2" style="max-width:700px;">
+    <div class="card shadow-sm">
+        <div class="card-body p-4">
+            <h1 class="h3 fw-bold mb-2" style="color:#1a4d2e;">{{ pfad.name }}</h1>
+            {% if pfad.beschreibung %}
+            <p class="text-muted mb-4">{{ pfad.beschreibung }}</p>
+            {% endif %}
+
+            <hr>
+
+            <form method="post" action="{% url 'formulare_pub:antrag_oeffentlich_starten' kuerzel=pfad.kuerzel %}">
+                {% csrf_token %}
+                <div class="mb-3">
+                    <label class="form-label fw-semibold" for="email">
+                        Ihre E-Mail-Adresse
+                        <span class="text-muted small fw-normal">(optional – für Bestätigung per E-Mail)</span>
+                    </label>
+                    <input type="email" name="email" id="email" class="form-control"
+                           placeholder="name@beispiel.de">
+                </div>
+                <button type="submit" class="btn btn-success w-100 py-2 fw-semibold">
+                    Antrag ausfüllen &#8594;
+                </button>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
