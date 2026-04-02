@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard – Vorgangswerk{% endblock %}
+
+{% block content %}
+<div class="container py-5" style="max-width:1100px;">
+
+    {# ---- Begruessung ---- #}
+    <div class="mb-4">
+        <h1 class="h3 fw-bold mb-1" style="color:#1a4d2e;">
+            Willkommen, {{ user.get_full_name|default:user.username }}
+        </h1>
+        <p class="text-muted small mb-0">Was moechten Sie heute tun?</p>
+    </div>
+
+    {# ---- Kacheln ---- #}
+    <div class="row g-3">
+
+        {# ---- Formulare ---- #}
+        <div class="col-md-6 col-lg-3">
+            <a href="{% url 'formulare:liste' %}" class="text-decoration-none">
+                <div class="card border-0 shadow-sm h-100"
+                     style="transition:box-shadow .15s;"
+                     onmouseenter="this.style.boxShadow='0 4px 16px rgba(26,77,46,.15)'"
+                     onmouseleave="this.style.boxShadow=''">
+                    <div class="card-body p-4 d-flex flex-column">
+                        <div class="mb-3" style="font-size:2rem; color:#1a4d2e;">&#128196;</div>
+                        <h5 class="fw-bold mb-1 text-dark">Formulare</h5>
+                        <p class="text-muted small mb-0">
+                            Dynamische Formulare erstellen und ausfullen.
+                        </p>
+                    </div>
+                </div>
+            </a>
+        </div>
+
+        {# ---- Workflow ---- #}
+        <div class="col-md-6 col-lg-3">
+            <a href="{% url 'workflow:liste' %}" class="text-decoration-none">
+                <div class="card border-0 shadow-sm h-100"
+                     style="transition:box-shadow .15s;"
+                     onmouseenter="this.style.boxShadow='0 4px 16px rgba(26,77,46,.15)'"
+                     onmouseleave="this.style.boxShadow=''">
+                    <div class="card-body p-4 d-flex flex-column">
+                        <div class="mb-3" style="font-size:2rem; color:#1a4d2e;">&#9881;</div>
+                        <h5 class="fw-bold mb-1 text-dark">Workflow</h5>
+                        <p class="text-muted small mb-0">
+                            Prozesse definieren und Vorgaenge bearbeiten.
+                        </p>
+                    </div>
+                </div>
+            </a>
+        </div>
+
+        {# ---- Dokumente ---- #}
+        <div class="col-md-6 col-lg-3">
+            <a href="{% url 'dokumente:liste' %}" class="text-decoration-none">
+                <div class="card border-0 shadow-sm h-100"
+                     style="transition:box-shadow .15s;"
+                     onmouseenter="this.style.boxShadow='0 4px 16px rgba(26,77,46,.15)'"
+                     onmouseleave="this.style.boxShadow=''">
+                    <div class="card-body p-4 d-flex flex-column">
+                        <div class="mb-3" style="font-size:2rem; color:#1a4d2e;">&#128193;</div>
+                        <h5 class="fw-bold mb-1 text-dark">Dokumente</h5>
+                        <p class="text-muted small mb-0">
+                            Vorlagen, Bescheide und Dokumente verwalten.
+                        </p>
+                    </div>
+                </div>
+            </a>
+        </div>
+
+        {# ---- Postfach ---- #}
+        <div class="col-md-6 col-lg-3">
+            <a href="{% url 'kommunikation:postfach' %}" class="text-decoration-none">
+                <div class="card border-0 shadow-sm h-100"
+                     style="transition:box-shadow .15s;"
+                     onmouseenter="this.style.boxShadow='0 4px 16px rgba(26,77,46,.15)'"
+                     onmouseleave="this.style.boxShadow=''">
+                    <div class="card-body p-4 d-flex flex-column">
+                        <div class="mb-3" style="font-size:2rem; color:#1a4d2e;">&#9993;</div>
+                        <h5 class="fw-bold mb-1 text-dark">Postfach</h5>
+                        <p class="text-muted small mb-0">
+                            Eingehende E-Mails und Benachrichtigungen.
+                        </p>
+                    </div>
+                </div>
+            </a>
+        </div>
+
+    </div>
+</div>
+{% endblock %}
