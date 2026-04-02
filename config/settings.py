@@ -175,6 +175,8 @@ IMAP_POSTFACH = config("IMAP_POSTFACH", default="INBOX")
 # ---------------------------------------------------------------------------
 
 COLLABORA_URL = config("COLLABORA_URL", default="")
+# Oeffentliche Basis-URL dieser Instanz (fuer WOPI-Callbacks von Collabora)
+VORGANGSWERK_BASE_URL = config("VORGANGSWERK_BASE_URL", default="http://localhost:8000")
 
 # ---------------------------------------------------------------------------
 # Verschluesselung (AES-256-GCM fuer sensible Dokumente)

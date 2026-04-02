@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}{{ dok.titel }} – Collabora Editor{% endblock %}
+
+{% block extra_css %}
+<style>
+  #collabora-frame {
+    width: 100%;
+    height: calc(100vh - 130px);
+    border: none;
+    display: block;
+  }
+  .editor-toolbar {
+    background: #1a4d2e;
+    color: #fff;
+    padding: 8px 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .editor-toolbar a, .editor-toolbar button {
+    color: #fff;
+    text-decoration: none;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+{# Kein Container – Editor nutzt die volle Breite #}
+
+<div class="editor-toolbar">
+  <strong>{{ dok.titel }}</strong>
+  <span class="badge bg-secondary">v{{ dok.version }}</span>
+  <div class="ms-auto d-flex gap-2">
+    <span id="speicher-status" class="small"></span>
+    <button id="btn-speichern" class="btn btn-sm btn-light">Speichern & zurueck</button>
+    <a href="{% url 'dokumente:detail' dok.pk %}" class="btn btn-sm btn-outline-light">
+      Abbrechen
+    </a>
+  </div>
+</div>
+
+<iframe id="collabora-frame" allowfullscreen></iframe>
+
+{# Daten CSP-sicher uebertragen #}
+{{ wopi_src|json_script:"wopi-src" }}
+{{ wopi_token|json_script:"wopi-token" }}
+{{ collabora_url|json_script:"collabora-url" }}
+<span id="detail-url" data-url="{% url 'dokumente:detail' dok.pk %}" class="d-none"></span>
+
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'js/collabora_editor.js' %}"></script>
+{% endblock %}

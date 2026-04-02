@@ -1,8 +1,134 @@
 {% extends "base.html" %}
 {% block title %}Dokumente – Vorgangswerk{% endblock %}
+
 {% block content %}
-<div class="container py-4">
-    <h1 class="h3 fw-bold" style="color:#1a4d2e;">Dokumente</h1>
-    <p class="text-muted">Kommt bald.</p>
+<div class="container-fluid px-4 py-4">
+
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h1 class="h3 mb-0">Dokumente</h1>
+    <a href="{% url 'dokumente:hochladen' %}" class="btn btn-primary btn-sm">
+      + Hochladen
+    </a>
+  </div>
+
+  <div class="row g-3">
+
+    {# Kategorie-Sidebar #}
+    <div class="col-lg-3">
+      <div class="card">
+        <div class="card-header"><strong>Kategorien</strong></div>
+        <div class="list-group list-group-flush">
+          <a href="{% url 'dokumente:liste' %}"
+             class="list-group-item list-group-item-action {% if not aktive_kategorie %}active{% endif %}">
+            Alle Dokumente
+          </a>
+          {% for kat in kategorien %}
+          <a href="?kategorie={{ kat.pk }}"
+             class="list-group-item list-group-item-action {% if aktive_kategorie == kat.pk|stringformat:'s' %}active{% endif %}">
+            {{ kat.name }}
+          </a>
+          {% for unterkat in kat.unterkategorien.all %}
+          <a href="?kategorie={{ unterkat.pk }}"
+             class="list-group-item list-group-item-action ps-4 {% if aktive_kategorie == unterkat.pk|stringformat:'s' %}active{% endif %}">
+            <small>{{ unterkat.name }}</small>
+          </a>
+          {% endfor %}
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+
+    {# Hauptbereich #}
+    <div class="col-lg-9">
+
+      {# Suche #}
+      <form method="get" class="mb-3 d-flex gap-2">
+        {% if aktive_kategorie %}
+        <input type="hidden" name="kategorie" value="{{ aktive_kategorie }}">
+        {% endif %}
+        <input type="search" name="q" value="{{ suche }}"
+               class="form-control" placeholder="Titel oder Dateiname suchen...">
+        <button type="submit" class="btn btn-outline-secondary">Suchen</button>
+        {% if suche %}
+        <a href="{% url 'dokumente:liste' %}" class="btn btn-outline-danger">X</a>
+        {% endif %}
+      </form>
+
+      {% if dokumente %}
+      <div class="card">
+        <div class="table-responsive">
+          <table class="table table-hover mb-0">
+            <thead class="table-light">
+              <tr>
+                <th>Titel</th>
+                <th>Typ</th>
+                <th>Kategorie</th>
+                <th>Version</th>
+                <th>Groesse</th>
+                <th>Geaendert</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for dok in dokumente %}
+              <tr>
+                <td>
+                  <a href="{% url 'dokumente:detail' dok.pk %}" class="fw-semibold text-decoration-none">
+                    {{ dok.titel }}
+                  </a>
+                  {% if dok.tags.all %}
+                  <div class="mt-1">
+                    {% for tag in dok.tags.all %}
+                    <span class="badge" style="background:{{ tag.farbe }}">{{ tag.name }}</span>
+                    {% endfor %}
+                  </div>
+                  {% endif %}
+                </td>
+                <td>
+                  <small class="text-muted">{{ dok.dateiname|truncatechars:25 }}</small>
+                </td>
+                <td>{{ dok.kategorie.name|default:"–" }}</td>
+                <td><span class="badge bg-secondary">v{{ dok.version }}</span></td>
+                <td><small>{{ dok.groesse_lesbar }}</small></td>
+                <td><small>{{ dok.geaendert_am|date:"d.m.Y" }}</small></td>
+                <td>
+                  <div class="d-flex gap-1">
+                    {% if dok.ist_pdf or dok.ist_bild %}
+                    <a href="{% url 'dokumente:vorschau' dok.pk %}" target="_blank"
+                       class="btn btn-sm btn-outline-secondary" title="Vorschau">
+                      Ansehen
+                    </a>
+                    {% endif %}
+                    <a href="{% url 'dokumente:download' dok.pk %}"
+                       class="btn btn-sm btn-outline-primary" title="Herunterladen">
+                      Download
+                    </a>
+                    {% if collabora_aktiv and dok.ist_office_dokument %}
+                    <a href="{% url 'dokumente:collabora' dok.pk %}"
+                       class="btn btn-sm btn-outline-success" title="In Collabora bearbeiten">
+                      Bearbeiten
+                    </a>
+                    {% endif %}
+                  </div>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      {% else %}
+      <div class="alert alert-info">
+        {% if suche %}
+          Keine Dokumente fuer "{{ suche }}" gefunden.
+        {% else %}
+          Noch keine Dokumente vorhanden.
+          <a href="{% url 'dokumente:hochladen' %}">Jetzt hochladen.</a>
+        {% endif %}
+      </div>
+      {% endif %}
+
+    </div>
+  </div>
 </div>
 {% endblock %}

@@ -1,0 +1,181 @@
+{% extends "base.html" %}
+{% block title %}{{ dok.titel }} – Dokumente{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-4 py-4">
+
+  <nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb">
+      <li class="breadcrumb-item"><a href="{% url 'dokumente:liste' %}">Dokumente</a></li>
+      <li class="breadcrumb-item active">{{ dok.titel }}</li>
+    </ol>
+  </nav>
+
+  <div class="row g-4">
+
+    {# Dokument-Info #}
+    <div class="col-lg-8">
+      <div class="card mb-3">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <h5 class="mb-0">{{ dok.titel }}</h5>
+          <span class="badge bg-secondary">v{{ dok.version }}</span>
+        </div>
+        <div class="card-body">
+          <dl class="row mb-3 small">
+            <dt class="col-4">Dateiname</dt>
+            <dd class="col-8"><code>{{ dok.dateiname }}</code></dd>
+            <dt class="col-4">Dateityp</dt>
+            <dd class="col-8">{{ dok.dateityp|default:"–" }}</dd>
+            <dt class="col-4">Groesse</dt>
+            <dd class="col-8">{{ dok.groesse_lesbar }}</dd>
+            <dt class="col-4">Kategorie</dt>
+            <dd class="col-8">{{ dok.kategorie|default:"–" }}</dd>
+            {% if dok.tags.all %}
+            <dt class="col-4">Tags</dt>
+            <dd class="col-8">
+              {% for tag in dok.tags.all %}
+              <span class="badge" style="background:{{ tag.farbe }}">{{ tag.name }}</span>
+              {% endfor %}
+            </dd>
+            {% endif %}
+            {% if dok.gueltig_bis %}
+            <dt class="col-4">Gueltig bis</dt>
+            <dd class="col-8">{{ dok.gueltig_bis|date:"d.m.Y" }}</dd>
+            {% endif %}
+            <dt class="col-4">Hochgeladen</dt>
+            <dd class="col-8">
+              {{ dok.erstellt_am|date:"d.m.Y H:i" }}
+              {% if dok.erstellt_von %}
+              von {{ dok.erstellt_von.get_full_name|default:dok.erstellt_von.username }}
+              {% endif %}
+            </dd>
+            <dt class="col-4">Zuletzt geaendert</dt>
+            <dd class="col-8">{{ dok.geaendert_am|date:"d.m.Y H:i" }}</dd>
+          </dl>
+
+          {# Aktionen #}
+          <div class="d-flex flex-wrap gap-2">
+            <a href="{% url 'dokumente:download' dok.pk %}" class="btn btn-primary btn-sm">
+              Download
+            </a>
+            {% if dok.ist_pdf or dok.ist_bild %}
+            <a href="{% url 'dokumente:vorschau' dok.pk %}" target="_blank"
+               class="btn btn-outline-secondary btn-sm">
+              Im Browser ansehen
+            </a>
+            {% endif %}
+            {% if collabora_aktiv and dok.ist_office_dokument %}
+            <a href="{% url 'dokumente:collabora' dok.pk %}" class="btn btn-success btn-sm">
+              In Collabora bearbeiten
+            </a>
+            {% endif %}
+            <a href="{% url 'dokumente:bearbeiten' dok.pk %}" class="btn btn-outline-secondary btn-sm">
+              Metadaten bearbeiten
+            </a>
+            <a href="{% url 'dokumente:protokoll' dok.pk %}" class="btn btn-outline-secondary btn-sm">
+              Protokoll
+            </a>
+            {% if user.is_staff %}
+            <form method="post" action="{% url 'dokumente:loeschen' dok.pk %}"
+                  onsubmit="return confirm('Dokument wirklich loeschen?')">
+              {% csrf_token %}
+              <button type="submit" class="btn btn-outline-danger btn-sm">Loeschen</button>
+            </form>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+
+      {# Neue Version hochladen #}
+      <div class="card mb-3">
+        <div class="card-header"><strong>Neue Version hochladen</strong></div>
+        <div class="card-body">
+          <form method="post" action="{% url 'dokumente:version_hochladen' dok.pk %}"
+                enctype="multipart/form-data" class="d-flex gap-2 flex-wrap align-items-end">
+            {% csrf_token %}
+            <div>
+              <label class="form-label form-label-sm">Datei</label>
+              <input type="file" name="datei" class="form-control form-control-sm">
+            </div>
+            <div class="flex-grow-1">
+              <label class="form-label form-label-sm">Kommentar (optional)</label>
+              <input type="text" name="kommentar" class="form-control form-control-sm"
+                     placeholder="z.B. Korrektur Abschnitt 3">
+            </div>
+            <button type="submit" class="btn btn-sm btn-outline-primary">Hochladen</button>
+          </form>
+        </div>
+      </div>
+
+      {# Versionshistorie #}
+      {% if versionen %}
+      <div class="card">
+        <div class="card-header"><strong>Frueheren Versionen</strong></div>
+        <div class="card-body p-0">
+          <table class="table table-sm mb-0">
+            <thead class="table-light">
+              <tr>
+                <th>Version</th>
+                <th>Groesse</th>
+                <th>Erstellt von</th>
+                <th>Erstellt am</th>
+                <th>Kommentar</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for v in versionen %}
+              <tr>
+                <td>v{{ v.version_nr }}</td>
+                <td><small>{{ v.groesse_bytes|filesizeformat }}</small></td>
+                <td>{{ v.erstellt_von.username|default:"–" }}</td>
+                <td><small>{{ v.erstellt_am|date:"d.m.Y H:i" }}</small></td>
+                <td><small>{{ v.kommentar|default:"–" }}</small></td>
+                <td>
+                  <form method="post"
+                        action="{% url 'dokumente:version_wiederherstellen' dok.pk v.version_nr %}"
+                        onsubmit="return confirm('Version {{ v.version_nr }} wiederherstellen?')">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-xs btn-sm btn-outline-warning">
+                      Wiederherstellen
+                    </button>
+                  </form>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      {% endif %}
+    </div>
+
+    {# Sidebar: Letzte Zugriffe #}
+    <div class="col-lg-4">
+      {% if protokolle %}
+      <div class="card">
+        <div class="card-header">
+          <strong>Letzte Zugriffe</strong>
+          <a href="{% url 'dokumente:protokoll' dok.pk %}" class="float-end small">alle</a>
+        </div>
+        <div class="list-group list-group-flush">
+          {% for eintrag in protokolle %}
+          <div class="list-group-item py-2">
+            <div class="d-flex justify-content-between">
+              <span class="badge bg-secondary">{{ eintrag.get_aktion_display }}</span>
+              <small class="text-muted">{{ eintrag.zeitpunkt|date:"d.m. H:i" }}</small>
+            </div>
+            <small class="text-muted">
+              {{ eintrag.user.username|default:"–" }}
+              {% if eintrag.notiz %} – {{ eintrag.notiz }}{% endif %}
+            </small>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+    </div>
+
+  </div>
+</div>
+{% endblock %}
