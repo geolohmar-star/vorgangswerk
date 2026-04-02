@@ -1,0 +1,29 @@
+# SPDX-License-Identifier: EUPL-1.2
+# Copyright (C) 2026 Georg Klein
+
+# Django
+Django>=5.1,<6.0
+psycopg2-binary>=2.9
+
+# Auth + MFA
+django-otp>=1.5
+
+# PDF-Generierung
+weasyprint>=62.0
+
+# Dokumente
+python-docx>=1.1
+openpyxl>=3.1
+
+# Verschluesselung
+cryptography>=42.0
+
+# Umgebungsvariablen
+python-decouple>=3.8
+
+# Statische Dateien
+whitenoise>=6.7
+gunicorn>=22.0
+
+# HTTP
+requests>=2.32

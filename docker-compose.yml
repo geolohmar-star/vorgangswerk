@@ -1,0 +1,95 @@
+# SPDX-License-Identifier: EUPL-1.2
+# Copyright (C) 2026 Georg Klein
+# Vorgangswerk – docker compose up
+
+services:
+
+  # ---------------------------------------------------------------------------
+  # Datenbank
+  # ---------------------------------------------------------------------------
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: vorgangswerk
+      POSTGRES_USER: vorgangswerk
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-vorgangswerk}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U vorgangswerk"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # ---------------------------------------------------------------------------
+  # Web-App
+  # ---------------------------------------------------------------------------
+  web:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      SECRET_KEY: ${SECRET_KEY:-dev-key-bitte-aendern}
+      DEBUG: ${DEBUG:-False}
+      DB_HOST: db
+      DB_NAME: vorgangswerk
+      DB_USER: vorgangswerk
+      DB_PASSWORD: ${DB_PASSWORD:-vorgangswerk}
+      ALLOWED_HOSTS: ${ALLOWED_HOSTS:-localhost,127.0.0.1}
+      COLLABORA_URL: ${COLLABORA_URL:-}
+      VERSCHLUESSEL_KEY: ${VERSCHLUESSEL_KEY:-}
+      SIGNME_API_KEY: ${SIGNME_API_KEY:-}
+      EMAIL_HOST: ${EMAIL_HOST:-}
+      EMAIL_PORT: ${EMAIL_PORT:-587}
+      EMAIL_HOST_USER: ${EMAIL_HOST_USER:-}
+      EMAIL_HOST_PASSWORD: ${EMAIL_HOST_PASSWORD:-}
+      IMAP_HOST: ${IMAP_HOST:-}
+      IMAP_USER: ${IMAP_USER:-}
+      IMAP_PASSWORD: ${IMAP_PASSWORD:-}
+    ports:
+      - "8000:8000"
+    volumes:
+      - staticfiles:/app/staticfiles
+
+  # ---------------------------------------------------------------------------
+  # E-Mail-Worker (IMAP-Polling)
+  # ---------------------------------------------------------------------------
+  worker:
+    build: .
+    restart: unless-stopped
+    command: python manage.py email_worker
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      SECRET_KEY: ${SECRET_KEY:-dev-key-bitte-aendern}
+      DEBUG: ${DEBUG:-False}
+      DB_HOST: db
+      DB_NAME: vorgangswerk
+      DB_USER: vorgangswerk
+      DB_PASSWORD: ${DB_PASSWORD:-vorgangswerk}
+      IMAP_HOST: ${IMAP_HOST:-}
+      IMAP_USER: ${IMAP_USER:-}
+      IMAP_PASSWORD: ${IMAP_PASSWORD:-}
+
+  # ---------------------------------------------------------------------------
+  # Collabora Online (optional – auskommentieren wenn nicht benoetigt)
+  # ---------------------------------------------------------------------------
+  # collabora:
+  #   image: collabora/code:latest
+  #   restart: unless-stopped
+  #   environment:
+  #     aliasgroup1: http://web:8000
+  #     DONT_GEN_SSL_CERT: "YES"
+  #     extra_params: --o:ssl.enable=false --o:ssl.termination=true
+  #   ports:
+  #     - "9980:9980"
+  #   cap_add:
+  #     - MKNOD
+
+volumes:
+  pgdata:
+  staticfiles:
