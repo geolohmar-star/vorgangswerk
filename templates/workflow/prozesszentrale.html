@@ -1,0 +1,148 @@
+{% extends "base.html" %}
+{% block title %}Prozesszentrale – Vorgangswerk{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-4 py-4">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h1 class="h3 mb-0">Prozesszentrale</h1>
+    <div class="d-flex gap-2">
+      <a href="{% url 'workflow:trigger_liste' %}" class="btn btn-sm btn-outline-secondary">
+        Trigger verwalten
+      </a>
+      <a href="{% url 'workflow:editor_neu' %}" class="btn btn-sm btn-primary">
+        + Neuer Workflow
+      </a>
+    </div>
+  </div>
+
+  {# Ueberfaellige Tasks #}
+  {% if ueberfaellige_tasks %}
+  <div class="card border-danger mb-4">
+    <div class="card-header bg-danger text-white d-flex justify-content-between">
+      <strong>Ueberfaellige Tasks</strong>
+      <span class="badge bg-white text-danger">{{ ueberfaellige_tasks|length }}</span>
+    </div>
+    <div class="card-body p-0">
+      <div class="table-responsive">
+        <table class="table table-sm mb-0">
+          <thead class="table-light">
+            <tr>
+              <th>Task</th>
+              <th>Workflow</th>
+              <th>Zugewiesen an</th>
+              <th>Frist</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for task in ueberfaellige_tasks %}
+            <tr>
+              <td>{{ task.step.titel }}</td>
+              <td>{{ task.step.template.name }}</td>
+              <td>
+                {% if task.zugewiesen_an_gruppe %}{{ task.zugewiesen_an_gruppe.name }}
+                {% elif task.zugewiesen_an_user %}{{ task.zugewiesen_an_user.username }}
+                {% else %}–{% endif %}
+              </td>
+              <td class="text-danger">{{ task.frist|date:"d.m.Y H:i" }}</td>
+              <td>
+                <a href="{% url 'workflow:task_detail' task.pk %}" class="btn btn-sm btn-outline-danger">
+                  Anzeigen
+                </a>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  {# Laufende Instanzen #}
+  <div class="card mb-4">
+    <div class="card-header d-flex justify-content-between">
+      <strong>Laufende Workflow-Instanzen</strong>
+      <span class="badge bg-primary">{{ instanzen_laufend|length }}</span>
+    </div>
+    <div class="card-body p-0">
+      {% if instanzen_laufend %}
+      <div class="table-responsive">
+        <table class="table table-sm mb-0">
+          <thead class="table-light">
+            <tr>
+              <th>#</th>
+              <th>Workflow</th>
+              <th>Akt. Schritt</th>
+              <th>Fortschritt</th>
+              <th>Gestartet</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for inst in instanzen_laufend %}
+            <tr>
+              <td>{{ inst.pk }}</td>
+              <td>{{ inst.template.name }}</td>
+              <td>{{ inst.aktueller_schritt.titel|default:"–" }}</td>
+              <td>
+                <div class="progress" style="width:60px;height:6px;">
+                  <div class="progress-bar" style="width:{{ inst.fortschritt }}%"></div>
+                </div>
+              </td>
+              <td>{{ inst.gestartet_am|date:"d.m.Y" }}</td>
+              <td>
+                <a href="{% url 'workflow:instanz_detail' inst.pk %}" class="btn btn-sm btn-outline-secondary">
+                  Detail
+                </a>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <p class="text-muted p-3 mb-0">Keine laufenden Instanzen.</p>
+      {% endif %}
+    </div>
+  </div>
+
+  {# Prozessantraege #}
+  <div class="card">
+    <div class="card-header"><strong>Prozessantraege</strong></div>
+    <div class="card-body p-0">
+      {% if antraege %}
+      <div class="table-responsive">
+        <table class="table table-sm mb-0">
+          <thead class="table-light">
+            <tr>
+              <th>Prozess</th>
+              <th>Antragsteller</th>
+              <th>Status</th>
+              <th>Eingereicht</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for antrag in antraege %}
+            <tr>
+              <td>{{ antrag.name }}</td>
+              <td>{{ antrag.antragsteller.get_full_name|default:antrag.antragsteller.username }}</td>
+              <td>
+                <span class="badge bg-{% if antrag.status == 'umgesetzt' %}success{% elif antrag.status == 'abgelehnt' %}danger{% elif antrag.status == 'eingereicht' %}warning text-dark{% else %}secondary{% endif %}">
+                  {{ antrag.get_status_display }}
+                </span>
+              </td>
+              <td>{{ antrag.erstellt_am|date:"d.m.Y" }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <p class="text-muted p-3 mb-0">Keine Prozessantraege.</p>
+      {% endif %}
+    </div>
+  </div>
+
+</div>
+{% endblock %}

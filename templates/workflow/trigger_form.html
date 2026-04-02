@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}Trigger {{ aktion }} – Vorgangswerk{% endblock %}
+
+{% block content %}
+<div class="container px-4 py-4" style="max-width:680px;">
+  <nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb">
+      <li class="breadcrumb-item"><a href="{% url 'workflow:trigger_liste' %}">Trigger</a></li>
+      <li class="breadcrumb-item active">{{ aktion }}</li>
+    </ol>
+  </nav>
+
+  <h1 class="h4 mb-4">Trigger {{ aktion }}</h1>
+
+  <div class="card">
+    <div class="card-body">
+      <form method="post">
+        {% csrf_token %}
+
+        {% for field in form %}
+        <div class="mb-3">
+          <label class="form-label fw-semibold">{{ field.label }}</label>
+          {{ field }}
+          {% if field.help_text %}
+          <div class="form-text">{{ field.help_text }}</div>
+          {% endif %}
+          {% for err in field.errors %}
+          <div class="text-danger small">{{ err }}</div>
+          {% endfor %}
+        </div>
+        {% endfor %}
+
+        <div class="d-flex gap-2 mt-4">
+          <button type="submit" class="btn btn-primary">Speichern</button>
+          <a href="{% url 'workflow:trigger_liste' %}" class="btn btn-outline-secondary">Abbrechen</a>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

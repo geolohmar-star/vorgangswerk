@@ -1,0 +1,140 @@
+{% extends "base.html" %}
+{% block title %}{{ template.name }} – Workflow-Templates{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-4 py-4">
+
+  <nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb">
+      <li class="breadcrumb-item"><a href="{% url 'workflow:liste' %}">Workflows</a></li>
+      <li class="breadcrumb-item active">{{ template.name }}</li>
+    </ol>
+  </nav>
+
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h1 class="h3 mb-0">{{ template.name }} <small class="text-muted fs-6">v{{ template.version }}</small></h1>
+    {% if user.is_staff %}
+    <a href="{% url 'workflow:editor' template.pk %}" class="btn btn-primary btn-sm">
+      Im Editor bearbeiten
+    </a>
+    {% endif %}
+  </div>
+
+  <div class="row g-4">
+
+    {# Meta #}
+    <div class="col-lg-4">
+      <div class="card">
+        <div class="card-header"><strong>Eigenschaften</strong></div>
+        <div class="card-body">
+          <dl class="row mb-0 small">
+            <dt class="col-5">Kategorie</dt>
+            <dd class="col-7">{{ template.get_kategorie_display }}</dd>
+            <dt class="col-5">Graph-Workflow</dt>
+            <dd class="col-7">{{ template.ist_graph_workflow|yesno:"Ja,Nein" }}</dd>
+            <dt class="col-5">Aktiv</dt>
+            <dd class="col-7">{{ template.ist_aktiv|yesno:"Ja,Nein" }}</dd>
+            <dt class="col-5">Erstellt</dt>
+            <dd class="col-7">{{ template.erstellt_am|date:"d.m.Y" }}</dd>
+            {% if template.beschreibung %}
+            <dt class="col-5">Beschreibung</dt>
+            <dd class="col-7">{{ template.beschreibung }}</dd>
+            {% endif %}
+          </dl>
+        </div>
+      </div>
+    </div>
+
+    {# Schritte #}
+    <div class="col-lg-8">
+      <div class="card">
+        <div class="card-header"><strong>Schritte ({{ schritte|length }})</strong></div>
+        <div class="card-body p-0">
+          <div class="table-responsive">
+            <table class="table table-sm mb-0">
+              <thead class="table-light">
+                <tr>
+                  <th>#</th>
+                  <th>Titel</th>
+                  <th>Typ</th>
+                  <th>Zustaendig</th>
+                  <th>Frist</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for s in schritte %}
+                <tr>
+                  <td>{{ s.reihenfolge }}</td>
+                  <td>{{ s.titel }}</td>
+                  <td>
+                    <span class="badge bg-{% if s.schritt_typ == 'auto' %}warning text-dark{% elif s.schritt_typ == 'decision' %}info{% else %}secondary{% endif %}">
+                      {{ s.get_schritt_typ_display }}
+                    </span>
+                  </td>
+                  <td>
+                    {% if s.zustaendig_gruppe %}{{ s.zustaendig_gruppe.name }}
+                    {% elif s.zustaendig_user %}{{ s.zustaendig_user.get_full_name|default:s.zustaendig_user.username }}
+                    {% else %}{{ s.get_zustaendig_rolle_display }}{% endif %}
+                  </td>
+                  <td>{{ s.frist_tage }} Tage</td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    {# Laufende Instanzen #}
+    {% if instanzen %}
+    <div class="col-12">
+      <div class="card">
+        <div class="card-header"><strong>Letzte Instanzen</strong></div>
+        <div class="card-body p-0">
+          <div class="table-responsive">
+            <table class="table table-sm mb-0">
+              <thead class="table-light">
+                <tr>
+                  <th>#</th>
+                  <th>Status</th>
+                  <th>Fortschritt</th>
+                  <th>Gestartet von</th>
+                  <th>Gestartet am</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for inst in instanzen %}
+                <tr>
+                  <td>{{ inst.pk }}</td>
+                  <td>
+                    <span class="badge bg-{% if inst.status == 'laufend' %}primary{% elif inst.status == 'abgeschlossen' %}success{% else %}secondary{% endif %}">
+                      {{ inst.get_status_display }}
+                    </span>
+                  </td>
+                  <td>
+                    <div class="progress" style="width:80px;height:6px;">
+                      <div class="progress-bar" style="width:{{ inst.fortschritt }}%"></div>
+                    </div>
+                  </td>
+                  <td>{{ inst.gestartet_von.get_full_name|default:inst.gestartet_von.username|default:"–" }}</td>
+                  <td>{{ inst.gestartet_am|date:"d.m.Y" }}</td>
+                  <td>
+                    <a href="{% url 'workflow:instanz_detail' inst.pk %}" class="btn btn-xs btn-sm btn-outline-secondary">
+                      Detail
+                    </a>
+                  </td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+  </div>
+</div>
+{% endblock %}

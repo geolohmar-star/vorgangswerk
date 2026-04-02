@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+{% block title %}Workflow-Instanz #{{ instanz.pk }} – Vorgangswerk{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-4 py-4">
+
+  <nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb">
+      <li class="breadcrumb-item"><a href="{% url 'workflow:liste' %}">Workflows</a></li>
+      <li class="breadcrumb-item">
+        <a href="{% url 'workflow:detail' instanz.template.pk %}">{{ instanz.template.name }}</a>
+      </li>
+      <li class="breadcrumb-item active">Instanz #{{ instanz.pk }}</li>
+    </ol>
+  </nav>
+
+  <div class="row g-4">
+
+    {# Status-Karte #}
+    <div class="col-lg-4">
+      <div class="card mb-3">
+        <div class="card-header"><strong>Instanz-Status</strong></div>
+        <div class="card-body">
+          <dl class="row mb-0 small">
+            <dt class="col-5">Status</dt>
+            <dd class="col-7">
+              <span class="badge bg-{% if instanz.status == 'laufend' %}primary{% elif instanz.status == 'abgeschlossen' %}success{% else %}secondary{% endif %}">
+                {{ instanz.get_status_display }}
+              </span>
+            </dd>
+            <dt class="col-5">Fortschritt</dt>
+            <dd class="col-7">
+              <div class="progress mb-1" style="height:8px;">
+                <div class="progress-bar" style="width:{{ instanz.fortschritt }}%"></div>
+              </div>
+              {{ instanz.fortschritt }} %
+            </dd>
+            <dt class="col-5">Gestartet</dt>
+            <dd class="col-7">{{ instanz.gestartet_am|date:"d.m.Y H:i" }}</dd>
+            {% if instanz.gestartet_von %}
+            <dt class="col-5">Gestartet von</dt>
+            <dd class="col-7">{{ instanz.gestartet_von.get_full_name|default:instanz.gestartet_von.username }}</dd>
+            {% endif %}
+            {% if instanz.abgeschlossen_am %}
+            <dt class="col-5">Abgeschlossen</dt>
+            <dd class="col-7">{{ instanz.abgeschlossen_am|date:"d.m.Y H:i" }}</dd>
+            {% endif %}
+            {% if instanz.aktueller_schritt %}
+            <dt class="col-5">Akt. Schritt</dt>
+            <dd class="col-7">{{ instanz.aktueller_schritt.titel }}</dd>
+            {% endif %}
+          </dl>
+          {% if content_object %}
+          <hr>
+          <small class="text-muted">Verknuepftes Objekt:</small>
+          <p class="mb-0">{{ content_object }}</p>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    {# Task-Verlauf #}
+    <div class="col-lg-8">
+      <div class="card">
+        <div class="card-header"><strong>Task-Verlauf</strong></div>
+        <div class="card-body p-0">
+          <div class="table-responsive">
+            <table class="table table-sm mb-0">
+              <thead class="table-light">
+                <tr>
+                  <th>Schritt</th>
+                  <th>Status</th>
+                  <th>Entscheidung</th>
+                  <th>Zugewiesen an</th>
+                  <th>Erledigt von</th>
+                  <th>Erledigt am</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for task in tasks %}
+                <tr>
+                  <td>{{ task.step.titel }}</td>
+                  <td>
+                    <span class="badge bg-{% if task.status == 'erledigt' %}success{% elif task.status == 'in_bearbeitung' %}info{% elif task.status == 'eskaliert' %}danger{% else %}secondary{% endif %}">
+                      {{ task.get_status_display }}
+                    </span>
+                  </td>
+                  <td>
+                    {% if task.entscheidung %}
+                    <span class="badge bg-{% if task.entscheidung == 'genehmigt' %}success{% elif task.entscheidung == 'abgelehnt' %}danger{% else %}secondary{% endif %}">
+                      {{ task.get_entscheidung_display }}
+                    </span>
+                    {% else %}–{% endif %}
+                  </td>
+                  <td>
+                    {% if task.zugewiesen_an_gruppe %}{{ task.zugewiesen_an_gruppe.name }}
+                    {% elif task.zugewiesen_an_user %}{{ task.zugewiesen_an_user.get_full_name|default:task.zugewiesen_an_user.username }}
+                    {% else %}–{% endif %}
+                  </td>
+                  <td>
+                    {% if task.erledigt_von %}
+                    {{ task.erledigt_von.get_full_name|default:task.erledigt_von.username }}
+                    {% else %}–{% endif %}
+                  </td>
+                  <td>
+                    {% if task.erledigt_am %}{{ task.erledigt_am|date:"d.m.Y H:i" }}{% else %}–{% endif %}
+                  </td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+{% endblock %}

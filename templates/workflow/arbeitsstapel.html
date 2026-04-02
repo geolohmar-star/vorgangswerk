@@ -1,0 +1,162 @@
+{% extends "base.html" %}
+{% block title %}Arbeitsstapel – Vorgangswerk{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-4 py-4">
+
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h1 class="h3 mb-0">Mein Arbeitsstapel</h1>
+    <div class="d-flex gap-2">
+      {% if user.is_staff %}
+      <a href="{% url 'workflow:prozesszentrale' %}" class="btn btn-sm btn-outline-secondary">
+        Prozesszentrale
+      </a>
+      {% endif %}
+      <a href="{% url 'workflow:liste' %}" class="btn btn-sm btn-outline-secondary">
+        Alle Workflows
+      </a>
+    </div>
+  </div>
+
+  {# Eigene Tasks #}
+  <div class="card mb-4">
+    <div class="card-header d-flex justify-content-between align-items-center">
+      <strong>Direkt zugewiesene Tasks</strong>
+      <span class="badge bg-primary">{{ eigene_anzahl }}</span>
+    </div>
+    <div class="card-body p-0">
+      {% if eigene_tasks %}
+      <div class="table-responsive">
+        <table class="table table-hover mb-0">
+          <thead class="table-light">
+            <tr>
+              <th>Schritt</th>
+              <th>Workflow</th>
+              <th>Status</th>
+              <th>Frist</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for task in eigene_tasks %}
+            <tr class="{% if task.ist_ueberfaellig %}table-danger{% elif task.ist_heute_faellig %}table-warning{% endif %}">
+              <td>{{ task.step.titel }}</td>
+              <td>{{ task.step.template.name }}</td>
+              <td>
+                <span class="badge bg-{% if task.status == 'in_bearbeitung' %}info{% else %}secondary{% endif %}">
+                  {{ task.get_status_display }}
+                </span>
+              </td>
+              <td>
+                {{ task.frist|date:"d.m.Y H:i" }}
+                {% if task.ist_ueberfaellig %}
+                <span class="text-danger fw-bold ms-1">ueberfaellig</span>
+                {% endif %}
+              </td>
+              <td>
+                <a href="{% url 'workflow:task_detail' task.pk %}" class="btn btn-sm btn-primary">
+                  Bearbeiten
+                </a>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <p class="text-muted p-3 mb-0">Keine direkt zugewiesenen Tasks.</p>
+      {% endif %}
+    </div>
+  </div>
+
+  {# Geclaimte Gruppen-Tasks #}
+  {% if geclaimte_anzahl %}
+  <div class="card mb-4">
+    <div class="card-header d-flex justify-content-between align-items-center">
+      <strong>Abgeholte Gruppen-Tasks</strong>
+      <span class="badge bg-info">{{ geclaimte_anzahl }}</span>
+    </div>
+    <div class="card-body p-0">
+      <div class="table-responsive">
+        <table class="table table-hover mb-0">
+          <thead class="table-light">
+            <tr>
+              <th>Schritt</th>
+              <th>Workflow</th>
+              <th>Frist</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for task in geclaimte_tasks %}
+            <tr class="{% if task.ist_ueberfaellig %}table-danger{% endif %}">
+              <td>{{ task.step.titel }}</td>
+              <td>{{ task.step.template.name }}</td>
+              <td>{{ task.frist|date:"d.m.Y H:i" }}</td>
+              <td class="d-flex gap-1">
+                <a href="{% url 'workflow:task_detail' task.pk %}" class="btn btn-sm btn-primary">
+                  Bearbeiten
+                </a>
+                <form method="post" action="{% url 'workflow:task_zurueckgeben' task.pk %}">
+                  {% csrf_token %}
+                  <button type="submit" class="btn btn-sm btn-outline-secondary">
+                    Zurueckgeben
+                  </button>
+                </form>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  {# Gruppen-Tasks #}
+  <div class="card mb-4">
+    <div class="card-header d-flex justify-content-between align-items-center">
+      <strong>Gruppen-Tasks (verfuegbar)</strong>
+      <span class="badge bg-warning text-dark">{{ gruppen_anzahl }}</span>
+    </div>
+    <div class="card-body p-0">
+      {% if gruppen_tasks %}
+      <div class="table-responsive">
+        <table class="table table-hover mb-0">
+          <thead class="table-light">
+            <tr>
+              <th>Schritt</th>
+              <th>Workflow</th>
+              <th>Gruppe</th>
+              <th>Frist</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for task in gruppen_tasks %}
+            <tr class="{% if task.ist_ueberfaellig %}table-danger{% elif task.ist_heute_faellig %}table-warning{% endif %}">
+              <td>{{ task.step.titel }}</td>
+              <td>{{ task.step.template.name }}</td>
+              <td>{{ task.zugewiesen_an_gruppe.name }}</td>
+              <td>{{ task.frist|date:"d.m.Y H:i" }}</td>
+              <td>
+                <form method="post" action="{% url 'workflow:task_abholen' task.pk %}">
+                  {% csrf_token %}
+                  <button type="submit" class="btn btn-sm btn-warning">
+                    Abholen
+                  </button>
+                </form>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <p class="text-muted p-3 mb-0">Keine Gruppen-Tasks verfuegbar.</p>
+      {% endif %}
+    </div>
+  </div>
+
+</div>
+{% endblock %}

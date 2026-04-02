@@ -1,8 +1,59 @@
 {% extends "base.html" %}
-{% block title %}Workflow – Vorgangswerk{% endblock %}
+{% block title %}Workflow-Templates – Vorgangswerk{% endblock %}
+
 {% block content %}
-<div class="container py-4">
-    <h1 class="h3 fw-bold" style="color:#1a4d2e;">Workflow</h1>
-    <p class="text-muted">Kommt bald.</p>
+<div class="container-fluid px-4 py-4">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h1 class="h3 mb-0">Workflow-Templates</h1>
+    {% if user.is_staff %}
+    <a href="{% url 'workflow:editor_neu' %}" class="btn btn-primary btn-sm">
+      + Neuer Workflow
+    </a>
+    {% endif %}
+  </div>
+
+  {% if templates %}
+  <div class="row g-3">
+    {% for tmpl in templates %}
+    <div class="col-md-6 col-xl-4">
+      <div class="card h-100">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-start mb-2">
+            <h6 class="card-title mb-0">{{ tmpl.name }}</h6>
+            <span class="badge bg-secondary">v{{ tmpl.version }}</span>
+          </div>
+          <p class="card-text text-muted small mb-3">
+            {{ tmpl.beschreibung|default:"Keine Beschreibung." }}
+          </p>
+          <div class="d-flex gap-2 small text-muted mb-3">
+            <span>{{ tmpl.anzahl_schritte }} Schritte</span>
+            <span>&bull;</span>
+            <span>{{ tmpl.laufende_instanzen }} laufend</span>
+            <span>&bull;</span>
+            <span>{{ tmpl.get_kategorie_display }}</span>
+          </div>
+          <div class="d-flex gap-2">
+            <a href="{% url 'workflow:detail' tmpl.pk %}" class="btn btn-sm btn-outline-primary">
+              Details
+            </a>
+            {% if user.is_staff %}
+            <a href="{% url 'workflow:editor' tmpl.pk %}" class="btn btn-sm btn-outline-secondary">
+              Bearbeiten
+            </a>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="alert alert-info">
+    Es gibt noch keine Workflow-Templates.
+    {% if user.is_staff %}
+    <a href="{% url 'workflow:editor_neu' %}">Jetzt einen Workflow anlegen.</a>
+    {% endif %}
+  </div>
+  {% endif %}
 </div>
 {% endblock %}

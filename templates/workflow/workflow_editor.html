@@ -1,0 +1,200 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}Workflow-Editor{% if template %}: {{ template.name }}{% endif %} – Vorgangswerk{% endblock %}
+
+{% block extra_css %}
+<style>
+  #editor-canvas {
+    width: 100%;
+    height: 600px;
+    border: 1px solid #dee2e6;
+    border-radius: 4px;
+    background: #fafafa;
+  }
+  #editor-canvas .vis-network { outline: none; }
+  #node-panel { min-width: 300px; }
+  .schritt-typ-auto { background: #fff3cd; }
+  .schritt-typ-decision { background: #d1ecf1; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-4 py-4">
+
+  <nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb">
+      <li class="breadcrumb-item"><a href="{% url 'workflow:liste' %}">Workflows</a></li>
+      <li class="breadcrumb-item active">
+        {% if template %}{{ template.name }}{% else %}Neuer Workflow{% endif %}
+      </li>
+    </ol>
+  </nav>
+
+  {# Toolbar #}
+  <div class="d-flex gap-2 align-items-center mb-3 flex-wrap">
+    <button id="btn-add-node" class="btn btn-sm btn-outline-primary">+ Schritt</button>
+    <button id="btn-add-edge" class="btn btn-sm btn-outline-secondary">+ Verbindung</button>
+    <button id="btn-delete" class="btn btn-sm btn-outline-danger">Loeschen</button>
+    <div class="vr mx-1"></div>
+    <button id="btn-save" class="btn btn-sm btn-success">Speichern</button>
+    {% if template %}
+    <a href="{% url 'workflow:detail' template.pk %}" class="btn btn-sm btn-outline-secondary ms-auto">
+      Abbrechen
+    </a>
+    {% else %}
+    <a href="{% url 'workflow:liste' %}" class="btn btn-sm btn-outline-secondary ms-auto">
+      Abbrechen
+    </a>
+    {% endif %}
+  </div>
+
+  <div class="row g-3">
+
+    {# Graph-Canvas #}
+    <div class="col-lg-8">
+      <div id="editor-canvas"></div>
+      <small id="editor-hint" class="text-muted">
+        Klick auf Leinwand: Schritt hinzufuegen. Ziehen: Verbindung erstellen. Entf: loeschen.
+      </small>
+    </div>
+
+    {# Seitenleiste: Meta + Node-Konfiguration #}
+    <div class="col-lg-4" id="node-panel">
+
+      {# Workflow-Meta #}
+      <div class="card mb-3" id="meta-panel">
+        <div class="card-header"><strong>Workflow-Eigenschaften</strong></div>
+        <div class="card-body">
+          <div class="mb-2">
+            <label class="form-label form-label-sm">Name</label>
+            <input type="text" id="meta-name" class="form-control form-control-sm"
+                   value="{{ template.name|default:'' }}" placeholder="z.B. Urlaubsantrag">
+          </div>
+          <div class="mb-2">
+            <label class="form-label form-label-sm">Beschreibung</label>
+            <textarea id="meta-beschreibung" class="form-control form-control-sm" rows="2"
+                      placeholder="Kurzbeschreibung...">{{ template.beschreibung|default:'' }}</textarea>
+          </div>
+          <div class="mb-2">
+            <label class="form-label form-label-sm">Kategorie</label>
+            <select id="meta-kategorie" class="form-select form-select-sm">
+              {% for val, label in aktion_choices %}
+              {% endfor %}
+              <option value="genehmigung" {% if template.kategorie == 'genehmigung' %}selected{% endif %}>Genehmigung</option>
+              <option value="pruefung" {% if template.kategorie == 'pruefung' %}selected{% endif %}>Pruefung</option>
+              <option value="information" {% if template.kategorie == 'information' %}selected{% endif %}>Information</option>
+              <option value="bearbeitung" {% if template.kategorie == 'bearbeitung' %}selected{% endif %}>Bearbeitung</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      {# Node-Konfiguration (wird eingeblendet wenn Node selektiert) #}
+      <div class="card d-none" id="selected-node-panel">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <strong>Schritt konfigurieren</strong>
+          <button id="btn-node-close" class="btn-close btn-sm"></button>
+        </div>
+        <div class="card-body">
+          <div class="mb-2">
+            <label class="form-label form-label-sm">Titel</label>
+            <input type="text" id="node-titel" class="form-control form-control-sm">
+          </div>
+          <div class="mb-2">
+            <label class="form-label form-label-sm">Beschreibung</label>
+            <textarea id="node-beschreibung" class="form-control form-control-sm" rows="2"></textarea>
+          </div>
+          <div class="mb-2">
+            <label class="form-label form-label-sm">Schritt-Typ</label>
+            <select id="node-schritt-typ" class="form-select form-select-sm">
+              {% for val, label in schritt_typ_choices %}
+              <option value="{{ val }}">{{ label }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="mb-2">
+            <label class="form-label form-label-sm">Aktionstyp</label>
+            <select id="node-aktion-typ" class="form-select form-select-sm">
+              {% for val, label in aktion_choices %}
+              <option value="{{ val }}">{{ label }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="mb-2">
+            <label class="form-label form-label-sm">Zustaendigkeit</label>
+            <select id="node-rolle" class="form-select form-select-sm">
+              {% for val, label in rolle_choices %}
+              <option value="{{ val }}">{{ label }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="mb-2" id="gruppe-select-wrap">
+            <label class="form-label form-label-sm">Gruppe</label>
+            <select id="node-gruppe" class="form-select form-select-sm">
+              <option value="">– keine –</option>
+            </select>
+          </div>
+          <div class="mb-2" id="user-select-wrap">
+            <label class="form-label form-label-sm">Spezifischer Benutzer</label>
+            <select id="node-user" class="form-select form-select-sm">
+              <option value="">– keiner –</option>
+            </select>
+          </div>
+          <div class="mb-2">
+            <label class="form-label form-label-sm">Frist (Tage)</label>
+            <input type="number" id="node-frist" class="form-control form-control-sm" value="3" min="1">
+          </div>
+          <button id="btn-node-apply" class="btn btn-sm btn-primary w-100">Uebernehmen</button>
+        </div>
+      </div>
+
+      {# Edge-Konfiguration #}
+      <div class="card d-none" id="selected-edge-panel">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <strong>Verbindung konfigurieren</strong>
+          <button id="btn-edge-close" class="btn-close btn-sm"></button>
+        </div>
+        <div class="card-body">
+          <div class="mb-2">
+            <label class="form-label form-label-sm">Bedingungstyp</label>
+            <select id="edge-bedingung-typ" class="form-select form-select-sm">
+              {% for val, label in bedingung_choices %}
+              <option value="{{ val }}">{{ label }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="mb-2" id="edge-entscheidung-wrap">
+            <label class="form-label form-label-sm">Erwartete Entscheidung</label>
+            <select id="edge-entscheidung" class="form-select form-select-sm">
+              <option value="">– alle –</option>
+              {% for val, label in entscheidung_choices %}
+              <option value="{{ val }}">{{ label }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="mb-2">
+            <label class="form-label form-label-sm">Label</label>
+            <input type="text" id="edge-label" class="form-control form-control-sm"
+                   placeholder="z.B. genehmigt">
+          </div>
+          <button id="btn-edge-apply" class="btn btn-sm btn-primary w-100">Uebernehmen</button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+</div>
+
+{# Daten fuer JS #}
+{{ gruppen_json|json_script:"gruppen-data" }}
+{{ users_json|json_script:"users-data" }}
+{% if template %}
+<span id="template-id" data-id="{{ template.pk }}" class="d-none"></span>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'js/vis-network.min.js' %}"></script>
+<script src="{% static 'js/workflow_editor.js' %}"></script>
+{% endblock %}

@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}Prozessantrag einreichen – Vorgangswerk{% endblock %}
+
+{% block content %}
+<div class="container px-4 py-4" style="max-width:720px;">
+  <nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb">
+      <li class="breadcrumb-item"><a href="{% url 'workflow:prozessantrag_liste' %}">Meine Antraege</a></li>
+      <li class="breadcrumb-item active">Neuer Prozessantrag</li>
+    </ol>
+  </nav>
+
+  <h1 class="h4 mb-1">Prozessantrag einreichen</h1>
+  <p class="text-muted mb-4">
+    Du moechtest einen neuen automatisierten Prozess in Vorgangswerk? Beschreibe ihn hier –
+    wir melden uns, wenn er eingerichtet ist.
+  </p>
+
+  <div class="card">
+    <div class="card-body">
+      <form method="post">
+        {% csrf_token %}
+
+        {% for field in form %}
+        <div class="mb-3">
+          <label class="form-label fw-semibold">{{ field.label }}</label>
+          {{ field }}
+          {% if field.help_text %}
+          <div class="form-text">{{ field.help_text }}</div>
+          {% endif %}
+          {% for err in field.errors %}
+          <div class="text-danger small">{{ err }}</div>
+          {% endfor %}
+        </div>
+        {% endfor %}
+
+        <div class="d-flex gap-2 mt-4">
+          <button type="submit" class="btn btn-primary">Antrag einreichen</button>
+          <a href="{% url 'workflow:prozessantrag_liste' %}" class="btn btn-outline-secondary">Abbrechen</a>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

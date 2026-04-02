@@ -1,0 +1,147 @@
+{% extends "base.html" %}
+{% block title %}Task: {{ task.step.titel }} – Vorgangswerk{% endblock %}
+
+{% block content %}
+<div class="container px-4 py-4">
+  <div class="row">
+
+    {# Task-Info #}
+    <div class="col-lg-7">
+      <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+          <li class="breadcrumb-item">
+            <a href="{% url 'workflow:arbeitsstapel' %}">Arbeitsstapel</a>
+          </li>
+          <li class="breadcrumb-item active">{{ task.step.titel }}</li>
+        </ol>
+      </nav>
+
+      <div class="card mb-4">
+        <div class="card-header">
+          <h5 class="mb-0">{{ task.step.titel }}</h5>
+          <small class="text-muted">{{ task.step.template.name }}</small>
+        </div>
+        <div class="card-body">
+          {% if task.step.beschreibung %}
+          <div class="mb-3">
+            <strong>Anweisung:</strong>
+            <p class="mt-1">{{ task.step.beschreibung }}</p>
+          </div>
+          {% endif %}
+
+          <div class="row g-3 mb-3">
+            <div class="col-sm-6">
+              <div class="border rounded p-2">
+                <small class="text-muted d-block">Frist</small>
+                <strong class="{% if task.ist_ueberfaellig %}text-danger{% endif %}">
+                  {{ task.frist|date:"d.m.Y H:i" }}
+                </strong>
+                {% if task.ist_ueberfaellig %}
+                <span class="badge bg-danger ms-1">ueberfaellig</span>
+                {% elif task.tage_bis_frist is not None %}
+                <small class="text-muted ms-1">
+                  (noch {{ task.tage_bis_frist }} Tag{{ task.tage_bis_frist|pluralize:"e" }})
+                </small>
+                {% endif %}
+              </div>
+            </div>
+            <div class="col-sm-6">
+              <div class="border rounded p-2">
+                <small class="text-muted d-block">Aktionstyp</small>
+                <strong>{{ task.step.get_aktion_typ_display }}</strong>
+              </div>
+            </div>
+          </div>
+
+          {% if content_object %}
+          <div class="mb-3">
+            <strong>Verknuepftes Objekt:</strong>
+            <p class="mt-1 text-muted">{{ content_object }}</p>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+
+      {# Abschluss-Formular #}
+      {% if task.status in "offen,in_bearbeitung" %}
+      <div class="card">
+        <div class="card-header"><strong>Task abschliessen</strong></div>
+        <div class="card-body">
+          <form method="post">
+            {% csrf_token %}
+
+            <div class="mb-3">
+              <label class="form-label">Entscheidung</label>
+              {% if hat_ausgaenge %}
+              <select name="entscheidung" class="form-select">
+                {% for val, label in entscheidung_choices %}
+                {% if val in ausgaenge %}
+                <option value="{{ val }}">{{ label }}</option>
+                {% endif %}
+                {% endfor %}
+              </select>
+              {% else %}
+              <select name="entscheidung" class="form-select">
+                {% for val, label in entscheidung_choices %}
+                <option value="{{ val }}">{{ label }}</option>
+                {% endfor %}
+              </select>
+              {% endif %}
+            </div>
+
+            <div class="mb-3">
+              <label class="form-label">Kommentar (optional)</label>
+              <textarea name="kommentar" class="form-control" rows="3"
+                        placeholder="Anmerkungen zur Entscheidung..."></textarea>
+            </div>
+
+            <div class="d-flex gap-2">
+              <button type="submit" class="btn btn-primary">
+                Task abschliessen
+              </button>
+              <a href="{% url 'workflow:arbeitsstapel' %}" class="btn btn-outline-secondary">
+                Abbrechen
+              </a>
+            </div>
+          </form>
+        </div>
+      </div>
+      {% else %}
+      <div class="alert alert-secondary">
+        Dieser Task ist bereits abgeschlossen
+        ({{ task.get_status_display }}{% if task.erledigt_am %} am {{ task.erledigt_am|date:"d.m.Y H:i" }}{% endif %}).
+      </div>
+      {% endif %}
+    </div>
+
+    {# Sidebar: Workflow-Fortschritt #}
+    <div class="col-lg-5">
+      <div class="card mb-3">
+        <div class="card-header"><strong>Workflow-Instanz</strong></div>
+        <div class="card-body">
+          <dl class="row mb-0 small">
+            <dt class="col-5">Template</dt>
+            <dd class="col-7">{{ task.instance.template.name }}</dd>
+            <dt class="col-5">Status</dt>
+            <dd class="col-7">{{ task.instance.get_status_display }}</dd>
+            <dt class="col-5">Fortschritt</dt>
+            <dd class="col-7">
+              <div class="progress" style="height:8px;">
+                <div class="progress-bar" style="width:{{ task.instance.fortschritt }}%"></div>
+              </div>
+              <small>{{ task.instance.fortschritt }} %</small>
+            </dd>
+            <dt class="col-5">Gestartet</dt>
+            <dd class="col-7">{{ task.instance.gestartet_am|date:"d.m.Y" }}</dd>
+          </dl>
+          <a href="{% url 'workflow:instanz_detail' task.instance.pk %}"
+             class="btn btn-sm btn-outline-secondary mt-2">
+            Instanz-Detail
+          </a>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+{% endblock %}

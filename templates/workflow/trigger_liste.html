@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block title %}Workflow-Trigger – Vorgangswerk{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-4 py-4">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h1 class="h3 mb-0">Workflow-Trigger</h1>
+    <a href="{% url 'workflow:trigger_erstellen' %}" class="btn btn-primary btn-sm">
+      + Neuer Trigger
+    </a>
+  </div>
+
+  {% if trigger %}
+  <div class="card">
+    <div class="card-body p-0">
+      <div class="table-responsive">
+        <table class="table table-hover mb-0">
+          <thead class="table-light">
+            <tr>
+              <th>Name</th>
+              <th>Event-Key</th>
+              <th>Model</th>
+              <th>Ausloesen bei</th>
+              <th>Aktiv</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for t in trigger %}
+            <tr>
+              <td>
+                <strong>{{ t.name }}</strong>
+                {% if t.beschreibung %}
+                <br><small class="text-muted">{{ t.beschreibung|truncatechars:60 }}</small>
+                {% endif %}
+              </td>
+              <td><code>{{ t.trigger_event }}</code></td>
+              <td>{{ t.content_type|default:"–" }}</td>
+              <td>{{ t.get_trigger_auf_display }}</td>
+              <td>
+                {% if t.ist_aktiv %}
+                <span class="badge bg-success">Aktiv</span>
+                {% else %}
+                <span class="badge bg-secondary">Inaktiv</span>
+                {% endif %}
+              </td>
+              <td class="d-flex gap-1">
+                <a href="{% url 'workflow:trigger_bearbeiten' t.pk %}"
+                   class="btn btn-sm btn-outline-secondary">
+                  Bearbeiten
+                </a>
+                <form method="post" action="{% url 'workflow:trigger_loeschen' t.pk %}"
+                      onsubmit="return confirm('Trigger loeschen?')">
+                  {% csrf_token %}
+                  <button type="submit" class="btn btn-sm btn-outline-danger">
+                    Loeschen
+                  </button>
+                </form>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  {% else %}
+  <div class="alert alert-info">
+    Noch keine Trigger konfiguriert.
+    <a href="{% url 'workflow:trigger_erstellen' %}">Jetzt einen anlegen.</a>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

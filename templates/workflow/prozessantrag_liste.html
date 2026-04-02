@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block title %}Meine Prozessantraege – Vorgangswerk{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-4 py-4">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h1 class="h3 mb-0">Meine Prozessantraege</h1>
+    <a href="{% url 'workflow:prozessantrag_erstellen' %}" class="btn btn-primary btn-sm">
+      + Neuer Antrag
+    </a>
+  </div>
+
+  {% if antraege %}
+  <div class="card">
+    <div class="card-body p-0">
+      <div class="table-responsive">
+        <table class="table table-hover mb-0">
+          <thead class="table-light">
+            <tr>
+              <th>Prozess</th>
+              <th>Ausloeser</th>
+              <th>Status</th>
+              <th>Eingereicht</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for antrag in antraege %}
+            <tr>
+              <td>
+                <strong>{{ antrag.name }}</strong>
+                {% if antrag.ziel %}
+                <br><small class="text-muted">{{ antrag.ziel|truncatechars:80 }}</small>
+                {% endif %}
+              </td>
+              <td>{{ antrag.get_ausloeser_typ_display }}</td>
+              <td>
+                <span class="badge bg-{% if antrag.status == 'umgesetzt' %}success{% elif antrag.status == 'abgelehnt' %}danger{% elif antrag.status == 'eingereicht' %}warning text-dark{% elif antrag.status == 'in_pruefung' %}info{% else %}secondary{% endif %}">
+                  {{ antrag.get_status_display }}
+                </span>
+              </td>
+              <td>{{ antrag.erstellt_am|date:"d.m.Y" }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  {% else %}
+  <div class="alert alert-info">
+    Du hast noch keine Prozessantraege eingereicht.
+    <a href="{% url 'workflow:prozessantrag_erstellen' %}">Jetzt einen einreichen.</a>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}
