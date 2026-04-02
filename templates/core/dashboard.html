@@ -1,93 +1,351 @@
 {% extends "base.html" %}
+{% load static %}
 
 {% block title %}Dashboard – Vorgangswerk{% endblock %}
 
+{% block extra_css %}
+<style>
+.vw-kachel { transition: box-shadow .15s; }
+.vw-kachel:hover { box-shadow: 0 4px 16px rgba(26,77,46,.15) !important; }
+</style>
+{% endblock %}
+
 {% block content %}
-<div class="container py-5" style="max-width:1100px;">
+<div class="container py-4" style="max-width:1200px;">
 
     {# ---- Begruessung ---- #}
     <div class="mb-4">
         <h1 class="h3 fw-bold mb-1" style="color:#1a4d2e;">
             Willkommen, {{ user.get_full_name|default:user.username }}
         </h1>
-        <p class="text-muted small mb-0">Was moechten Sie heute tun?</p>
+        <p class="text-muted small mb-0">Ihre persoenliche Uebersicht</p>
     </div>
 
-    {# ---- Kacheln ---- #}
+    {# ================================================================
+       ZEILE 1 – Zaehler-Kacheln
+    ================================================================ #}
+    <div class="row g-3 mb-4">
+
+        {# Meine Aufgaben #}
+        <div class="col-6 col-md-3">
+            <a href="{% url 'workflow:arbeitsstapel' %}" class="text-decoration-none">
+                <div class="card border-0 shadow-sm h-100 vw-kachel">
+                    <div class="card-body p-3 text-center">
+                        <div class="display-6 fw-bold" style="color:#1a4d2e;">
+                            {{ eigene_tasks|length }}
+                        </div>
+                        <div class="small text-muted mt-1">Meine Aufgaben</div>
+                        {% if gruppen_tasks_anzahl %}
+                        <div class="small text-muted">
+                            + {{ gruppen_tasks_anzahl }} in Gruppen-Queue
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </a>
+        </div>
+
+        {# Meine Antraege #}
+        <div class="col-6 col-md-3">
+            <a href="{% url 'formulare:liste' %}" class="text-decoration-none">
+                <div class="card border-0 shadow-sm h-100 vw-kachel">
+                    <div class="card-body p-3 text-center">
+                        <div class="display-6 fw-bold" style="color:#1a4d2e;">
+                            {{ offene_sitzungen }}
+                        </div>
+                        <div class="small text-muted mt-1">Offene Antraege</div>
+                    </div>
+                </div>
+            </a>
+        </div>
+
+        {# Benachrichtigungen #}
+        <div class="col-6 col-md-3">
+            <a href="{% url 'kommunikation:benachrichtigungen' %}" class="text-decoration-none">
+                <div class="card border-0 shadow-sm h-100 vw-kachel">
+                    <div class="card-body p-3 text-center">
+                        <div class="display-6 fw-bold
+                            {% if ungelesen_anzahl %}text-warning{% else %}text-muted{% endif %}">
+                            {{ ungelesen_anzahl }}
+                        </div>
+                        <div class="small text-muted mt-1">Ungelesene Meldungen</div>
+                    </div>
+                </div>
+            </a>
+        </div>
+
+        {# Dokumente #}
+        <div class="col-6 col-md-3">
+            <a href="{% url 'dokumente:liste' %}" class="text-decoration-none">
+                <div class="card border-0 shadow-sm h-100 vw-kachel">
+                    <div class="card-body p-3 text-center">
+                        <div class="display-6 fw-bold" style="color:#1a4d2e;">
+                            {{ dokumente_gesamt }}
+                        </div>
+                        <div class="small text-muted mt-1">Dokumente gesamt</div>
+                    </div>
+                </div>
+            </a>
+        </div>
+
+    </div>
+
+    {# ================================================================
+       ZEILE 2 – Aufgaben + Antraege
+    ================================================================ #}
+    <div class="row g-3 mb-4">
+
+        {# Meine Aufgaben – Liste #}
+        <div class="col-md-6">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-header bg-white fw-bold border-bottom py-2 px-3"
+                     style="color:#1a4d2e;">
+                    Meine Aufgaben
+                </div>
+                <div class="card-body p-0">
+                    {% if eigene_tasks %}
+                    <ul class="list-group list-group-flush">
+                        {% for task in eigene_tasks %}
+                        <li class="list-group-item px-3 py-2">
+                            <a href="{% url 'workflow:task_detail' task.pk %}"
+                               class="text-decoration-none text-dark fw-semibold">
+                                {{ task.step.template.name }} –
+                                {{ task.step.name }}
+                            </a>
+                            <div class="text-muted small">
+                                {% if task.frist %}Frist: {{ task.frist|date:"d.m.Y" }}{% endif %}
+                                <span class="badge ms-1
+                                    {% if task.status == 'offen' %}bg-secondary
+                                    {% else %}bg-primary{% endif %}">
+                                    {{ task.get_status_display }}
+                                </span>
+                            </div>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                    {% else %}
+                    <p class="text-muted small px-3 py-3 mb-0">Keine offenen Aufgaben.</p>
+                    {% endif %}
+                </div>
+                <div class="card-footer bg-white border-0 py-2 px-3">
+                    <a href="{% url 'workflow:arbeitsstapel' %}"
+                       class="btn btn-sm btn-outline-secondary">
+                        Zum Arbeitsstapel
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        {# Meine Antraege – Liste #}
+        <div class="col-md-6">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-header bg-white fw-bold border-bottom py-2 px-3"
+                     style="color:#1a4d2e;">
+                    Meine letzten Antraege
+                </div>
+                <div class="card-body p-0">
+                    {% if meine_sitzungen %}
+                    <ul class="list-group list-group-flush">
+                        {% for sitzung in meine_sitzungen %}
+                        <li class="list-group-item px-3 py-2">
+                            <a href="{% url 'formulare:pfad_schritt' sitzung.pk %}"
+                               class="text-decoration-none text-dark fw-semibold">
+                                {{ sitzung.pfad.name }}
+                            </a>
+                            <div class="text-muted small">
+                                {{ sitzung.gestartet_am|date:"d.m.Y H:i" }} –
+                                <span class="badge
+                                    {% if sitzung.status == 'abgeschlossen' %}bg-success
+                                    {% elif sitzung.status == 'gestartet' %}bg-secondary
+                                    {% else %}bg-primary{% endif %}">
+                                    {{ sitzung.get_status_display }}
+                                </span>
+                            </div>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                    {% else %}
+                    <p class="text-muted small px-3 py-3 mb-0">Noch keine Antraege.</p>
+                    {% endif %}
+                </div>
+                <div class="card-footer bg-white border-0 py-2 px-3">
+                    <a href="{% url 'formulare:liste' %}"
+                       class="btn btn-sm btn-outline-secondary">
+                        Alle Formulare
+                    </a>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    {# ================================================================
+       ZEILE 3 – Dokumente + Benachrichtigungen
+    ================================================================ #}
+    <div class="row g-3 mb-4">
+
+        {# Neueste Dokumente #}
+        <div class="col-md-6">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-header bg-white fw-bold border-bottom py-2 px-3"
+                     style="color:#1a4d2e;">
+                    Neueste Dokumente
+                </div>
+                <div class="card-body p-0">
+                    {% if neueste_dokumente %}
+                    <ul class="list-group list-group-flush">
+                        {% for dok in neueste_dokumente %}
+                        <li class="list-group-item px-3 py-2">
+                            <a href="{% url 'dokumente:detail' dok.pk %}"
+                               class="text-decoration-none text-dark fw-semibold">
+                                {{ dok.titel }}
+                            </a>
+                            <div class="text-muted small">
+                                {% if dok.kategorie %}{{ dok.kategorie.name }} &ndash; {% endif %}
+                                {{ dok.geaendert_am|date:"d.m.Y" }}
+                            </div>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                    {% else %}
+                    <p class="text-muted small px-3 py-3 mb-0">Noch keine Dokumente.</p>
+                    {% endif %}
+                </div>
+                <div class="card-footer bg-white border-0 py-2 px-3">
+                    <a href="{% url 'dokumente:liste' %}"
+                       class="btn btn-sm btn-outline-secondary">
+                        Alle Dokumente
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        {# Ungelesene Benachrichtigungen #}
+        <div class="col-md-6">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-header bg-white fw-bold border-bottom py-2 px-3"
+                     style="color:#1a4d2e;">
+                    Benachrichtigungen
+                </div>
+                <div class="card-body p-0">
+                    {% if ungelesene %}
+                    <ul class="list-group list-group-flush">
+                        {% for n in ungelesene %}
+                        <li class="list-group-item px-3 py-2">
+                            {% if n.link %}
+                            <a href="{{ n.link }}"
+                               class="text-decoration-none text-dark fw-semibold">
+                                {{ n.titel }}
+                            </a>
+                            {% else %}
+                            <span class="fw-semibold">{{ n.titel }}</span>
+                            {% endif %}
+                            <div class="text-muted small">
+                                {{ n.erstellt_am|date:"d.m.Y H:i" }}
+                                <span class="badge bg-secondary ms-1">{{ n.get_typ_display }}</span>
+                            </div>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                    {% else %}
+                    <p class="text-muted small px-3 py-3 mb-0">Keine ungelesenen Meldungen.</p>
+                    {% endif %}
+                </div>
+                <div class="card-footer bg-white border-0 py-2 px-3">
+                    <a href="{% url 'kommunikation:benachrichtigungen' %}"
+                       class="btn btn-sm btn-outline-secondary">
+                        Alle Benachrichtigungen
+                    </a>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    {# ================================================================
+       ZEILE 4 – Staff-Bereich (nur fuer is_staff)
+    ================================================================ #}
+    {% if user.is_staff %}
     <div class="row g-3">
 
-        {# ---- Formulare ---- #}
-        <div class="col-md-6 col-lg-3">
-            <a href="{% url 'formulare:liste' %}" class="text-decoration-none">
-                <div class="card border-0 shadow-sm h-100"
-                     style="transition:box-shadow .15s;"
-                     onmouseenter="this.style.boxShadow='0 4px 16px rgba(26,77,46,.15)'"
-                     onmouseleave="this.style.boxShadow=''">
-                    <div class="card-body p-4 d-flex flex-column">
-                        <div class="mb-3" style="font-size:2rem; color:#1a4d2e;">&#128196;</div>
-                        <h5 class="fw-bold mb-1 text-dark">Formulare</h5>
-                        <p class="text-muted small mb-0">
-                            Dynamische Formulare erstellen und ausfullen.
-                        </p>
-                    </div>
+        {# Neue E-Mails #}
+        <div class="col-md-6">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-header bg-white fw-bold border-bottom py-2 px-3"
+                     style="color:#1a4d2e;">
+                    Postfach
+                    {% if neue_emails_anzahl %}
+                    <span class="badge bg-danger ms-2">{{ neue_emails_anzahl }} neu</span>
+                    {% endif %}
                 </div>
-            </a>
+                <div class="card-body p-0">
+                    {% if neue_emails %}
+                    <ul class="list-group list-group-flush">
+                        {% for mail in neue_emails %}
+                        <li class="list-group-item px-3 py-2">
+                            <a href="{% url 'kommunikation:email_detail' mail.pk %}"
+                               class="text-decoration-none text-dark fw-semibold">
+                                {{ mail.betreff|truncatechars:60 }}
+                            </a>
+                            <div class="text-muted small">
+                                {{ mail.absender }} &ndash;
+                                {{ mail.empfangen_am|date:"d.m.Y H:i" }}
+                            </div>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                    {% else %}
+                    <p class="text-muted small px-3 py-3 mb-0">Keine neuen E-Mails.</p>
+                    {% endif %}
+                </div>
+                <div class="card-footer bg-white border-0 py-2 px-3">
+                    <a href="{% url 'kommunikation:postfach' %}"
+                       class="btn btn-sm btn-outline-secondary">
+                        Postfach oeffnen
+                    </a>
+                </div>
+            </div>
         </div>
 
-        {# ---- Workflow ---- #}
-        <div class="col-md-6 col-lg-3">
-            <a href="{% url 'workflow:liste' %}" class="text-decoration-none">
-                <div class="card border-0 shadow-sm h-100"
-                     style="transition:box-shadow .15s;"
-                     onmouseenter="this.style.boxShadow='0 4px 16px rgba(26,77,46,.15)'"
-                     onmouseleave="this.style.boxShadow=''">
-                    <div class="card-body p-4 d-flex flex-column">
-                        <div class="mb-3" style="font-size:2rem; color:#1a4d2e;">&#9881;</div>
-                        <h5 class="fw-bold mb-1 text-dark">Workflow</h5>
-                        <p class="text-muted small mb-0">
-                            Prozesse definieren und Vorgaenge bearbeiten.
-                        </p>
+        {# Offene Prozessantraege + laufende Instanzen #}
+        <div class="col-md-6">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-header bg-white fw-bold border-bottom py-2 px-3"
+                     style="color:#1a4d2e;">
+                    Prozess-Uebersicht
+                </div>
+                <div class="card-body">
+                    <div class="d-flex justify-content-around text-center py-2">
+                        <div>
+                            <div class="display-6 fw-bold" style="color:#1a4d2e;">
+                                {{ laufende_instanzen }}
+                            </div>
+                            <div class="small text-muted">Laufende Instanzen</div>
+                        </div>
+                        <div>
+                            <div class="display-6 fw-bold
+                                {% if offene_prozessantraege %}text-warning{% else %}text-muted{% endif %}">
+                                {{ offene_prozessantraege }}
+                            </div>
+                            <div class="small text-muted">Offene Prozessantraege</div>
+                        </div>
                     </div>
                 </div>
-            </a>
-        </div>
-
-        {# ---- Dokumente ---- #}
-        <div class="col-md-6 col-lg-3">
-            <a href="{% url 'dokumente:liste' %}" class="text-decoration-none">
-                <div class="card border-0 shadow-sm h-100"
-                     style="transition:box-shadow .15s;"
-                     onmouseenter="this.style.boxShadow='0 4px 16px rgba(26,77,46,.15)'"
-                     onmouseleave="this.style.boxShadow=''">
-                    <div class="card-body p-4 d-flex flex-column">
-                        <div class="mb-3" style="font-size:2rem; color:#1a4d2e;">&#128193;</div>
-                        <h5 class="fw-bold mb-1 text-dark">Dokumente</h5>
-                        <p class="text-muted small mb-0">
-                            Vorlagen, Bescheide und Dokumente verwalten.
-                        </p>
-                    </div>
+                <div class="card-footer bg-white border-0 py-2 px-3">
+                    <a href="{% url 'workflow:prozesszentrale' %}"
+                       class="btn btn-sm btn-outline-secondary me-2">
+                        Prozesszentrale
+                    </a>
+                    <a href="{% url 'workflow:prozessantrag_liste' %}"
+                       class="btn btn-sm btn-outline-secondary">
+                        Prozessantraege
+                    </a>
                 </div>
-            </a>
-        </div>
-
-        {# ---- Postfach ---- #}
-        <div class="col-md-6 col-lg-3">
-            <a href="{% url 'kommunikation:postfach' %}" class="text-decoration-none">
-                <div class="card border-0 shadow-sm h-100"
-                     style="transition:box-shadow .15s;"
-                     onmouseenter="this.style.boxShadow='0 4px 16px rgba(26,77,46,.15)'"
-                     onmouseleave="this.style.boxShadow=''">
-                    <div class="card-body p-4 d-flex flex-column">
-                        <div class="mb-3" style="font-size:2rem; color:#1a4d2e;">&#9993;</div>
-                        <h5 class="fw-bold mb-1 text-dark">Postfach</h5>
-                        <p class="text-muted small mb-0">
-                            Eingehende E-Mails und Benachrichtigungen.
-                        </p>
-                    </div>
-                </div>
-            </a>
+            </div>
         </div>
 
     </div>
+    {% endif %}
+
 </div>
 {% endblock %}

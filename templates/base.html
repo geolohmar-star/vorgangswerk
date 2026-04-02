@@ -64,12 +64,16 @@
                         {{ user.get_full_name|default:user.username }}
                     </a>
                     <ul class="dropdown-menu dropdown-menu-end">
+                        <li>
+                            <a class="dropdown-item" href="{% url 'core:profil' %}">Mein Profil</a>
+                        </li>
                         {% if user.is_staff %}
+                        <li><hr class="dropdown-divider"></li>
                         <li>
                             <a class="dropdown-item" href="/admin/">Administration</a>
                         </li>
-                        <li><hr class="dropdown-divider"></li>
                         {% endif %}
+                        <li><hr class="dropdown-divider"></li>
                         <li>
                             <form method="post" action="{% url 'logout' %}">
                                 {% csrf_token %}

@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+
+{% block title %}Mein Profil – Vorgangswerk{% endblock %}
+
+{% block content %}
+<div class="container py-4" style="max-width:600px;">
+
+    <h1 class="h3 fw-bold mb-4" style="color:#1a4d2e;">Mein Profil</h1>
+
+    {# ---- Account-Info (nur Lesen) ---- #}
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-header bg-white fw-bold border-bottom py-2 px-3"
+             style="color:#1a4d2e;">
+            Konto
+        </div>
+        <div class="card-body">
+            <dl class="row mb-0">
+                <dt class="col-sm-4 text-muted fw-normal">Benutzername</dt>
+                <dd class="col-sm-8">{{ user.username }}</dd>
+
+                <dt class="col-sm-4 text-muted fw-normal">Name</dt>
+                <dd class="col-sm-8">{{ user.get_full_name|default:"–" }}</dd>
+
+                <dt class="col-sm-4 text-muted fw-normal">E-Mail</dt>
+                <dd class="col-sm-8">{{ user.email|default:"–" }}</dd>
+
+                <dt class="col-sm-4 text-muted fw-normal">Letzte Anmeldung</dt>
+                <dd class="col-sm-8">{{ user.last_login|date:"d.m.Y H:i"|default:"–" }}</dd>
+
+                <dt class="col-sm-4 text-muted fw-normal">Gruppen</dt>
+                <dd class="col-sm-8">
+                    {% for gruppe in user.groups.all %}
+                    <span class="badge bg-secondary me-1">{{ gruppe.name }}</span>
+                    {% empty %}
+                    –
+                    {% endfor %}
+                </dd>
+            </dl>
+        </div>
+    </div>
+
+    {# ---- Profil bearbeiten ---- #}
+    <div class="card border-0 shadow-sm">
+        <div class="card-header bg-white fw-bold border-bottom py-2 px-3"
+             style="color:#1a4d2e;">
+            Profilfelder
+        </div>
+        <div class="card-body">
+            <form method="post">
+                {% csrf_token %}
+
+                <div class="mb-3">
+                    <label for="{{ form.abteilung.id_for_label }}"
+                           class="form-label">Abteilung</label>
+                    {{ form.abteilung }}
+                    {% if form.abteilung.errors %}
+                    <div class="text-danger small mt-1">{{ form.abteilung.errors }}</div>
+                    {% endif %}
+                </div>
+
+                <div class="mb-3">
+                    <label for="{{ form.telefon.id_for_label }}"
+                           class="form-label">Telefon</label>
+                    {{ form.telefon }}
+                    {% if form.telefon.errors %}
+                    <div class="text-danger small mt-1">{{ form.telefon.errors }}</div>
+                    {% endif %}
+                </div>
+
+                <div class="mb-3">
+                    <label for="{{ form.sprache.id_for_label }}"
+                           class="form-label">Sprache</label>
+                    {{ form.sprache }}
+                    {% if form.sprache.errors %}
+                    <div class="text-danger small mt-1">{{ form.sprache.errors }}</div>
+                    {% endif %}
+                </div>
+
+                <div class="d-flex gap-2">
+                    <button type="submit" class="btn btn-sm"
+                            style="background:#1a4d2e;color:#fff;">
+                        Speichern
+                    </button>
+                    <a href="{% url 'core:dashboard' %}"
+                       class="btn btn-sm btn-outline-secondary">
+                        Abbrechen
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+</div>
+{% endblock %}
