@@ -48,6 +48,16 @@
 
             {# ---- User-Menue ---- #}
             <ul class="navbar-nav">
+                {# ---- Benachrichtigungs-Glocke ---- #}
+                <li class="nav-item">
+                    <a class="nav-link position-relative" href="{% url 'kommunikation:benachrichtigungen' %}">
+                        &#128276;
+                        <span id="benachrichtigungs-badge"
+                              hx-get="{% url 'kommunikation:navbar_badge' %}"
+                              hx-trigger="load, every 60s"
+                              hx-swap="innerHTML"></span>
+                    </a>
+                </li>
                 <li class="nav-item dropdown">
                     <a class="nav-link dropdown-toggle" href="#"
                        data-bs-toggle="dropdown">
@@ -98,6 +108,8 @@
 </footer>
 
 <script src="{% static 'js/bootstrap.bundle.min.js' %}"></script>
+<script src="{% static 'js/htmx.min.js' %}"></script>
+<script src="{% static 'js/htmx_csrf.js' %}"></script>
 {% block extra_js %}{% endblock %}
 </body>
 </html>

@@ -1,8 +1,99 @@
 {% extends "base.html" %}
 {% block title %}Postfach – Vorgangswerk{% endblock %}
+
 {% block content %}
-<div class="container py-4">
-    <h1 class="h3 fw-bold" style="color:#1a4d2e;">Postfach</h1>
-    <p class="text-muted">Kommt bald.</p>
+<div class="container-fluid px-4 py-4">
+
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h1 class="h3 mb-0">
+      Postfach
+      {% if anzahl_neu %}
+      <span class="badge bg-danger ms-2">{{ anzahl_neu }} neu</span>
+      {% endif %}
+    </h1>
+  </div>
+
+  {# Filter + Suche #}
+  <form method="get" class="row g-2 mb-3">
+    <div class="col-md-5">
+      <input type="search" name="q" value="{{ suche }}"
+             class="form-control" placeholder="Betreff oder Absender suchen...">
+    </div>
+    <div class="col-md-3">
+      <select name="status" class="form-select">
+        <option value="">Alle (ohne Archiv)</option>
+        {% for val, label in status_choices %}
+        <option value="{{ val }}" {% if status_filter == val %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-auto">
+      <button type="submit" class="btn btn-outline-secondary">Filtern</button>
+      {% if suche or status_filter %}
+      <a href="{% url 'kommunikation:postfach' %}" class="btn btn-outline-danger">Zuruecksetzen</a>
+      {% endif %}
+    </div>
+  </form>
+
+  {% if emails %}
+  <div class="card">
+    <div class="table-responsive">
+      <table class="table table-hover mb-0">
+        <thead class="table-light">
+          <tr>
+            <th style="width:16px;"></th>
+            <th>Absender</th>
+            <th>Betreff</th>
+            <th>Status</th>
+            <th>Zugewiesen an</th>
+            <th>Empfangen</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for email in emails %}
+          <tr class="{% if email.ist_neu %}fw-bold{% endif %}">
+            <td>
+              {% if email.ist_neu %}
+              <span class="badge bg-danger">&bull;</span>
+              {% endif %}
+            </td>
+            <td>
+              <a href="{% url 'kommunikation:email_detail' email.pk %}"
+                 class="text-decoration-none">
+                {{ email.absender_name|default:email.absender_email }}
+              </a>
+              {% if email.hat_anhaenge %}
+              <span class="ms-1 text-muted" title="Hat Anhaenge">&#128206;</span>
+              {% endif %}
+            </td>
+            <td>
+              <a href="{% url 'kommunikation:email_detail' email.pk %}"
+                 class="text-decoration-none {% if email.ist_neu %}text-dark{% else %}text-muted{% endif %}">
+                {{ email.betreff|default:"(kein Betreff)"|truncatechars:80 }}
+              </a>
+            </td>
+            <td>
+              <span class="badge bg-{% if email.status == 'neu' %}danger{% elif email.status == 'zugewiesen' %}info{% elif email.status == 'archiviert' %}light text-dark{% else %}secondary{% endif %}">
+                {{ email.get_status_display }}
+              </span>
+            </td>
+            <td>{{ email.zugewiesen_an.username|default:"–" }}</td>
+            <td><small>{{ email.empfangen_am|date:"d.m.Y H:i" }}</small></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% else %}
+  <div class="alert alert-info">
+    {% if suche %}
+      Keine E-Mails fuer "{{ suche }}" gefunden.
+    {% else %}
+      Das Postfach ist leer.
+    {% endif %}
+  </div>
+  {% endif %}
+
 </div>
 {% endblock %}

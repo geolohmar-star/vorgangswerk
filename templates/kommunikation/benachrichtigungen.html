@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block title %}Benachrichtigungen – Vorgangswerk{% endblock %}
+
+{% block content %}
+<div class="container px-4 py-4" style="max-width:800px;">
+
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h1 class="h3 mb-0">
+      Benachrichtigungen
+      {% if ungelesen %}
+      <span class="badge bg-danger ms-2">{{ ungelesen }}</span>
+      {% endif %}
+    </h1>
+    {% if ungelesen %}
+    <form method="post" action="{% url 'kommunikation:alle_gelesen' %}">
+      {% csrf_token %}
+      <button type="submit" class="btn btn-sm btn-outline-secondary">
+        Alle als gelesen markieren
+      </button>
+    </form>
+    {% endif %}
+  </div>
+
+  {% if nachrichten %}
+  <div class="list-group">
+    {% for n in nachrichten %}
+    <div class="list-group-item list-group-item-action {% if not n.gelesen %}border-start border-danger border-3{% endif %} p-3"
+         id="benachrichtigung-{{ n.pk }}">
+      <div class="d-flex justify-content-between align-items-start">
+        <div class="flex-grow-1">
+          <div class="d-flex align-items-center gap-2 mb-1">
+            <span class="badge bg-{% if n.typ == 'warnung' %}warning text-dark{% elif n.typ == 'aufgabe' %}primary{% elif n.typ == 'email' %}info{% else %}secondary{% endif %}">
+              {{ n.get_typ_display }}
+            </span>
+            <strong>{{ n.titel }}</strong>
+            {% if not n.gelesen %}
+            <span class="badge bg-danger">Neu</span>
+            {% endif %}
+          </div>
+          <p class="mb-1 text-muted small">{{ n.nachricht|linebreaksbr }}</p>
+          <small class="text-muted">{{ n.erstellt_am|date:"d.m.Y H:i" }}</small>
+          {% if n.link %}
+          <a href="{{ n.link }}" class="btn btn-sm btn-link p-0 ms-2">Oeffnen</a>
+          {% endif %}
+        </div>
+        {% if not n.gelesen %}
+        <form method="post" action="{% url 'kommunikation:benachrichtigung_gelesen' n.pk %}">
+          {% csrf_token %}
+          <button type="submit" class="btn btn-sm btn-outline-secondary ms-2" title="Als gelesen markieren">
+            &#10003;
+          </button>
+        </form>
+        {% endif %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="alert alert-info">
+    Keine Benachrichtigungen vorhanden.
+  </div>
+  {% endif %}
+
+</div>
+{% endblock %}

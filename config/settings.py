@@ -169,6 +169,8 @@ IMAP_PORT = config("IMAP_PORT", default=993, cast=int)
 IMAP_USER = config("IMAP_USER", default="")
 IMAP_PASSWORD = config("IMAP_PASSWORD", default="")
 IMAP_POSTFACH = config("IMAP_POSTFACH", default="INBOX")
+IMAP_ORDNER = config("IMAP_ORDNER", default="INBOX")
+IMAP_BENACHRICHTIGE_STAFF = config("IMAP_BENACHRICHTIGE_STAFF", default=True, cast=bool)
 
 # ---------------------------------------------------------------------------
 # Collabora Online WOPI (optional)

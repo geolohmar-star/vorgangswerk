@@ -1,0 +1,144 @@
+{% extends "base.html" %}
+{% block title %}{{ email_obj.betreff|default:"(kein Betreff)" }} – Postfach{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-4 py-4">
+
+  <nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb">
+      <li class="breadcrumb-item"><a href="{% url 'kommunikation:postfach' %}">Postfach</a></li>
+      <li class="breadcrumb-item active">{{ email_obj.betreff|default:"(kein Betreff)"|truncatechars:60 }}</li>
+    </ol>
+  </nav>
+
+  <div class="row g-4">
+
+    {# E-Mail-Inhalt #}
+    <div class="col-lg-8">
+      <div class="card mb-3">
+        <div class="card-header">
+          <h5 class="mb-1">{{ email_obj.betreff|default:"(kein Betreff)" }}</h5>
+          <div class="d-flex gap-3 small text-muted">
+            <span>
+              Von:
+              <strong>{{ email_obj.absender_name|default:email_obj.absender_email }}</strong>
+              {% if email_obj.absender_name %}
+              &lt;{{ email_obj.absender_email }}&gt;
+              {% endif %}
+            </span>
+            <span>{{ email_obj.empfangen_am|date:"d.m.Y H:i" }}</span>
+          </div>
+        </div>
+        <div class="card-body">
+          {% if email_obj.inhalt_html %}
+          {# HTML-Inhalt in iframe um CSS-Isolation zu gewaehrleisten #}
+          <div id="email-html-container"
+               style="border:1px solid #dee2e6;border-radius:4px;overflow:hidden;min-height:200px;">
+            <iframe id="email-iframe" style="width:100%;border:none;min-height:400px;"
+                    sandbox="allow-same-origin"></iframe>
+          </div>
+          {{ email_obj.inhalt_html|json_script:"email-html-content" }}
+          {% elif email_obj.inhalt_text %}
+          <pre style="white-space:pre-wrap;font-family:inherit;">{{ email_obj.inhalt_text }}</pre>
+          {% else %}
+          <p class="text-muted">(kein Inhalt)</p>
+          {% endif %}
+        </div>
+      </div>
+
+      {# Anhaenge #}
+      {% if email_obj.anhaenge.all %}
+      <div class="card mb-3">
+        <div class="card-header"><strong>Anhaenge</strong></div>
+        <div class="card-body d-flex flex-wrap gap-2">
+          {% for anhang in email_obj.anhaenge.all %}
+          <a href="{% url 'kommunikation:anhang_download' anhang.pk %}"
+             class="btn btn-sm btn-outline-secondary">
+            {{ anhang.dateiname }}
+            <span class="text-muted ms-1">{{ anhang.groesse_lesbar }}</span>
+          </a>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+
+      {# Aktionen #}
+      <div class="d-flex gap-2 flex-wrap">
+        {% if email_obj.status != 'archiviert' %}
+        <form method="post">
+          {% csrf_token %}
+          <input type="hidden" name="aktion" value="archivieren">
+          <button type="submit" class="btn btn-sm btn-outline-secondary">Archivieren</button>
+        </form>
+        {% endif %}
+        <a href="mailto:{{ email_obj.absender_email }}?subject=Re: {{ email_obj.betreff|urlencode }}"
+           class="btn btn-sm btn-outline-primary">
+          Antworten (E-Mail-Client)
+        </a>
+        <a href="{% url 'kommunikation:postfach' %}" class="btn btn-sm btn-outline-secondary">
+          Zurueck
+        </a>
+      </div>
+    </div>
+
+    {# Sidebar: Bearbeitung #}
+    <div class="col-lg-4">
+
+      {# Status #}
+      <div class="card mb-3">
+        <div class="card-header"><strong>Status</strong></div>
+        <div class="card-body">
+          <span class="badge bg-{% if email_obj.status == 'neu' %}danger{% elif email_obj.status == 'zugewiesen' %}info{% elif email_obj.status == 'archiviert' %}secondary{% else %}light text-dark{% endif %} fs-6">
+            {{ email_obj.get_status_display }}
+          </span>
+          {% if email_obj.zugewiesen_an %}
+          <p class="mt-2 mb-0 small text-muted">
+            Zugewiesen an: {{ email_obj.zugewiesen_an.get_full_name|default:email_obj.zugewiesen_an.username }}
+          </p>
+          {% endif %}
+        </div>
+      </div>
+
+      {# Zuweisen #}
+      <div class="card mb-3">
+        <div class="card-header"><strong>Zuweisen</strong></div>
+        <div class="card-body">
+          <form method="post">
+            {% csrf_token %}
+            <input type="hidden" name="aktion" value="zuweisen">
+            <select name="user_id" class="form-select form-select-sm mb-2">
+              <option value="">– keiner –</option>
+              {% for u in benutzer %}
+              <option value="{{ u.pk }}" {% if email_obj.zugewiesen_an == u %}selected{% endif %}>
+                {{ u.get_full_name|default:u.username }}
+              </option>
+              {% endfor %}
+            </select>
+            <button type="submit" class="btn btn-sm btn-primary w-100">Zuweisen</button>
+          </form>
+        </div>
+      </div>
+
+      {# Interne Notiz #}
+      <div class="card">
+        <div class="card-header"><strong>Interne Notiz</strong></div>
+        <div class="card-body">
+          <form method="post">
+            {% csrf_token %}
+            <input type="hidden" name="aktion" value="notiz">
+            <textarea name="notiz" class="form-control form-control-sm mb-2"
+                      rows="4" placeholder="Interne Anmerkungen...">{{ email_obj.notiz }}</textarea>
+            <button type="submit" class="btn btn-sm btn-outline-secondary w-100">Speichern</button>
+          </form>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+{% load static %}
+<script src="{% static 'js/email_detail.js' %}"></script>
+{% endblock %}
