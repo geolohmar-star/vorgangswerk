@@ -2,10 +2,15 @@
 # Copyright (C) 2026 Georg Klein
 """core – Views: Dashboard, Benutzerprofil."""
 import logging
+import urllib.request
+import urllib.parse
+import json
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.http import JsonResponse
 from django.shortcuts import redirect, render
+from django.views.decorators.http import require_GET
 
 from .forms import BenutzerprofilForm
 from .models import Benutzerprofil
@@ -113,6 +118,11 @@ def dashboard(request):
         except Exception:
             kontext.setdefault("offene_prozessantraege", 0)
 
+    kontext["zeige_staff_bereich"] = (
+        user.is_staff
+        or user.groups.filter(name="Sachbearbeiter").exists()
+    )
+
     return render(request, "core/dashboard.html", kontext)
 
 
@@ -128,3 +138,98 @@ def profil(request):
         return redirect("core:profil")
 
     return render(request, "core/profil.html", {"form": form, "profil": profil_obj})
+
+
+# ---------------------------------------------------------------------------
+# LeiKa-Autocomplete
+# Hinweis: PVOG-API URL wechselt am 1. August 2026 auf pvog.fitko.net
+# ---------------------------------------------------------------------------
+
+# Neue URL ab August 2026: https://pvog.fitko.net/suchdienst/api/v1/...
+_PVOG_SUGGESTIONS_URL = (
+    "https://pvog.fitko.net/suchdienst/api/v1"
+    "/servicedescriptions/suggestions/020000000000"
+)
+
+
+@login_required
+@require_GET
+def leika_autocomplete(request):
+    """
+    Gibt LeiKa-Vorschläge zurück: zuerst lokale Treffer (mit Schlüssel),
+    dann PVOG-Textvorschläge als Ergänzung.
+    """
+    q = request.GET.get("q", "").strip().lower()
+    if len(q) < 2:
+        return JsonResponse([], safe=False)
+
+    from formulare.leika_data import LEIKA_LEISTUNGEN
+
+    # 1. Lokale Suche (hat LeiKa-Schlüssel)
+    lokal = []
+    for l in LEIKA_LEISTUNGEN:
+        if q in l["name"].lower():
+            lokal.append({
+                "schluessel": l["schluessel"],
+                "name": l["name"],
+                "quelle": "lokal",
+            })
+
+    lokal_namen = {e["name"].lower() for e in lokal}
+
+    # 2. PVOG-Suggestions (nur Text, kein Schlüssel – als Hinweis auf fimportal.de)
+    pvog = []
+    try:
+        url = f"{_PVOG_SUGGESTIONS_URL}?{urllib.parse.urlencode({'q': q})}"
+        req = urllib.request.Request(url, headers={"Accept": "application/json"})
+        with urllib.request.urlopen(req, timeout=3) as resp:
+            vorschlaege = json.loads(resp.read().decode())
+            for v in vorschlaege[:8]:
+                text = v.get("suggestedText", "")
+                if text.lower() not in lokal_namen:
+                    pvog.append({
+                        "schluessel": None,
+                        "name": text,
+                        "quelle": "pvog",
+                    })
+    except Exception:
+        pass  # PVOG nicht erreichbar → nur lokale Treffer
+
+    return JsonResponse(lokal[:6] + pvog[:4], safe=False)
+
+
+@login_required
+def ueber(request):
+    """Über Vorgangswerk – Motivationsseite mit Feature-Übersicht."""
+    from formulare.models import AntrPfad, AntrSitzung
+    from workflow.models import WorkflowTemplate
+    from korrespondenz.models import Briefvorgang
+    stats = {
+        "formulare": AntrPfad.objects.filter(aktiv=True).count(),
+        "antraege": AntrSitzung.objects.filter(status="abgeschlossen").count(),
+        "workflows": WorkflowTemplate.objects.filter(ist_aktiv=True).count(),
+        "briefe": Briefvorgang.objects.count(),
+    }
+    return render(request, "core/ueber.html", {"stats": stats})
+
+
+def roadmap(request):
+    """Innovationsboard – Roadmap und nutzbare Standards."""
+    from .models import RoadmapEintrag
+    eintraege = RoadmapEintrag.objects.all()
+
+    # Filter
+    status = request.GET.get("status", "")
+    kategorie = request.GET.get("kategorie", "")
+    if status:
+        eintraege = eintraege.filter(status=status)
+    if kategorie:
+        eintraege = eintraege.filter(kategorie=kategorie)
+
+    return render(request, "core/roadmap.html", {
+        "eintraege": eintraege,
+        "status_choices": RoadmapEintrag.STATUS_CHOICES,
+        "kategorie_choices": RoadmapEintrag.KATEGORIE_CHOICES,
+        "filter_status": status,
+        "filter_kategorie": kategorie,
+    })

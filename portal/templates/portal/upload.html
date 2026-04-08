@@ -1,0 +1,144 @@
+{% extends "portal/base.html" %}
+{% load static %}
+{% block title %}Formular hochladen – Vorgangswerk Portal{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-7">
+        <nav aria-label="breadcrumb" class="mb-3">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{% url 'portal:dashboard' %}">Dashboard</a></li>
+                <li class="breadcrumb-item active">Formular hochladen</li>
+            </ol>
+        </nav>
+
+        <div class="card">
+            <div class="card-header py-3">
+                <h5 class="mb-0">PDF-Formular analysieren</h5>
+            </div>
+            <div class="card-body p-4">
+                {% if account.credits < 1 %}
+                <div class="alert alert-warning">
+                    <strong>Keine Credits verfügbar.</strong>
+                    Jede Analyse verbraucht 1 Credit.
+                    <a href="{% url 'portal:credits_kaufen' %}" class="alert-link">Jetzt Credits kaufen &rarr;</a>
+                </div>
+                {% else %}
+                <div class="alert alert-info d-flex align-items-center gap-2 mb-4">
+                    <div>
+                        Verfügbare Credits: <strong>{{ account.credits }}</strong> &mdash;
+                        diese Analyse verbraucht <strong>1 Credit</strong>.
+                    </div>
+                </div>
+
+                <form method="post" enctype="multipart/form-data">
+                    {% csrf_token %}
+                    <div class="mb-4">
+                        <label class="form-label fw-semibold">PDF-Formular auswählen</label>
+                        <input type="file" name="pdf_datei" class="form-control" accept=".pdf" required>
+                        <div class="form-text">Maximale Dateigröße: 20 MB. Nur PDF-Dateien.</div>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary w-100">
+                        Analysieren (1 Credit)
+                    </button>
+                </form>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="card mt-3">
+            <div class="card-body p-3">
+                <h6 class="fw-semibold mb-2">Was passiert bei der Analyse?</h6>
+                <ol class="mb-0 small text-muted">
+                    <li>Das PDF wird sicher auf unsere Server übertragen.</li>
+                    <li>Claude KI liest das Formular direkt – Layout, Struktur und Felder.</li>
+                    <li>Eine vollständige Pfad-Definition wird automatisch erstellt.</li>
+                    <li>Du kannst den Pfad direkt in Vorgangswerk importieren und anpassen.</li>
+                </ol>
+                <p class="mt-2 mb-0 small text-muted">
+                    <strong>Datenschutz:</strong> PDF-Inhalte werden ausschließlich zur Analyse verwendet
+                    und nicht dauerhaft gespeichert oder weitergegeben.
+                </p>
+            </div>
+        </div>
+
+        <!-- Anleitung: PDF für Gruppen & Verzweigungen vorbereiten -->
+        <div class="card mt-3">
+            <div class="card-header py-2" style="cursor:pointer;" data-bs-toggle="collapse" data-bs-target="#anleitung-gruppen">
+                <div class="d-flex align-items-center justify-content-between">
+                    <h6 class="mb-0 fw-semibold">&#128218; Tipp: PDF für Gruppen &amp; Verzweigungen vorbereiten</h6>
+                    <span class="text-muted small">aufklappen &#8595;</span>
+                </div>
+            </div>
+            <div class="collapse" id="anleitung-gruppen">
+                <div class="card-body p-4 small">
+                    <p class="text-muted mb-3">
+                        Mit ein paar einfachen Markierungen im PDF erkennt die KI automatisch
+                        welche Abschnitte zusammengehören und wie das Formular verzweigt werden soll.
+                    </p>
+
+                    <h6 class="fw-semibold">1. Gruppen einrahmen</h6>
+                    <p class="text-muted">
+                        Umrahme zusammengehörige Felder mit einem farbigen Rechteck (z.B. rot).
+                        Jeder Rahmen wird zu einem eigenen Schritt im Pfad.
+                    </p>
+                    <div class="bg-light rounded p-3 mb-3 font-monospace" style="font-size:.78rem;">
+                        ┌─────────────────────────────┐<br>
+                        │ ☐ Rinderhaltung &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;│<br>
+                        │ Kälber: ___ &nbsp;Mastrinder: ___│<br>
+                        │ Milchkühe: ___ &nbsp;Summe: ___  │<br>
+                        └─────────────────────────────┘
+                    </div>
+
+                    <h6 class="fw-semibold">2. Gruppen nummerieren</h6>
+                    <p class="text-muted">
+                        Schreibe eine sichtbare Ziffer in jeden Rahmen (z.B. oben links).
+                        Die Nummer identifiziert die Gruppe eindeutig.
+                    </p>
+                    <div class="bg-light rounded p-3 mb-3 font-monospace" style="font-size:.78rem;">
+                        ┌─────────────────────────────┐<br>
+                        │ <strong>3</strong> &nbsp;Rinderhaltung &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;│<br>
+                        │ Kälber: ___ &nbsp;Mastrinder: ___│<br>
+                        └─────────────────────────────┘<br><br>
+                        ┌─────────────────────────────┐<br>
+                        │ <strong>4</strong> &nbsp;Schweinehaltung &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;│<br>
+                        │ Ferkel: ___ &nbsp;Mastschweine: _│<br>
+                        └─────────────────────────────┘
+                    </div>
+
+                    <h6 class="fw-semibold">3. Verzweigungsfeld markieren</h6>
+                    <p class="text-muted">
+                        Füge die Nummern aller Gruppen als sichtbare Ziffernreihe bei einer
+                        Abschnittsüberschrift ein. Daraus wird automatisch ein Auswahlfeld –
+                        der Nutzer wählt welche Gruppen für ihn zutreffen.
+                    </p>
+                    <div class="bg-light rounded p-3 mb-3 font-monospace" style="font-size:.78rem;">
+                        D &nbsp;Angaben zur Tierhaltung &nbsp;&nbsp;<strong>3 4 5 6 7 8 9 10</strong>
+                    </div>
+
+                    <h6 class="fw-semibold">Ergebnis</h6>
+                    <p class="text-muted mb-1">Die KI erzeugt automatisch:</p>
+                    <ul class="text-muted mb-0">
+                        <li>Einen Auswahlschritt mit Checkboxen (Ziffern 3–10)</li>
+                        <li>Für jede gewählte Ziffer einen eigenen Schritt</li>
+                        <li>Bedingte Transitionen – nicht gewählte Gruppen werden übersprungen</li>
+                    </ul>
+
+                    <div class="alert alert-light border mt-3 mb-0 py-2" style="font-size:.78rem;">
+                        <strong>Hinweis:</strong> Verwende einen PDF-Editor wie
+                        <strong>BentoPDF</strong>, <strong>Adobe Acrobat</strong> oder
+                        <strong>PDF24</strong> um Rahmen und Nummern einzufügen.
+                        Nur sichtbarer Text und Formen – keine Kommentar-Popups.
+                        <div class="mt-2">
+                            <a href="{% static 'docs/muster_gruppenformular.pdf' %}" target="_blank" class="btn btn-sm btn-outline-secondary">
+                                &#128462; Muster-PDF herunterladen
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

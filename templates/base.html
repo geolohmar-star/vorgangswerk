@@ -6,15 +6,22 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="csrf-token" content="{{ csrf_token }}">
     <title>{% block title %}Vorgangswerk{% endblock %}</title>
+    <link rel="icon" type="image/x-icon" href="{% static 'favicon.ico' %}">
     <link rel="stylesheet" href="{% static 'css/bootstrap.min.css' %}">
     <link rel="stylesheet" href="{% static 'css/vorgangswerk.css' %}">
+    <link rel="stylesheet" href="{% static 'css/bootstrap-icons.min.css' %}">
     {% block extra_css %}{% endblock %}
 </head>
 <body>
 
+{# ---- Skip-Link (BITV 2.0 / WCAG 2.4.1) ---- #}
+<a href="#main-content" class="visually-hidden-focusable position-absolute top-0 start-0 p-2 bg-white text-dark fw-bold" style="z-index:9999;">
+    Zum Inhalt springen
+</a>
+
 {# ---- Navbar ---- #}
 {% if user.is_authenticated %}
-<nav class="navbar navbar-expand-lg navbar-dark" style="background:#1a4d2e;">
+<nav class="navbar navbar-expand-lg navbar-dark" style="background:#1a4d2e;" aria-label="Hauptnavigation">
     <div class="container-fluid px-4">
 
         <a class="navbar-brand fw-bold" href="{% url 'core:dashboard' %}">
@@ -22,36 +29,62 @@
         </a>
 
         <button class="navbar-toggler" type="button"
-                data-bs-toggle="collapse" data-bs-target="#navbarMenu">
+                data-bs-toggle="collapse" data-bs-target="#navbarMenu"
+                aria-controls="navbarMenu" aria-expanded="false"
+                aria-label="Navigationsmenü öffnen">
             <span class="navbar-toggler-icon"></span>
         </button>
 
         <div class="collapse navbar-collapse" id="navbarMenu">
+
+            {# ---- Produktive Navigation (links) ---- #}
             <ul class="navbar-nav me-auto">
-                {# ---- Formulare ---- #}
                 <li class="nav-item">
                     <a class="nav-link" href="{% url 'formulare:liste' %}">Formulare</a>
                 </li>
-                {# ---- Workflow ---- #}
                 <li class="nav-item">
                     <a class="nav-link" href="{% url 'workflow:arbeitsstapel' %}">Workflow</a>
                 </li>
-                {# ---- Dokumente ---- #}
                 <li class="nav-item">
                     <a class="nav-link" href="{% url 'dokumente:liste' %}">Dokumente</a>
                 </li>
-                {# ---- Kommunikation ---- #}
                 <li class="nav-item">
                     <a class="nav-link" href="{% url 'kommunikation:postfach' %}">Postfach</a>
                 </li>
+                <li class="nav-item dropdown">
+                    <a class="nav-link dropdown-toggle" href="#" data-bs-toggle="dropdown">Postbuch</a>
+                    <ul class="dropdown-menu">
+                        <li><a class="dropdown-item" href="{% url 'post:liste' %}">Postbuch</a></li>
+                        <li><a class="dropdown-item" href="{% url 'post:org_liste' %}">Organisationsverzeichnis</a></li>
+                    </ul>
+                </li>
+                <li class="nav-item dropdown">
+                    <a class="nav-link dropdown-toggle" href="#" data-bs-toggle="dropdown">Korrespondenz</a>
+                    <ul class="dropdown-menu">
+                        <li><a class="dropdown-item" href="{% url 'korrespondenz:brief_liste' %}">Briefe</a></li>
+                        <li><a class="dropdown-item" href="{% url 'korrespondenz:vorlage_liste' %}">Vorlagen</a></li>
+                        <li><a class="dropdown-item" href="{% url 'korrespondenz:bescheid_suche' %}">Bescheid erstellen</a></li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li><a class="dropdown-item" href="{% url 'korrespondenz:firmendaten' %}">Firmendaten</a></li>
+                    </ul>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="{% url 'portal:dashboard' %}">Portal</a>
+                </li>
             </ul>
 
-            {# ---- User-Menue ---- #}
+            {# ---- Info + User-Menue (rechts) ---- #}
             <ul class="navbar-nav">
+                <li class="nav-item">
+                    <a class="nav-link" href="{% url 'core:roadmap' %}">&#128161; Innovationsboard</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="{% url 'core:ueber' %}">&#8505;&#65039; Über</a>
+                </li>
                 {# ---- Benachrichtigungs-Glocke ---- #}
                 <li class="nav-item">
-                    <a class="nav-link position-relative" href="{% url 'kommunikation:benachrichtigungen' %}">
-                        &#128276;
+                    <a class="nav-link position-relative" href="{% url 'kommunikation:benachrichtigungen' %}" aria-label="Benachrichtigungen">
+                        <span aria-hidden="true">&#128276;</span>
                         <span id="benachrichtigungs-badge"
                               hx-get="{% url 'kommunikation:navbar_badge' %}"
                               hx-trigger="load, every 60s"
@@ -67,10 +100,19 @@
                         <li>
                             <a class="dropdown-item" href="{% url 'core:profil' %}">Mein Profil</a>
                         </li>
+                        <li>
+                            <a class="dropdown-item" href="{% url 'signatur:signatur_pruefen' %}"><span aria-hidden="true">&#10003;</span> Signatur prüfen</a>
+                        </li>
+                        <li>
+                            <a class="dropdown-item" href="{% url 'signatur:dashboard' %}"><span aria-hidden="true">&#128274;</span> Signatur-Dashboard</a>
+                        </li>
                         {% if user.is_staff %}
                         <li><hr class="dropdown-divider"></li>
                         <li>
                             <a class="dropdown-item" href="/admin/">Administration</a>
+                        </li>
+                        <li>
+                            <a class="dropdown-item" href="{% url 'sicherung:uebersicht' %}">&#128190; Datensicherung</a>
                         </li>
                         {% endif %}
                         <li><hr class="dropdown-divider"></li>
@@ -95,14 +137,14 @@
     {% for message in messages %}
     <div class="alert alert-{{ message.tags|default:'info' }} alert-dismissible fade show py-2">
         {{ message }}
-        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Meldung schließen"></button>
     </div>
     {% endfor %}
 </div>
 {% endif %}
 
 {# ---- Seiteninhalt ---- #}
-<main>
+<main id="main-content">
     {% block content %}{% endblock %}
 </main>
 

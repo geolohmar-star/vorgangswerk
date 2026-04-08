@@ -5,8 +5,26 @@
 
 {% block extra_css %}
 <style>
-.vw-kachel { transition: box-shadow .15s; }
-.vw-kachel:hover { box-shadow: 0 4px 16px rgba(26,77,46,.15) !important; }
+.vw-kachel { transition: box-shadow .15s, transform .15s; }
+.vw-kachel:hover { box-shadow: 0 6px 20px rgba(26,77,46,.18) !important; transform: translateY(-2px); }
+.vw-kachel .kachel-icon {
+    width: 48px; height: 48px;
+    border-radius: 12px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.4rem;
+    margin: 0 auto .75rem;
+}
+.vw-kachel .kachel-zahl { font-size: 2rem; line-height: 1; font-weight: 700; }
+.vw-kachel .kachel-label { font-size: .8rem; color: #6c757d; margin-top: .25rem; }
+.vw-kachel .kachel-sub { font-size: .75rem; color: #adb5bd; margin-top: .15rem; }
+.vw-kachel-aufgaben .kachel-icon  { background: #e8f5e9; color: #1a4d2e; }
+.vw-kachel-antraege .kachel-icon  { background: #e3f2fd; color: #1565c0; }
+.vw-kachel-meldungen .kachel-icon { background: #fff8e1; color: #f57f17; }
+.vw-kachel-dokumente .kachel-icon { background: #fce4ec; color: #b71c1c; }
+.vw-kachel-aufgaben  .kachel-zahl { color: #1a4d2e; }
+.vw-kachel-antraege  .kachel-zahl { color: #1565c0; }
+.vw-kachel-meldungen .kachel-zahl { color: #f57f17; }
+.vw-kachel-dokumente .kachel-zahl { color: #b71c1c; }
 </style>
 {% endblock %}
 
@@ -21,24 +39,21 @@
         <p class="text-muted small mb-0">Ihre persoenliche Uebersicht</p>
     </div>
 
-    {# ================================================================
-       ZEILE 1 – Zaehler-Kacheln
-    ================================================================ #}
+    <!-- ZEILE 1 – Zaehler-Kacheln -->
     <div class="row g-3 mb-4">
 
         {# Meine Aufgaben #}
         <div class="col-6 col-md-3">
             <a href="{% url 'workflow:arbeitsstapel' %}" class="text-decoration-none">
-                <div class="card border-0 shadow-sm h-100 vw-kachel">
+                <div class="card border-0 shadow-sm h-100 vw-kachel vw-kachel-aufgaben">
                     <div class="card-body p-3 text-center">
-                        <div class="display-6 fw-bold" style="color:#1a4d2e;">
-                            {{ eigene_tasks|length }}
+                        <div class="kachel-icon">
+                            <i class="bi bi-check2-square"></i>
                         </div>
-                        <div class="small text-muted mt-1">Meine Aufgaben</div>
+                        <div class="kachel-zahl">{{ eigene_tasks|length }}</div>
+                        <div class="kachel-label">Meine Aufgaben</div>
                         {% if gruppen_tasks_anzahl %}
-                        <div class="small text-muted">
-                            + {{ gruppen_tasks_anzahl }} in Gruppen-Queue
-                        </div>
+                        <div class="kachel-sub">+ {{ gruppen_tasks_anzahl }} Gruppen-Queue</div>
                         {% endif %}
                     </div>
                 </div>
@@ -48,12 +63,13 @@
         {# Meine Antraege #}
         <div class="col-6 col-md-3">
             <a href="{% url 'formulare:liste' %}" class="text-decoration-none">
-                <div class="card border-0 shadow-sm h-100 vw-kachel">
+                <div class="card border-0 shadow-sm h-100 vw-kachel vw-kachel-antraege">
                     <div class="card-body p-3 text-center">
-                        <div class="display-6 fw-bold" style="color:#1a4d2e;">
-                            {{ offene_sitzungen }}
+                        <div class="kachel-icon">
+                            <i class="bi bi-file-earmark-text"></i>
                         </div>
-                        <div class="small text-muted mt-1">Offene Antraege</div>
+                        <div class="kachel-zahl">{{ offene_sitzungen }}</div>
+                        <div class="kachel-label">Offene Antraege</div>
                     </div>
                 </div>
             </a>
@@ -62,13 +78,17 @@
         {# Benachrichtigungen #}
         <div class="col-6 col-md-3">
             <a href="{% url 'kommunikation:benachrichtigungen' %}" class="text-decoration-none">
-                <div class="card border-0 shadow-sm h-100 vw-kachel">
+                <div class="card border-0 shadow-sm h-100 vw-kachel vw-kachel-meldungen">
                     <div class="card-body p-3 text-center">
-                        <div class="display-6 fw-bold
-                            {% if ungelesen_anzahl %}text-warning{% else %}text-muted{% endif %}">
-                            {{ ungelesen_anzahl }}
+                        <div class="kachel-icon">
+                            {% if ungelesen_anzahl %}
+                            <i class="bi bi-bell-fill"></i>
+                            {% else %}
+                            <i class="bi bi-bell"></i>
+                            {% endif %}
                         </div>
-                        <div class="small text-muted mt-1">Ungelesene Meldungen</div>
+                        <div class="kachel-zahl">{{ ungelesen_anzahl }}</div>
+                        <div class="kachel-label">Ungelesene Meldungen</div>
                     </div>
                 </div>
             </a>
@@ -77,12 +97,13 @@
         {# Dokumente #}
         <div class="col-6 col-md-3">
             <a href="{% url 'dokumente:liste' %}" class="text-decoration-none">
-                <div class="card border-0 shadow-sm h-100 vw-kachel">
+                <div class="card border-0 shadow-sm h-100 vw-kachel vw-kachel-dokumente">
                     <div class="card-body p-3 text-center">
-                        <div class="display-6 fw-bold" style="color:#1a4d2e;">
-                            {{ dokumente_gesamt }}
+                        <div class="kachel-icon">
+                            <i class="bi bi-folder2-open"></i>
                         </div>
-                        <div class="small text-muted mt-1">Dokumente gesamt</div>
+                        <div class="kachel-zahl">{{ dokumente_gesamt }}</div>
+                        <div class="kachel-label">Dokumente gesamt</div>
                     </div>
                 </div>
             </a>
@@ -90,9 +111,7 @@
 
     </div>
 
-    {# ================================================================
-       ZEILE 2 – Aufgaben + Antraege
-    ================================================================ #}
+    <!-- ZEILE 2 – Aufgaben + Antraege -->
     <div class="row g-3 mb-4">
 
         {# Meine Aufgaben – Liste #}
@@ -179,9 +198,7 @@
 
     </div>
 
-    {# ================================================================
-       ZEILE 3 – Dokumente + Benachrichtigungen
-    ================================================================ #}
+    <!-- ZEILE 3 – Dokumente + Benachrichtigungen -->
     <div class="row g-3 mb-4">
 
         {# Neueste Dokumente #}
@@ -262,10 +279,8 @@
 
     </div>
 
-    {# ================================================================
-       ZEILE 4 – Staff-Bereich (nur fuer is_staff)
-    ================================================================ #}
-    {% if user.is_staff %}
+    <!-- ZEILE 4 – Staff-Bereich (Sachbearbeiter oder is_staff) -->
+    {% if zeige_staff_bereich %}
     <div class="row g-3">
 
         {# Neue E-Mails #}

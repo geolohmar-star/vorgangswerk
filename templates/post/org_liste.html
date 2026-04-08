@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% block title %}Organisationsverzeichnis – Vorgangswerk{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-4 py-4">
+
+  <div class="d-flex align-items-center justify-content-between mb-3">
+    <h4 class="mb-0">Organisationsverzeichnis</h4>
+    <a href="{% url 'post:org_neu' %}" class="btn btn-sm btn-primary">+ Organisation</a>
+  </div>
+
+  <form method="get" class="row g-2 mb-3 align-items-end">
+    <div class="col">
+      <input type="search" name="q" class="form-control form-control-sm"
+             placeholder="Name, Ort, E-Mail..." value="{{ filter_q }}">
+    </div>
+    <div class="col-auto">
+      <select name="typ" class="form-select form-select-sm">
+        <option value="">Alle Typen</option>
+        {% for val, label in typ_choices %}
+        <option value="{{ val }}" {% if filter_typ == val %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-auto">
+      <button type="submit" class="btn btn-sm btn-outline-secondary">Filtern</button>
+      <a href="{% url 'post:org_liste' %}" class="btn btn-sm btn-link text-muted">Alle</a>
+    </div>
+  </form>
+
+  <div class="table-responsive">
+    <table class="table table-sm table-hover align-middle">
+      <thead class="table-light">
+        <tr>
+          <th>Name</th>
+          <th>Typ</th>
+          <th>E-Mail</th>
+          <th>Telefon</th>
+          <th>Ort</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for o in orgs %}
+        <tr>
+          <td><strong>{{ o.name }}</strong></td>
+          <td><span class="badge bg-light text-dark border">{{ o.get_typ_display }}</span></td>
+          <td>
+            {% if o.email %}
+            <a href="mailto:{{ o.email }}" class="text-decoration-none small">{{ o.email }}</a>
+            {% else %}<span class="text-muted small">–</span>{% endif %}
+          </td>
+          <td class="small text-muted">{{ o.telefon|default:"–" }}</td>
+          <td class="small text-muted">{% if o.plz %}{{ o.plz }} {% endif %}{{ o.ort|default:"–" }}</td>
+          <td class="text-nowrap">
+            <a href="{% url 'post:org_bearbeiten' o.pk %}" class="btn btn-sm btn-outline-secondary py-0 px-2">Bearbeiten</a>
+            <a href="{% url 'post:org_loeschen' o.pk %}" class="btn btn-sm btn-outline-danger py-0 px-2">Loeschen</a>
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="6" class="text-center text-muted py-4">Keine Eintraege vorhanden.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

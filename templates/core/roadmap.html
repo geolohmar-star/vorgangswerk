@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+{% block title %}Innovationsboard – Vorgangswerk{% endblock %}
+
+{% block extra_css %}
+<style>
+  .roadmap-card { transition: box-shadow .15s; }
+  .roadmap-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,.1); }
+  .standard-badge { font-size: .75rem; letter-spacing: .03em; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-4 py-4">
+
+  <div class="d-flex align-items-start justify-content-between mb-1">
+    <div>
+      <h4 class="mb-0">Innovationsboard</h4>
+      <p class="text-muted small mb-0">
+        Was heute schon moeglich waere – Standards, Ideen und naechste Schritte fuer Vorgangswerk.
+      </p>
+    </div>
+    {% if request.user.is_staff %}
+    <a href="/admin/core/roadmapeintrag/add/" class="btn btn-sm btn-outline-primary">+ Eintrag</a>
+    {% endif %}
+  </div>
+
+  <hr class="my-3">
+
+  {# Filterleiste #}
+  <form method="get" class="d-flex flex-wrap gap-2 mb-4 align-items-center">
+    <select name="kategorie" class="form-select form-select-sm w-auto">
+      <option value="">Alle Kategorien</option>
+      {% for val, label in kategorie_choices %}
+      <option value="{{ val }}" {% if filter_kategorie == val %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+    <select name="status" class="form-select form-select-sm w-auto">
+      <option value="">Alle Status</option>
+      {% for val, label in status_choices %}
+      <option value="{{ val }}" {% if filter_status == val %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+    <button type="submit" class="btn btn-sm btn-outline-secondary">Filtern</button>
+    <a href="{% url 'core:roadmap' %}" class="btn btn-sm btn-link text-muted">Zuruecksetzen</a>
+  </form>
+
+  {% if not eintraege %}
+  <div class="text-center text-muted py-5">
+    <div style="font-size:2.5rem">&#128161;</div>
+    <p class="mt-2">Noch keine Eintraege vorhanden.{% if request.user.is_staff %} <a href="/admin/core/roadmapeintrag/add/">Ersten Eintrag anlegen.</a>{% endif %}</p>
+  </div>
+  {% endif %}
+
+  <div class="row g-3">
+    {% for e in eintraege %}
+    <div class="col-md-6 col-xl-4">
+      <div class="card roadmap-card h-100 border-0 shadow-sm">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-start mb-2">
+            <span class="badge bg-{{ e.status_farbe }}-subtle text-{{ e.status_farbe }} border border-{{ e.status_farbe }}-subtle">
+              {{ e.get_status_display }}
+            </span>
+            <span class="badge bg-light text-secondary border small">{{ e.get_kategorie_display }}</span>
+          </div>
+
+          <h6 class="fw-bold mb-1">{{ e.titel }}</h6>
+          <p class="text-muted small mb-2">{{ e.zusammenfassung }}</p>
+
+          {% if e.details %}
+          <details class="mb-2">
+            <summary class="small text-muted" style="cursor:pointer">Technischer Hintergrund</summary>
+            <div class="mt-2 small text-muted" style="white-space:pre-line">{{ e.details }}</div>
+          </details>
+          {% endif %}
+
+          <div class="d-flex flex-wrap gap-2 mt-auto">
+            {% if e.standard %}
+            <span class="badge standard-badge bg-light text-dark border">&#128196; {{ e.standard }}</span>
+            {% endif %}
+            {% if e.link_url %}
+            <a href="{{ e.link_url }}" target="_blank" rel="noopener" class="badge standard-badge bg-primary-subtle text-primary border border-primary-subtle text-decoration-none">
+              &#8599; {{ e.link_label|default:"Dokumentation" }}
+            </a>
+            {% endif %}
+          </div>
+        </div>
+        {% if request.user.is_staff %}
+        <div class="card-footer bg-transparent border-0 pt-0">
+          <a href="/admin/core/roadmapeintrag/{{ e.pk }}/change/" class="small text-muted">Bearbeiten</a>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
+</div>
+{% endblock %}

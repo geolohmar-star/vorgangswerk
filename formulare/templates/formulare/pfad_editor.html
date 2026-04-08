@@ -34,6 +34,17 @@ html, body { overflow: hidden; height: 100%; }
             <input class="form-check-input" type="checkbox" id="pfad-oeffentlich" {% if pfad and pfad.oeffentlich %}checked{% endif %}>
             <label class="form-check-label small" for="pfad-oeffentlich">Öffentlich</label>
         </div>
+        {% if workflow_templates %}
+        <div class="input-group input-group-sm" style="max-width:220px;" title="Workflow der automatisch startet wenn dieser Antrag abgeschlossen wird">
+            <span class="input-group-text" style="white-space:nowrap;">&#9654; Workflow</span>
+            <select id="pfad-workflow-template" class="form-select form-select-sm">
+                <option value="">— kein Workflow —</option>
+                {% for wt in workflow_templates %}
+                <option value="{{ wt.pk }}" {% if pfad and pfad.workflow_template_id == wt.pk %}selected{% endif %}>{{ wt.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        {% endif %}
         {% if pfad and pfad.kuerzel %}
         <button id="btn-qrcode" class="btn btn-sm btn-outline-success" title="QR-Code und oeffentliche URL anzeigen">
             &#9641; QR-Code
@@ -230,9 +241,11 @@ html, body { overflow: hidden; height: 100%; }
                             <option value="auswahl">Auswahl (Dropdown)</option>
                             <option value="radio">Multiple Choice</option>
                             <option value="checkboxen">Kontrollkästchen (Mehrfach)</option>
+                            <option value="bankverbindung">Bankverbindung (aus Firmendaten)</option>
                         </optgroup>
                         <optgroup label="Datei &amp; Signatur">
                             <option value="datei">Datei-Upload</option>
+                            <option value="bild">Bild-Upload (Foto / Scan)</option>
                             <option value="signatur">Unterschrift (Signatur-Pad)</option>
                         </optgroup>
                         <optgroup label="Wiederholung">
@@ -245,6 +258,7 @@ html, body { overflow: hidden; height: 100%; }
                         </optgroup>
                         <optgroup label="Aktionen">
                             <option value="pdf_email">PDF per E-Mail versenden</option>
+                            <option value="zahlung">Online-Zahlung (Stripe / Wero) &#127881;</option>
                         </optgroup>
                         <optgroup label="Struktur &amp; Navigation">
                             <option value="textblock">Fließtext / Hinweis</option>
@@ -254,12 +268,24 @@ html, body { overflow: hidden; height: 100%; }
                             <option value="leerblock">Leerblock (Abstand)</option>
                             <option value="einwilligung">Einwilligungs-Checkbox (DSGVO)</option>
                         </optgroup>
+                        <optgroup label="&#128203; Quiz &amp; Prüfbögen">
+                            <option value="quizfrage">Quizfrage (Single / Multiple / Wahr–Falsch)</option>
+                            <option value="quizhinweis">Quiz-Hinweis (Infotext zwischen Fragen)</option>
+                            <option value="quizergebnis">Quizergebnis (Auswertung, letzter Schritt)</option>
+                        </optgroup>
                     </select>
                 </div>
-                <div class="mb-3">
-                    <label class="form-label fw-semibold">Bezeichnung <span class="text-danger">*</span></label>
+                <div class="mb-3" id="bezeichnung-row">
+                    <label class="form-label fw-semibold" id="bezeichnung-label">Bezeichnung <span class="text-danger">*</span></label>
                     <input type="text" class="form-control" id="feld-label" placeholder="z.B. Vorname">
-                    <small class="text-muted">Feld-ID: <code id="feld-id-vorschau"></code></small>
+                    <small class="text-muted" id="feld-id-vorschau-wrap">Feld-ID: <code id="feld-id-vorschau"></code></small>
+                </div>
+                <!-- Feld-ID (explizit, nur bei bool) -->
+                <div class="mb-3" id="bool-id-row" style="display:none;">
+                    <label class="form-label fw-semibold">Feld-ID <span class="text-danger">*</span></label>
+                    <input type="text" class="form-control font-monospace" id="feld-bool-feld-id"
+                           placeholder="z.B. datenschutz_akzeptiert">
+                    <small class="text-muted">Kurzbezeichnung ohne Leerzeichen, wird in Auswertungen verwendet.</small>
                 </div>
                 <div class="mb-3">
                     <label class="form-label fw-semibold">Hilfetext</label>
@@ -296,6 +322,16 @@ html, body { overflow: hidden; height: 100%; }
                             Muster ableiten
                         </button>
                         <div id="regex-ableiten-ergebnis" class="mt-2 small font-monospace" style="display:none;"></div>
+                    </div>
+                </div>
+
+                <div class="mb-3" id="bankverbindung-row" style="display:none;">
+                    <div class="alert alert-info py-2 small mb-0">
+                        <strong>Bankverbindung:</strong> Das Dropdown wird automatisch mit den konfigurierten
+                        Bankverbindungen aus den Firmendaten befüllt. Nach Auswahl sind die Variablen
+                        <code>{{FELD_ID}}_iban</code>, <code>{{FELD_ID}}_bic</code>,
+                        <code>{{FELD_ID}}_bank</code>, <code>{{FELD_ID}}_kontoinhaber</code>
+                        in Fließtextfeldern verfügbar.
                     </div>
                 </div>
 
@@ -363,6 +399,66 @@ html, body { overflow: hidden; height: 100%; }
                     <input type="text" class="form-control" id="feld-akzeptieren"
                            placeholder=".pdf,.docx oder image/* oder leer = alle">
                     <small class="text-muted">HTML-<code>accept</code>-Attribut – z.B. <code>.pdf</code>, <code>image/*</code>, <code>.pdf,.jpg</code></small>
+                </div>
+
+                <!-- Online-Zahlung Konfiguration -->
+                <div id="zahlung-row" style="display:none;">
+                    <div class="alert alert-warning p-2 mb-3" style="font-size:0.82rem;">
+                        <strong>Demo-Modus:</strong> Zeigt eine realistische Zahlungs-Oberfläche –
+                        kein echter API-Aufruf. Ideal für Testzwecke und Konzeptpräsentationen.
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Betrag</label>
+                        <div class="row g-2 align-items-center">
+                            <div class="col-auto">
+                                <select class="form-select form-select-sm" id="zahlung-betrag-quelle">
+                                    <option value="fest">Fester Betrag</option>
+                                    <option value="feld">Aus Berechnungsfeld</option>
+                                </select>
+                            </div>
+                            <div class="col-auto" id="zahlung-betrag-fest-wrap">
+                                <div class="input-group input-group-sm">
+                                    <input type="number" class="form-control" id="zahlung-betrag-fest"
+                                           placeholder="50.00" step="0.01" min="0" style="width:100px;">
+                                    <span class="input-group-text">EUR</span>
+                                </div>
+                            </div>
+                            <div class="col-auto d-none" id="zahlung-betrag-feld-wrap">
+                                <input type="text" class="form-control form-control-sm font-monospace"
+                                       id="zahlung-betrag-feld-id" placeholder="{{gebuehr}}" style="width:140px;">
+                                <small class="text-muted">Feld-ID mit <code>{{…}}</code></small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Verwendungszweck</label>
+                        <input type="text" class="form-control" id="zahlung-verwendungszweck"
+                               placeholder="Antragsgebühr – {{kuerzel}}">
+                        <small class="text-muted">Wird dem Zahler als Buchungstext angezeigt.</small>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Zahlungsmethoden</label>
+                        <div class="d-flex flex-wrap gap-3">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="zahlung-methode-stripe_karte" checked>
+                                <label class="form-check-label" for="zahlung-methode-stripe_karte">
+                                    Stripe – Kreditkarte / Debitkarte
+                                </label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="zahlung-methode-stripe_sepa">
+                                <label class="form-check-label" for="zahlung-methode-stripe_sepa">
+                                    Stripe – SEPA-Lastschrift
+                                </label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="zahlung-methode-wero">
+                                <label class="form-check-label" for="zahlung-methode-wero">
+                                    Wero (Echtzeit-Überweisung)
+                                </label>
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
                 <!-- PDF-E-Mail-Konfiguration -->
@@ -463,6 +559,142 @@ html, body { overflow: hidden; height: 100%; }
                     </div>
                 </div>
 
+                <!-- ============================================================
+                     Quiz-Feldtypen
+                ============================================================ -->
+
+                <!-- quizhinweis: Infotext -->
+                <div class="mb-3" id="quizhinweis-row" style="display:none;">
+                    <label class="form-label fw-semibold">Hinweistext <span class="text-danger">*</span></label>
+                    <textarea class="form-control" id="feld-quizhinweis-text" rows="2"
+                              placeholder="z.B.: Im nächsten Abschnitt werden Fragen zum Brandschutz gestellt."></textarea>
+                </div>
+
+                <!-- quizfrage: Frage konfigurieren -->
+                <div id="quizfrage-row" style="display:none;">
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Antworttyp</label>
+                        <select class="form-select form-select-sm" id="quiz-antwort-typ" style="max-width:280px;">
+                            <option value="single">Einfachauswahl (Radio)</option>
+                            <option value="multiple">Mehrfachauswahl (Checkboxen)</option>
+                            <option value="wahr_falsch">Wahr / Falsch</option>
+                        </select>
+                    </div>
+                    <div class="row g-2 mb-3">
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold">Punkte</label>
+                            <input type="number" class="form-control form-control-sm" id="quiz-punkte"
+                                   min="0" step="0.5" value="1" placeholder="1">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold">Fehlerpunkte <small class="text-muted">(Führerschein-Modell)</small></label>
+                            <input type="number" class="form-control form-control-sm" id="quiz-fehlerpunkte"
+                                   min="0" step="0.5" value="" placeholder="= Punkte">
+                        </div>
+                        <div class="col-md-4 d-flex align-items-end pb-1">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="quiz-pflicht-korrekt">
+                                <label class="form-check-label small" for="quiz-pflicht-korrekt">
+                                    Pflicht korrekt<br><span class="text-muted" style="font-size:0.72rem;">(sofort nicht bestanden)</span>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row g-2 mb-3">
+                        <div class="col-md-6">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="quiz-teilpunkte">
+                                <label class="form-check-label small" for="quiz-teilpunkte">Teilpunkte bei Mehrfachauswahl</label>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Erklärung (optional, nach Beantwortung angezeigt)</label>
+                        <input type="text" class="form-control" id="quiz-erklaerung"
+                               placeholder="z.B.: Gemäß DGUV Regel 113-001 gilt…">
+                    </div>
+                    <!-- Antworten -->
+                    <div class="mb-2 d-flex justify-content-between align-items-center">
+                        <label class="form-label fw-semibold mb-0">Antworten</label>
+                        <button type="button" class="btn btn-sm btn-outline-primary" id="btn-quiz-antwort-hinzu">
+                            + Antwort
+                        </button>
+                    </div>
+                    <div id="quiz-antworten-liste" class="border rounded p-2 bg-light mb-2"
+                         style="min-height:50px; max-height:260px; overflow-y:auto;">
+                        <p class="text-muted small mb-0" id="quiz-antworten-leer">Noch keine Antworten.</p>
+                    </div>
+                    <small class="text-muted">Haken = Richtige Antwort. Bei Wahr/Falsch werden Antworten automatisch gesetzt.</small>
+                </div>
+
+                <!-- quizergebnis: Auswertungseinstellungen -->
+                <div id="quizergebnis-row" style="display:none;">
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Bewertungsmodell</label>
+                        <select class="form-select" id="quiz-bewertungsmodell">
+                            <option value="prozent">Prozent (Schwellenwert)</option>
+                            <option value="noten">Schulnoten 1–6</option>
+                            <option value="punkte">Absolute Punktzahl</option>
+                            <option value="fuehrerschein">Führerschein (max. Fehlerpunkte)</option>
+                        </select>
+                    </div>
+                    <!-- Bestanden-ab (Prozent / Punkte) -->
+                    <div class="mb-3" id="qe-bestanden-ab-row">
+                        <label class="form-label fw-semibold" id="qe-bestanden-ab-label">Bestanden ab (%)</label>
+                        <input type="number" class="form-control" id="quiz-bestanden-ab"
+                               min="0" step="1" value="50" placeholder="50">
+                    </div>
+                    <!-- Führerschein: max. Fehlerpunkte -->
+                    <div class="mb-3" id="qe-max-fehlerpunkte-row" style="display:none;">
+                        <label class="form-label fw-semibold">Max. Fehlerpunkte (= nicht bestanden über diesem Wert)</label>
+                        <input type="number" class="form-control" id="quiz-max-fehlerpunkte"
+                               min="0" step="0.5" value="10" placeholder="10">
+                    </div>
+                    <!-- Noten-Grenzen -->
+                    <div class="mb-3" id="qe-noten-row" style="display:none;">
+                        <label class="form-label fw-semibold">Notengrenzen (Prozentwert ab dem die Note gilt)</label>
+                        <div class="row g-2">
+                            <div class="col"><label class="form-label small">Note 1</label><input type="number" class="form-control form-control-sm" id="qe-note-1" value="90" min="0" max="100"></div>
+                            <div class="col"><label class="form-label small">Note 2</label><input type="number" class="form-control form-control-sm" id="qe-note-2" value="76" min="0" max="100"></div>
+                            <div class="col"><label class="form-label small">Note 3</label><input type="number" class="form-control form-control-sm" id="qe-note-3" value="63" min="0" max="100"></div>
+                            <div class="col"><label class="form-label small">Note 4</label><input type="number" class="form-control form-control-sm" id="qe-note-4" value="50" min="0" max="100"></div>
+                            <div class="col"><label class="form-label small">Note 5</label><input type="number" class="form-control form-control-sm" id="qe-note-5" value="30" min="0" max="100"></div>
+                        </div>
+                        <small class="text-muted">Note 6 = unter Note-5-Grenze. Standardwerte: 90/76/63/50/30%.</small>
+                    </div>
+                    <!-- Teilpunkte global -->
+                    <div class="mb-3">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="quiz-ergebnis-teilpunkte">
+                            <label class="form-check-label small" for="quiz-ergebnis-teilpunkte">
+                                Teilpunkte bei Mehrfachauswahl (global, wenn Frage kein eigenes Setting hat)
+                            </label>
+                        </div>
+                    </div>
+                    <hr class="my-2">
+                    <!-- Zertifikat -->
+                    <div class="mb-3">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="quiz-zertifikat">
+                            <label class="form-check-label fw-semibold" for="quiz-zertifikat">
+                                Zertifikat bei Bestehen erzeugen (PDF)
+                            </label>
+                        </div>
+                    </div>
+                    <div id="qe-zertifikat-details" style="display:none;">
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">Zertifikatstitel (optional)</label>
+                            <input type="text" class="form-control" id="quiz-zertifikat-titel"
+                                   placeholder="z.B. Sicherheitseinweisung Chemielager 2026">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">Gültigkeit (Monate, 0 = unbegrenzt)</label>
+                            <input type="number" class="form-control" id="quiz-zertifikat-monate"
+                                   min="0" step="1" value="12" placeholder="12">
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Gruppe: Einzel-Bezeichnung + Unterfelder -->
                 <div id="gruppe-row" style="display:none;">
                     <div class="mb-3">
@@ -508,6 +740,10 @@ html, body { overflow: hidden; height: 100%; }
                 <div class="form-check" id="pflicht-row">
                     <input class="form-check-input" type="checkbox" id="feld-pflicht">
                     <label class="form-check-label" for="feld-pflicht">Pflichtfeld (mindestens 1 Eintrag erforderlich)</label>
+                </div>
+                <div class="form-check mt-1" id="versteckt-row">
+                    <input class="form-check-input" type="checkbox" id="feld-versteckt">
+                    <label class="form-check-label" for="feld-versteckt">Feld verstecken (Wert wird trotzdem gespeichert)</label>
                 </div>
             </div>
             <div class="modal-footer">
@@ -833,6 +1069,7 @@ html, body { overflow: hidden; height: 100%; }
 
 {% block extra_js %}
 {% if pfad %}
+{{ pfad.pk|json_script:"pfad-pk" }}
 {{ pfad.kuerzel|json_script:"pfad-kuerzel" }}
 {{ pfad.oeffentlich|yesno:"true,false"|json_script:"pfad-oeffentlich-init" }}
 {{ pfad.variablen_json|json_script:"pfad-variablen-init" }}

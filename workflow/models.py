@@ -111,6 +111,7 @@ class WorkflowStep(models.Model):
     AKTION_BENACHRICHTIGEN = "benachrichtigen"
     AKTION_EMAIL = "email"
     AKTION_WEBHOOK = "webhook"
+    AKTION_VERTEILEN = "verteilen"
 
     AKTION_CHOICES = [
         (AKTION_GENEHMIGEN, "Genehmigen"),
@@ -121,6 +122,7 @@ class WorkflowStep(models.Model):
         (AKTION_BENACHRICHTIGEN, "Benachrichtigung senden"),
         (AKTION_EMAIL, "Email senden"),
         (AKTION_WEBHOOK, "Webhook aufrufen"),
+        (AKTION_VERTEILEN, "Verteiler / Akte versenden"),
     ]
 
     ROLLE_GRUPPE = "gruppe"

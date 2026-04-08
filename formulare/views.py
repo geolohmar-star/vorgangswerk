@@ -22,6 +22,7 @@ import logging
 import mimetypes
 import operator
 import re
+import zipfile
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
@@ -173,10 +174,14 @@ def _naechster_schritt(schritt, gesammelte_daten):
 _KEINE_EINGABE = {
     "textblock", "abschnitt", "trennlinie", "leerblock", "link",
     "berechnung", "zusammenfassung", "pdf_email", "systemfeld",
+    # Quiz-Anzeigefelder
+    "quizhinweis", "quizergebnis",
 }
 _KEINE_ANZEIGE = {
     "textblock", "abschnitt", "trennlinie", "leerblock", "link",
     "zusammenfassung", "pdf_email",
+    # Quiz-Ergebnisfeld hat keinen Eintrag in der Zusammenfassung
+    "quizergebnis",
 }
 _DATEI_PRAEFX = "__datei__"
 
@@ -300,6 +305,25 @@ def _baue_zusammenfassung(sitzung):
                         "typ":   "einwilligung",
                     })
                     continue
+                if typ == "gruppe":
+                    if not isinstance(wert, list) or not wert:
+                        continue
+                    singular = feld.get("singular", "Eintrag")
+                    unterfelder = feld.get("unterfelder", [])
+                    gruppe_label = feld.get("label", feld_id)
+                    zeilen.append({"label": gruppe_label, "wert": "", "typ": "_abschnitt"})
+                    for i, eintrag in enumerate(wert):
+                        zeilen.append({"label": f"{singular} {i + 1}", "wert": "", "typ": "_abschnitt_sub"})
+                        for uf in unterfelder:
+                            uf_id = uf.get("id", "")
+                            uf_wert = eintrag.get(uf_id, "")
+                            if uf_wert not in ("", None):
+                                zeilen.append({
+                                    "label": uf.get("label", uf_id),
+                                    "wert":  uf_wert,
+                                    "typ":   uf.get("typ", "text"),
+                                })
+                    continue
                 if typ == "berechnung" and feld.get("einheit"):
                     wert = f"{wert} {feld['einheit']}"
                 datei_pk = None
@@ -374,6 +398,21 @@ def _validiere_schritt(schritt, post_data, vorige_daten=None, files_data=None, s
         typ = feld.get("typ", "text")
         pflicht = feld.get("pflicht", False)
 
+        # zeige_wenn: Feld überspringen wenn steuerndes Feld nicht aktiv
+        zeige_wenn = feld.get("zeige_wenn", "")
+        if zeige_wenn:
+            steuerwert = post_data.get(zeige_wenn, "")
+            # bool/checkbox: im POST vorhanden = True
+            if zeige_wenn in post_data and post_data[zeige_wenn] in ("on", "True", "true", "1"):
+                pass  # aktiv → normal validieren
+            elif zeige_wenn in post_data and post_data.getlist(zeige_wenn):
+                pass  # checkboxen mit Wert → aktiv
+            elif post_data.get(zeige_wenn, "") not in ("", "False", "false", "0"):
+                pass  # Textwert vorhanden → aktiv
+            else:
+                daten[feld_id] = (vorige_daten or {}).get(feld_id, "")
+                continue  # versteckt → überspringen
+
         if typ in ("bool", "einwilligung"):
             wert = feld_id in post_data
         elif typ == "checkboxen":
@@ -419,6 +458,45 @@ def _validiere_schritt(schritt, post_data, vorige_daten=None, files_data=None, s
                 wert = vorhandene_ref
             if pflicht and not wert:
                 fehler.append(f'"{feld.get("label", feld_id)}" ist ein Pflichtfeld.')
+            daten[feld_id] = wert
+            continue
+        elif typ == "bild":
+            datei_obj = (files_data or {}).get(feld_id)
+            vorhandene_ref = (vorige_daten or {}).get(feld_id, "")
+            if datei_obj and sitzung:
+                erlaubte_mime = {"image/jpeg", "image/png", "image/webp", "image/gif"}
+                mime = datei_obj.content_type or mimetypes.guess_type(datei_obj.name)[0] or ""
+                if mime not in erlaubte_mime:
+                    fehler.append(f'"{feld.get("label", feld_id)}" – nur Bilder erlaubt (JPG, PNG, WEBP, GIF).')
+                    wert = vorhandene_ref
+                elif datei_obj.size > 10 * 1024 * 1024:
+                    fehler.append(f'"{feld.get("label", feld_id)}" – Bild darf maximal 10 MB groß sein.')
+                    wert = vorhandene_ref
+                else:
+                    ref = _speichere_datei(datei_obj, feld_id, sitzung)
+                    wert = ref if ref else vorhandene_ref
+                    if not ref:
+                        fehler.append(f'"{feld.get("label", feld_id)}" konnte nicht gespeichert werden.')
+            else:
+                wert = vorhandene_ref
+            if pflicht and not wert:
+                fehler.append(f'"{feld.get("label", feld_id)}" ist ein Pflichtfeld.')
+            daten[feld_id] = wert
+            continue
+        elif typ == "quizfrage":
+            antwort_typ = feld.get("antwort_typ", "single")
+            if antwort_typ == "multiple":
+                wert = ", ".join(post_data.getlist(feld_id))
+            else:
+                wert = post_data.get(feld_id, "").strip()
+            if pflicht and not wert:
+                fehler.append(f'"{feld.get("label", feld_id)}" – Bitte wählen Sie eine Antwort.')
+            daten[feld_id] = wert
+            continue
+        elif typ == "zahlung":
+            wert = post_data.get(feld_id, "").strip()
+            if pflicht and wert != "demo_bezahlt":
+                fehler.append(f'"{feld.get("label", feld_id)}" – Bitte schließen Sie die Zahlung ab.')
             daten[feld_id] = wert
             continue
         elif typ == "gruppe":
@@ -708,16 +786,84 @@ def pfad_neu(request):
 
 @login_required
 def pfad_loeschen(request, pk):
-    """Loescht einen Pfad inklusive aller Sitzungen."""
+    """Loescht einen Pfad inklusive aller Sitzungen (nur per POST)."""
     if not _ist_editor(request.user):
         messages.error(request, "Kein Zugriff.")
-        return redirect("formulare:pfad_liste")
+        return redirect("formulare:liste")
     pfad = get_object_or_404(AntrPfad, pk=pk)
-    name = pfad.name
-    pfad.sitzungen.all().delete()
-    pfad.delete()
-    messages.success(request, f'Pfad "{name}" wurde geloescht.')
-    return redirect("formulare:pfad_liste")
+    if request.method == "POST":
+        name = pfad.name
+        pfad.sitzungen.all().delete()
+        pfad.delete()
+        messages.success(request, f'Pfad "{name}" wurde geloescht.')
+        return redirect("formulare:liste")
+    return render(request, "formulare/pfad_loeschen_bestaetigung.html", {"pfad": pfad})
+
+
+# ---------------------------------------------------------------------------
+# Pfad kopieren
+# ---------------------------------------------------------------------------
+
+@login_required
+@require_POST
+def pfad_kopieren(request, pk):
+    """Erstellt eine vollständige Kopie eines Pfads (Schritte + Transitionen)."""
+    if not _ist_editor(request.user):
+        messages.error(request, "Kein Zugriff.")
+        return redirect("formulare:liste")
+
+    original = get_object_or_404(AntrPfad, pk=pk)
+
+    # Kürzel: Original + 'K', max 6 Zeichen, Konflikte mit Suffix lösen
+    basis = (original.kuerzel or original.name[:4].upper().replace(" ", ""))[:5]
+    kandidat = (basis + "K")[:6]
+    zaehler = 1
+    while AntrPfad.objects.filter(kuerzel=kandidat).exists():
+        zaehler += 1
+        kandidat = (basis + str(zaehler))[:6]
+
+    kopie = AntrPfad.objects.create(
+        name=original.name + " (Kopie)",
+        beschreibung=original.beschreibung,
+        kuerzel=kandidat,
+        kategorie=original.kategorie,
+        aktiv=False,
+        oeffentlich=False,
+        benachrichtigung_email=original.benachrichtigung_email,
+        leika_schluessel=original.leika_schluessel,
+        variablen_json=original.variablen_json,
+        workflow_template=original.workflow_template,
+    )
+
+    node_map = {}
+    for s in original.schritte.all():
+        neu = AntrSchritt.objects.create(
+            pfad=kopie,
+            node_id=s.node_id,
+            titel=s.titel,
+            ist_start=s.ist_start,
+            ist_ende=s.ist_ende,
+            felder_json=s.felder_json,
+            pos_x=s.pos_x,
+            pos_y=s.pos_y,
+        )
+        node_map[s.node_id] = neu
+
+    for t in original.transitionen.all():
+        von = node_map.get(t.von_schritt.node_id)
+        zu  = node_map.get(t.zu_schritt.node_id)
+        if von and zu:
+            AntrTransition.objects.create(
+                pfad=kopie,
+                von_schritt=von,
+                zu_schritt=zu,
+                bedingung=t.bedingung,
+                label=t.label,
+                reihenfolge=t.reihenfolge,
+            )
+
+    messages.success(request, f'Kopie von "{original.name}" wurde erstellt.')
+    return redirect("formulare:pfad_editor", pk=kopie.pk)
 
 
 # ---------------------------------------------------------------------------
@@ -748,7 +894,25 @@ def pfad_editor(request, pk=None):
         messages.error(request, "Kein Zugriff.")
         return redirect("formulare:pfad_liste")
     pfad = get_object_or_404(AntrPfad, pk=pk) if pk else None
-    return render(request, "formulare/pfad_editor.html", {"pfad": pfad})
+    # Bank-Variablen für den Editor zusammenstellen
+    bank_variablen = []
+    try:
+        from korrespondenz.models import Bankverbindung
+        for bank in Bankverbindung.objects.all():
+            bank_variablen.append({
+                "bezeichnung": bank.bezeichnung,
+                "variablen": list(bank.als_variablen().keys()),
+            })
+    except Exception:
+        pass
+    import json as _json
+    from workflow.models import WorkflowTemplate
+    workflow_templates = WorkflowTemplate.objects.filter(ist_aktiv=True).order_by("name")
+    return render(request, "formulare/pfad_editor.html", {
+        "pfad": pfad,
+        "bank_variablen_json": _json.dumps(bank_variablen, ensure_ascii=False),
+        "workflow_templates": workflow_templates,
+    })
 
 
 @login_required
@@ -780,15 +944,18 @@ def pfad_editor_laden(request, pk):
         for t in pfad.transitionen.all()
     ]
     return JsonResponse({
-        "pk":           pfad.pk,
-        "name":         pfad.name,
-        "beschreibung": pfad.beschreibung,
-        "aktiv":        pfad.aktiv,
-        "oeffentlich":  pfad.oeffentlich,
-        "kuerzel":      pfad.kuerzel or "",
-        "schritte":     schritte,
-        "transitionen": transitionen,
-        "variablen":    pfad.variablen_json or {},
+        "pk":                   pfad.pk,
+        "name":                 pfad.name,
+        "beschreibung":         pfad.beschreibung,
+        "aktiv":                pfad.aktiv,
+        "oeffentlich":          pfad.oeffentlich,
+        "kuerzel":              pfad.kuerzel or "",
+        "schritte":             schritte,
+        "transitionen":         transitionen,
+        "variablen":               pfad.variablen_json or {},
+        "workflow_template_id":    pfad.workflow_template_id,
+        "benachrichtigung_email":  pfad.benachrichtigung_email or "",
+        "leika_schluessel":        pfad.leika_schluessel or "",
     })
 
 
@@ -810,6 +977,14 @@ def pfad_editor_speichern(request):
 
     kuerzel = daten.get("kuerzel", "").strip().upper()[:6]
     oeffentlich = bool(daten.get("oeffentlich", False))
+    benachrichtigung_email = daten.get("benachrichtigung_email", "").strip()
+    leika_schluessel = daten.get("leika_schluessel", "").strip()
+    wf_tid = daten.get("workflow_template_id") or None
+    if wf_tid:
+        try:
+            wf_tid = int(wf_tid)
+        except (ValueError, TypeError):
+            wf_tid = None
 
     if pk:
         pfad = get_object_or_404(AntrPfad, pk=pk)
@@ -819,6 +994,9 @@ def pfad_editor_speichern(request):
         pfad.oeffentlich = oeffentlich
         pfad.kuerzel = kuerzel
         pfad.variablen_json = daten.get("variablen", {}) or {}
+        pfad.workflow_template_id = wf_tid
+        pfad.benachrichtigung_email = benachrichtigung_email
+        pfad.leika_schluessel = leika_schluessel
         pfad.save()
         pfad.transitionen.all().delete()
         pfad.schritte.all().delete()
@@ -830,6 +1008,9 @@ def pfad_editor_speichern(request):
             oeffentlich=oeffentlich,
             kuerzel=kuerzel,
             variablen_json=daten.get("variablen", {}) or {},
+            workflow_template_id=wf_tid,
+            benachrichtigung_email=benachrichtigung_email,
+            leika_schluessel=leika_schluessel,
             erstellt_von=request.user,
         )
 
@@ -962,11 +1143,17 @@ def pfad_scanner(request):
             return "mehrzeil"
         return "text"
 
+    from .fim_data import fim_match
+
     def _felder_zu_json(felder_roh):
         felder_json = []
         verwendete_ids = set()
         for f in felder_roh:
             typ = _erkenne_typ(f["name"], f["ft"])
+            # FIM-Match: Falls Treffer, FIM-Typ bevorzugen (ausser Btn/Ch-Typ)
+            fim = fim_match(f["name"])
+            if fim and f["ft"] not in ("/Btn", "/Ch"):
+                typ = fim["typ"]
             basis_id = _feld_id(f["name"], typ)
             fid = basis_id
             zaehler = 2
@@ -977,8 +1164,16 @@ def pfad_scanner(request):
             eintrag = {"id": fid, "label": f["name"], "typ": typ, "pflicht": False, "breite": 50}
             if typ == "auswahl" and f.get("opts"):
                 eintrag["optionen"] = f["opts"]
+            if fim:
+                eintrag["fim_id"] = fim["id"]
+                eintrag["fim_match_konfidenz"] = "hoch" if _norm(fim["name"]) in _norm(f["name"]) or _norm(f["name"]) in _norm(fim["name"]) else "mittel"
             felder_json.append(eintrag)
         return felder_json
+
+    def _norm(s):
+        umlaut = str.maketrans({"ä": "ae", "ö": "oe", "ü": "ue", "ß": "ss",
+                                 "Ä": "ae", "Ö": "oe", "Ü": "ue"})
+        return s.lower().translate(umlaut)
 
     def _gruppen_nach_y(felder_mit_pos, schwelle):
         if not felder_mit_pos:
@@ -1045,6 +1240,8 @@ def pfad_scanner(request):
             "pos_x":     200 + i * 320,
             "pos_y":     200,
         })
+    fim_treffer = sum(1 for s in schritte for f in s["felder_json"] if f.get("fim_id"))
+    gesamt_felder = sum(len(s["felder_json"]) for s in schritte)
     return JsonResponse({
         "ok":           True,
         "name":         dateiname,
@@ -1052,7 +1249,88 @@ def pfad_scanner(request):
         "aktiv":        True,
         "schritte":     schritte,
         "transitionen": [],
+        "fim_treffer":  fim_treffer,
+        "gesamt_felder": gesamt_felder,
     })
+
+
+@require_POST
+@login_required
+def pfad_scanner_url(request):
+    """POST: Laedt eine PDF von einer URL und scannt sie wie pfad_scanner. Nur Staff."""
+    if not request.user.is_staff:
+        return JsonResponse({"ok": False, "fehler": "Kein Zugriff"}, status=403)
+
+    url = request.POST.get("url", "").strip()
+    if not url:
+        return JsonResponse({"ok": False, "fehler": "Keine URL angegeben"}, status=400)
+
+    # Nur HTTPS erlauben und keine privaten IPs (SSRF-Schutz)
+    from urllib.parse import urlparse
+    parsed = urlparse(url)
+    if parsed.scheme not in ("http", "https"):
+        return JsonResponse({"ok": False, "fehler": "Nur HTTP/HTTPS-URLs erlaubt"}, status=400)
+    hostname = parsed.hostname or ""
+    if any(hostname.startswith(p) for p in ("127.", "10.", "192.168.", "172.")) or hostname in ("localhost",):
+        return JsonResponse({"ok": False, "fehler": "Lokale Adressen nicht erlaubt"}, status=400)
+
+    try:
+        import requests as req
+        r = req.get(url, timeout=15, allow_redirects=True,
+                    headers={"User-Agent": "Vorgangswerk-PDF-Scanner/1.0"})
+        r.raise_for_status()
+    except Exception as e:
+        return JsonResponse({"ok": False, "fehler": f"PDF konnte nicht geladen werden: {e}"}, status=400)
+
+    content_type = r.headers.get("Content-Type", "")
+    if "pdf" not in content_type and not url.lower().endswith(".pdf") and b"%PDF" not in r.content[:10]:
+        return JsonResponse({"ok": False, "fehler": "URL liefert keine PDF-Datei"}, status=400)
+
+    # Dateiname aus URL oder Content-Disposition ableiten
+    cd = r.headers.get("Content-Disposition", "")
+    if "filename=" in cd:
+        dateiname = cd.split("filename=")[-1].strip().strip('"').rsplit(".", 1)[0]
+    else:
+        dateiname = parsed.path.rstrip("/").split("/")[-1].rsplit(".", 1)[0] or "Importiertes Formular"
+
+    # Temporaere Django-UploadedFile-Simulation via BytesIO
+    from django.core.files.uploadedfile import InMemoryUploadedFile
+    pdf_bytes = r.content
+    pseudo_file = InMemoryUploadedFile(
+        file=io.BytesIO(pdf_bytes),
+        field_name="pdf",
+        name=dateiname + ".pdf",
+        content_type="application/pdf",
+        size=len(pdf_bytes),
+        charset=None,
+    )
+
+    # Bestehende scanner-Logik wiederverwenden: request.FILES patchen
+    from django.test.client import RequestFactory
+    fake = request.__class__.__new__(request.__class__)
+    fake.__dict__ = request.__dict__.copy()
+    # Einfacher: POST-Daten direkt weiterreichen
+    request.FILES._mutable = True if hasattr(request.FILES, "_mutable") else False
+    original_files = request.FILES
+
+    # Inline-Verarbeitung (Scanner-Logik duplizieren wuerde Code aufblaehen –
+    # stattdessen direkt rufen wir pfad_scanner mit dem Pseudo-File auf)
+    class _FakeRequest:
+        user = request.user
+        FILES = {"pdf": pseudo_file}
+        POST = request.POST
+
+    fake_req = _FakeRequest()
+    # pfad_scanner ist eine normale View-Funktion – wir koennen sie direkt aufrufen
+    # aber sie greift auf request.FILES zu. Wir leiten einfach durch:
+    orig_files = request.FILES
+    request._files = {"pdf": pseudo_file}
+    try:
+        from django.utils.datastructures import MultiValueDict
+        request.FILES = MultiValueDict({"pdf": [pseudo_file]})
+        return pfad_scanner(request)
+    finally:
+        request.FILES = orig_files
 
 
 # ---------------------------------------------------------------------------
@@ -1167,9 +1445,9 @@ def _schritt_kontext(sitzung, schritt):
 @login_required
 def pfad_schritt(request, sitzung_pk):
     """Zeigt den aktuellen Schritt und verarbeitet POST-Eingaben."""
-    sitzung = get_object_or_404(
-        AntrSitzung, pk=sitzung_pk, user=request.user, status=AntrSitzung.STATUS_LAUFEND
-    )
+    sitzung = get_object_or_404(AntrSitzung, pk=sitzung_pk, user=request.user)
+    if sitzung.status == AntrSitzung.STATUS_ABGESCHLOSSEN:
+        return redirect("formulare:pfad_abgeschlossen", sitzung_pk=sitzung.pk)
     schritt = sitzung.aktueller_schritt
     if not schritt:
         messages.error(request, "Sitzung hat keinen aktuellen Schritt.")
@@ -1177,6 +1455,31 @@ def pfad_schritt(request, sitzung_pk):
 
     felder_render = _substituiere_system_vars(schritt.felder(), sitzung.pfad)
     ctx = _schritt_kontext(sitzung, schritt)
+
+    # Bank-Variablen einfügen (überschreiben keine Nutzereingaben)
+    _bankverbindungen = []
+    _bankverbindungen_json = "[]"
+    try:
+        from korrespondenz.models import Bankverbindung
+        _bankverbindungen = list(Bankverbindung.objects.all())
+        _bank_vars = {}
+        for _bank in _bankverbindungen:
+            _bank_vars.update(_bank.als_variablen())
+        for _k, _v in _bank_vars.items():
+            sitzung.gesammelte_daten.setdefault(_k, _v)
+        _bankverbindungen_json = json.dumps([
+            {
+                "kuerzel":      b.kuerzel,
+                "bezeichnung":  b.bezeichnung,
+                "iban":         b.iban,
+                "bic":          b.bic,
+                "bank_name":    b.bank_name,
+                "kontoinhaber": b.kontoinhaber,
+            }
+            for b in _bankverbindungen
+        ], ensure_ascii=False)
+    except Exception:
+        pass
 
     def _render_schritt(fehler, vorwerte):
         return render(request, "formulare/pfad_schritt.html", {
@@ -1187,6 +1490,9 @@ def pfad_schritt(request, sitzung_pk):
             "vorwerte":              vorwerte,
             "gesammelte_daten_json": json.dumps(sitzung.gesammelte_daten, ensure_ascii=False),
             "zusammenfassung":       _baue_zusammenfassung(sitzung) if schritt.ist_ende else [],
+            "bankverbindungen":      _bankverbindungen,
+            "bankverbindungen_json": _bankverbindungen_json,
+            "quiz_vorschau":         _quiz_vorschau(schritt, sitzung),
             **ctx,
         })
 
@@ -1222,6 +1528,8 @@ def pfad_schritt(request, sitzung_pk):
 
         if schritt.ist_ende:
             sitzung.abschliessen()
+            _starte_workflow_trigger(sitzung)
+            _starte_quiz_auswertung(sitzung)
             return redirect("formulare:pfad_abgeschlossen", sitzung_pk=sitzung.pk)
 
         transition = _naechster_schritt(schritt, sitzung.gesammelte_daten)
@@ -1254,10 +1562,53 @@ def pfad_schritt(request, sitzung_pk):
         ])
         if naechster.ist_ende and not naechster.felder():
             sitzung.abschliessen()
+            _starte_workflow_trigger(sitzung)
+            _starte_quiz_auswertung(sitzung)
             return redirect("formulare:pfad_abgeschlossen", sitzung_pk=sitzung.pk)
         return redirect("formulare:pfad_schritt", sitzung_pk=sitzung.pk)
 
     return _render_schritt([], sitzung.gesammelte_daten)
+
+
+# ---------------------------------------------------------------------------
+# Workflow-Trigger nach Formular-Abschluss
+# ---------------------------------------------------------------------------
+
+def _starte_workflow_trigger(sitzung):
+    """Startet automatisch den verknuepften Workflow wenn der Pfad eines hat."""
+    try:
+        template = sitzung.pfad.workflow_template
+        if template is None or not template.ist_aktiv:
+            return
+        user = sitzung.user or sitzung.pfad.erstellt_von
+        if user is None:
+            return
+        from workflow.services import WorkflowEngine
+        WorkflowEngine().start_workflow(template, sitzung, user)
+    except Exception:
+        logger.exception("Workflow-Start nach Formular-Abschluss fehlgeschlagen (Sitzung %s).", sitzung.pk)
+
+
+def _starte_quiz_auswertung(sitzung):
+    """Wertet Quiz aus und speichert Ergebnis + Zertifikat (falls konfiguriert)."""
+    try:
+        from quiz.services import auswerte_quiz
+        auswerte_quiz(sitzung)
+    except Exception:
+        logger.exception("Quiz-Auswertung fehlgeschlagen (Sitzung %s).", sitzung.pk)
+
+
+def _quiz_vorschau(schritt, sitzung):
+    """Gibt Quiz-Vorschau-Dict zurück wenn der Schritt ein quizergebnis-Feld hat."""
+    hat_ergebnis_feld = any(f.get("typ") == "quizergebnis" for f in schritt.felder())
+    if not hat_ergebnis_feld:
+        return None
+    try:
+        from quiz.services import vorschau_ergebnis
+        return vorschau_ergebnis(sitzung)
+    except Exception:
+        logger.exception("Quiz-Vorschau fehlgeschlagen (Sitzung %s).", sitzung.pk)
+        return None
 
 
 # ---------------------------------------------------------------------------
@@ -1269,10 +1620,21 @@ def pfad_abgeschlossen(request, sitzung_pk):
     """Abschluss-Seite nach erfolgreichem Durchlauf."""
     sitzung = get_object_or_404(AntrSitzung, pk=sitzung_pk, user=request.user)
     email_empfaenger = _versende_pdf_email(sitzung)
+    # Quiz-Ergebnis für Abschluss-Seite laden (falls vorhanden)
+    quiz_ergebnis = None
+    quiz_auswertung = None
+    try:
+        quiz_ergebnis = sitzung.quiz_ergebnis
+        from quiz.services import vorschau_ergebnis
+        quiz_auswertung = vorschau_ergebnis(sitzung)
+    except Exception:
+        pass
     return render(request, "formulare/pfad_abgeschlossen.html", {
         "sitzung":          sitzung,
         "zusammenfassung":  _baue_zusammenfassung(sitzung),
         "email_empfaenger": email_empfaenger,
+        "quiz_ergebnis":    quiz_ergebnis,
+        "quiz_auswertung":  quiz_auswertung,
     })
 
 
@@ -1308,9 +1670,8 @@ def sitzung_pdf(request, pk):
     except ImportError:
         messages.error(request, "WeasyPrint nicht installiert.")
         return redirect("formulare:meine_antraege")
-    sitzung = get_object_or_404(
-        AntrSitzung, pk=pk, user=request.user, status=AntrSitzung.STATUS_ABGESCHLOSSEN
-    )
+    # Eigene Sitzung oder eingeloggter Mitarbeiter (kein Anon-Zugriff da login_required)
+    sitzung = get_object_or_404(AntrSitzung, pk=pk, status=AntrSitzung.STATUS_ABGESCHLOSSEN)
     vorgangsnummer = sitzung.vorgangsnummer or f"ANT-{sitzung.pk:05d}"
     html_string = render_to_string("formulare/sitzung_pdf.html", {
         "sitzung":         sitzung,
@@ -1324,6 +1685,105 @@ def sitzung_pdf(request, pk):
     return response
 
 
+@login_required
+def sitzung_gesamtakte_zip(request, pk):
+    """Exportiert die gesamte Akte als ZIP: Antrag-PDF + Dokumente + Briefe + Postbuch-CSV."""
+    sitzung = get_object_or_404(AntrSitzung, pk=pk, status=AntrSitzung.STATUS_ABGESCHLOSSEN)
+    vgnr = (sitzung.vorgangsnummer or f"ANT-{sitzung.pk:05d}").replace(" ", "_")
+
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+
+        # 1. Antrag-PDF
+        try:
+            pdf_bytes = _generiere_pdf_bytes(sitzung)
+            if pdf_bytes:
+                zf.writestr(f"{vgnr}_antrag.pdf", pdf_bytes)
+        except Exception:
+            pass
+
+        # 2. Hochgeladene Antragsdateien
+        try:
+            for datei in sitzung.dateien.all():
+                inhalt = bytes(datei.inhalt) if datei.inhalt else b""
+                if inhalt:
+                    zf.writestr(f"dateien/{datei.dateiname}", inhalt)
+        except Exception:
+            pass
+
+        # 3. DMS-Dokumente die auf diese Sitzung referenzieren
+        try:
+            from dokumente.models import Dokument
+            for dok in Dokument.objects.filter(vorgangs_referenz=str(sitzung.pk)):
+                inhalt = bytes(dok.inhalt) if dok.inhalt else b""
+                if inhalt:
+                    zf.writestr(f"dokumente/{dok.dateiname}", inhalt)
+        except Exception:
+            pass
+
+        # 4. Korrespondenz-Briefe (signierte PDFs bevorzugt, sonst DOCX)
+        try:
+            from korrespondenz.models import Briefvorgang
+            from django.contrib.contenttypes.models import ContentType
+            ct = ContentType.objects.get_for_model(sitzung)
+            briefe = Briefvorgang.objects.filter(sitzung=sitzung)
+            for brief in briefe:
+                sicher_betreff = re.sub(r"[^\w\-]", "_", brief.betreff[:60])
+                if brief.signiert_pdf:
+                    zf.writestr(
+                        f"korrespondenz/{sicher_betreff}_signiert.pdf",
+                        bytes(brief.signiert_pdf),
+                    )
+                elif brief.inhalt:
+                    zf.writestr(
+                        f"korrespondenz/{sicher_betreff}.docx",
+                        bytes(brief.inhalt),
+                    )
+        except Exception:
+            pass
+
+        # 5. Postbuch-CSV (Eintraege mit diesem Vorgangsbezug)
+        try:
+            from post.models import Posteintrag
+            eintraege = Posteintrag.objects.filter(
+                vorgang_bezug__icontains=vgnr
+            ).order_by("datum")
+            if eintraege.exists():
+                csv_buf = io.StringIO()
+                writer = csv.writer(csv_buf, delimiter=";")
+                writer.writerow([
+                    "Tagebuch-Nr.", "Datum", "Richtung", "Typ",
+                    "Absender / Empfaenger", "Betreff", "Notiz",
+                ])
+                for e in eintraege:
+                    writer.writerow([
+                        e.lfd_nr,
+                        e.datum.strftime("%d.%m.%Y"),
+                        e.get_richtung_display(),
+                        e.get_typ_display(),
+                        e.absender_empfaenger,
+                        e.betreff,
+                        e.notiz,
+                    ])
+                zf.writestr(f"{vgnr}_postbuch.csv", csv_buf.getvalue().encode("utf-8-sig"))
+        except Exception:
+            pass
+
+        # 6. Metadaten-TXT
+        meta = (
+            f"Vorgangsnummer: {vgnr}\n"
+            f"Formular: {sitzung.pfad.titel}\n"
+            f"Eingereicht: {sitzung.abgeschlossen_am.strftime('%d.%m.%Y %H:%M') if sitzung.abgeschlossen_am else '-'}\n"
+            f"Exportiert: {timezone.localtime().strftime('%d.%m.%Y %H:%M')}\n"
+        )
+        zf.writestr(f"{vgnr}_info.txt", meta.encode("utf-8"))
+
+    buf.seek(0)
+    response = HttpResponse(buf.read(), content_type="application/zip")
+    response["Content-Disposition"] = f'attachment; filename="{vgnr}_gesamtakte.zip"'
+    return response
+
+
 # ---------------------------------------------------------------------------
 # Auswertung
 # ---------------------------------------------------------------------------
@@ -1331,6 +1791,18 @@ def sitzung_pdf(request, pk):
 _AUSWERTUNG_KEIN_WERT = {
     "textblock", "abschnitt", "trennlinie", "leerblock", "link", "einwilligung",
 }
+
+
+def _auswertung_zellwert(gesammelte_daten, spalte):
+    """Gibt den Zellwert für eine Auswertungsspalte als String zurück."""
+    if spalte.get("typ") == "gruppe_uf":
+        eintraege = gesammelte_daten.get(spalte["gruppe_id"], [])
+        if not isinstance(eintraege, list):
+            return ""
+        # Alle Einträge als kommagetrennte Liste
+        werte = [str(e.get(spalte["uf_id"], "") or "") for e in eintraege if e.get(spalte["uf_id"])]
+        return " / ".join(werte)
+    return str(gesammelte_daten.get(spalte["id"], "") or "")
 
 
 @login_required
@@ -1350,9 +1822,25 @@ def pfad_auswertung(request, pk):
             feld_id = feld.get("id")
             typ = feld.get("typ", "")
             label = feld.get("label") or feld_id or ""
-            if feld_id and typ not in _AUSWERTUNG_KEIN_WERT and feld_id not in gesehene_ids:
+            if not feld_id or typ in _AUSWERTUNG_KEIN_WERT or feld_id in gesehene_ids:
+                continue
+            if typ == "gruppe":
+                # Eine Spalte pro Unterfeld (Präfix: Gruppenname)
+                for uf in feld.get("unterfelder", []):
+                    uf_id = uf.get("id", "")
+                    col_id = f"{feld_id}__{uf_id}"
+                    if col_id not in gesehene_ids:
+                        spalten.append({
+                            "id":        col_id,
+                            "label":     f"{label} – {uf.get('label', uf_id)}",
+                            "typ":       "gruppe_uf",
+                            "gruppe_id": feld_id,
+                            "uf_id":     uf_id,
+                        })
+                        gesehene_ids.add(col_id)
+            else:
                 spalten.append({"id": feld_id, "label": label})
-                gesehene_ids.add(feld_id)
+            gesehene_ids.add(feld_id)
 
     status_filter = request.GET.get("status", "abgeschlossen")
     datum_von = request.GET.get("datum_von", "")
@@ -1391,10 +1879,7 @@ def pfad_auswertung(request, pk):
                 sitzung.gestartet_am.strftime("%d.%m.%Y %H:%M"),
                 sitzung.get_status_display(),
                 einreicher,
-            ] + [
-                str(sitzung.gesammelte_daten.get(sp["id"], "") or "")
-                for sp in spalten
-            ]
+            ] + [_auswertung_zellwert(sitzung.gesammelte_daten, sp) for sp in spalten]
             writer.writerow(row)
         return response
 
@@ -1407,7 +1892,7 @@ def pfad_auswertung(request, pk):
             "gestartet_am":   sitzung.gestartet_am,
             "status":         sitzung.get_status_display(),
             "einreicher":     einreicher,
-            "felder":         [str(sitzung.gesammelte_daten.get(sp["id"], "") or "") for sp in spalten],
+            "felder":         [_auswertung_zellwert(sitzung.gesammelte_daten, sp) for sp in spalten],
         })
 
     return render(request, "formulare/pfad_auswertung.html", {
@@ -1472,14 +1957,41 @@ def antrag_oeffentlich_schritt(request, sitzung_pk):
 
     felder_render = _substituiere_system_vars(schritt.felder(), sitzung.pfad)
 
+    # Bank-Variablen einfügen (überschreiben keine Nutzereingaben)
+    _bankverbindungen_pub = []
+    _bankverbindungen_json_pub = "[]"
+    try:
+        from korrespondenz.models import Bankverbindung
+        _bankverbindungen_pub = list(Bankverbindung.objects.all())
+        _bank_vars = {}
+        for _bank in _bankverbindungen_pub:
+            _bank_vars.update(_bank.als_variablen())
+        for _k, _v in _bank_vars.items():
+            sitzung.gesammelte_daten.setdefault(_k, _v)
+        _bankverbindungen_json_pub = json.dumps([
+            {
+                "kuerzel":      b.kuerzel,
+                "bezeichnung":  b.bezeichnung,
+                "iban":         b.iban,
+                "bic":          b.bic,
+                "bank_name":    b.bank_name,
+                "kontoinhaber": b.kontoinhaber,
+            }
+            for b in _bankverbindungen_pub
+        ], ensure_ascii=False)
+    except Exception:
+        pass
+
     def _render_pub(fehler, vorwerte):
         return render(request, "formulare/antrag_oeffentlich_schritt.html", {
-            "sitzung":         sitzung,
-            "schritt":         schritt,
-            "felder_render":   felder_render,
-            "fehler":          fehler,
-            "vorwerte":        vorwerte,
-            "zusammenfassung": _baue_zusammenfassung(sitzung) if schritt.ist_ende else [],
+            "sitzung":               sitzung,
+            "schritt":               schritt,
+            "felder_render":         felder_render,
+            "fehler":                fehler,
+            "vorwerte":              vorwerte,
+            "zusammenfassung":       _baue_zusammenfassung(sitzung) if schritt.ist_ende else [],
+            "bankverbindungen":      _bankverbindungen_pub,
+            "bankverbindungen_json": _bankverbindungen_json_pub,
         })
 
     if request.method == "POST" and "_zurueck" in request.POST:
@@ -1559,3 +2071,163 @@ def antrag_oeffentlich_abgeschlossen(request, sitzung_pk):
 def antrag_oeffentlich_fehler(request):
     """Fehlerseite: Kein Zugriff auf oeffentliches Formular."""
     return render(request, "formulare/antrag_oeffentlich_fehler.html", {}, status=403)
+
+
+def vorgang_tracking(request, vorgangsnummer):
+    """Oeffentliche Tracking-Seite fuer Buerger – kein Login erforderlich."""
+    token = request.GET.get("token", "").strip()
+    sitzung = None
+    fehler = None
+
+    if not token:
+        fehler = "Kein Tracking-Token angegeben."
+    else:
+        sitzung = AntrSitzung.objects.filter(
+            vorgangsnummer=vorgangsnummer,
+            tracking_token=token,
+        ).first()
+        if not sitzung:
+            fehler = "Ungültiger Token oder Vorgang nicht gefunden."
+
+    # Workflow-Status laden
+    instanzen = []
+    if sitzung:
+        try:
+            from workflow.models import WorkflowInstance
+            from django.contrib.contenttypes.models import ContentType
+            ct = ContentType.objects.get_for_model(sitzung)
+            instanzen = list(
+                WorkflowInstance.objects.filter(
+                    content_type=ct, object_id=sitzung.pk
+                ).select_related("template", "aktueller_schritt").order_by("-gestartet_am")
+            )
+        except Exception:
+            pass
+
+    return render(request, "formulare/vorgang_tracking.html", {
+        "sitzung": sitzung,
+        "vorgangsnummer": vorgangsnummer,
+        "instanzen": instanzen,
+        "fehler": fehler,
+    })
+
+
+@login_required
+def datei_download(request, pk):
+    """Liefert eine hochgeladene AntrDatei aus."""
+    datei = get_object_or_404(AntrDatei, pk=pk)
+    # Nur Staff oder Besitzer der Sitzung
+    if not request.user.is_staff and datei.sitzung.user != request.user:
+        return HttpResponse(status=403)
+    response = HttpResponse(bytes(datei.inhalt), content_type=datei.mime_type)
+    response["Content-Disposition"] = f'inline; filename="{datei.dateiname}"'
+    return response
+
+
+# ---------------------------------------------------------------------------
+# Webhook-Verwaltung (Formularschnittstelle)
+# ---------------------------------------------------------------------------
+
+@login_required
+def webhooks(request):
+    """Liste aller Webhook-Konfigurationen."""
+    if not request.user.is_staff:
+        return HttpResponse(status=403)
+    from .models import WebhookKonfiguration
+    whs = WebhookKonfiguration.objects.select_related("pfad").prefetch_related("zustellungen")
+    return render(request, "formulare/webhooks.html", {"webhooks": whs})
+
+
+@login_required
+def webhook_neu(request):
+    return _webhook_form(request, None)
+
+
+@login_required
+def webhook_bearbeiten(request, pk):
+    from .models import WebhookKonfiguration
+    wh = get_object_or_404(WebhookKonfiguration, pk=pk)
+    return _webhook_form(request, wh)
+
+
+def _webhook_form(request, webhook):
+    if not request.user.is_staff:
+        return HttpResponse(status=403)
+    from .models import WebhookKonfiguration
+    pfade = AntrPfad.objects.filter(aktiv=True).order_by("name")
+    ctx = {
+        "webhook": webhook,
+        "aktion": "bearbeiten" if webhook else "anlegen",
+        "pfade": pfade,
+        "ereignis_choices": WebhookKonfiguration.EREIGNIS_CHOICES,
+        "aktive_ereignisse": (webhook.ereignisse or []) if webhook else [],
+    }
+    if request.method == "POST":
+        name = request.POST.get("name", "").strip()
+        url = request.POST.get("url", "").strip()
+        secret = request.POST.get("secret", "").strip()
+        pfad_id = request.POST.get("pfad_id") or None
+        ereignisse = request.POST.getlist("ereignisse")
+        aktiv = bool(request.POST.get("aktiv"))
+        if not name or not url or not secret:
+            ctx["fehler"] = "Bezeichnung, URL und Secret sind Pflichtfelder."
+            return render(request, "formulare/webhook_form.html", ctx)
+        if webhook:
+            webhook.name = name
+            webhook.url = url
+            webhook.secret = secret
+            webhook.pfad_id = pfad_id
+            webhook.ereignisse = ereignisse
+            webhook.aktiv = aktiv
+            webhook.save()
+        else:
+            webhook = WebhookKonfiguration.objects.create(
+                name=name, url=url, secret=secret,
+                pfad_id=pfad_id, ereignisse=ereignisse,
+                aktiv=aktiv, erstellt_von=request.user,
+            )
+        messages.success(request, f'Webhook "{webhook.name}" gespeichert.')
+        return redirect("formulare:webhooks")
+    return render(request, "formulare/webhook_form.html", ctx)
+
+
+@login_required
+@require_POST
+def webhook_loeschen(request, pk):
+    if not request.user.is_staff:
+        return HttpResponse(status=403)
+    from .models import WebhookKonfiguration
+    wh = get_object_or_404(WebhookKonfiguration, pk=pk)
+    wh.delete()
+    messages.success(request, "Webhook gelöscht.")
+    return redirect("formulare:webhooks")
+
+
+@login_required
+def webhook_log(request, pk):
+    if not request.user.is_staff:
+        return HttpResponse(status=403)
+    from .models import WebhookKonfiguration, WebhookZustellung
+    wh = get_object_or_404(WebhookKonfiguration, pk=pk)
+    zustellungen = WebhookZustellung.objects.filter(konfiguration=wh).order_by("-erstellt_am")[:100]
+    return render(request, "formulare/webhook_log.html", {"webhook": wh, "zustellungen": zustellungen})
+
+
+@login_required
+@require_POST
+def webhook_testen(request, pk):
+    """Sendet einen Test-Ping an den Webhook-Endpunkt."""
+    if not request.user.is_staff:
+        return HttpResponse(status=403)
+    from .models import WebhookKonfiguration
+    from .webhook_service import zustellen
+    wh = get_object_or_404(WebhookKonfiguration, pk=pk)
+    payload = {
+        "ereignis": "webhook.test",
+        "zeitstempel": timezone.now().isoformat(),
+        "nachricht": "Dies ist ein Test-Ping vom Vorgangswerk-Webhook-System.",
+        "konfiguration": wh.name,
+    }
+    zustellen(wh, payload, "webhook.test")
+    messages.info(request, f"Test-Ping an {wh.url} gesendet. Ergebnis im Log.")
+    return redirect("formulare:webhook_log", pk=pk)

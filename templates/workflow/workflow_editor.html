@@ -120,6 +120,46 @@
               {% endfor %}
             </select>
           </div>
+          {# Verteiler-Konfiguration (nur bei aktion=verteilen) #}
+          <div id="verteiler-config" class="d-none border rounded p-2 mb-2 bg-light">
+            <div class="fw-semibold small mb-2">&#128231; Verteiler-Konfiguration</div>
+            <div class="mb-2">
+              <label class="form-label form-label-sm">Empfänger <small class="text-muted">(kommagetrennt)</small></label>
+              <input type="text" id="vc-empfaenger" class="form-control form-control-sm"
+                     placeholder="max@gemeinde.de, erika@amt.de" autocomplete="off">
+              {# Organisations-Suche #}
+              <div class="mt-1 d-flex gap-1">
+                <input type="text" id="vc-org-suche" class="form-control form-control-sm"
+                       placeholder="Organisation suchen..." autocomplete="off">
+                <div id="vc-org-dropdown" class="dropdown-menu show w-100 p-0"
+                     style="display:none!important;position:relative;max-height:180px;overflow-y:auto;font-size:.82rem"></div>
+              </div>
+            </div>
+            <div class="mb-2">
+              <label class="form-label form-label-sm">Empfänger-Bezeichnungen <small class="text-muted">(kommagetrennt, passend zu E-Mails)</small></label>
+              <input type="text" id="vc-empfaenger-namen" class="form-control form-control-sm"
+                     placeholder="Meldebehörde, Ausstellungsbehörde, Kreispolizei">
+            </div>
+            <div class="mb-2">
+              <label class="form-label form-label-sm">Was versenden?</label>
+              <select id="vc-dokumente" class="form-select form-select-sm">
+                <option value="antrag_pdf">Nur Antrags-PDF</option>
+                <option value="alle">Antrags-PDF + alle Dokumente</option>
+                <option value="auswahl">Nur ausgewählte Dokumente</option>
+              </select>
+            </div>
+            <div class="mb-2">
+              <label class="form-label form-label-sm">Betreff <small class="text-muted">(optional)</small></label>
+              <input type="text" id="vc-betreff" class="form-control form-control-sm"
+                     placeholder="z.B. Akte Kanalanschluss – Mustermann">
+            </div>
+            <div class="mb-2">
+              <label class="form-label form-label-sm">Begleittext <small class="text-muted">(optional)</small></label>
+              <textarea id="vc-begleittext" class="form-control form-control-sm" rows="3"
+                        placeholder="Anbei erhalten Sie die Unterlagen..."></textarea>
+            </div>
+          </div>
+
           <div class="mb-2">
             <label class="form-label form-label-sm">Zustaendigkeit</label>
             <select id="node-rolle" class="form-select form-select-sm">

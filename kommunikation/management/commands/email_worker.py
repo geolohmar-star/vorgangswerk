@@ -182,6 +182,20 @@ def importiere_emails():
                 neu_importiert += 1
                 logger.info("E-Mail importiert: %s von %s", betreff[:80], absender_email)
 
+                # Postbuch-Eintrag (Eingang)
+                try:
+                    from post.models import Posteintrag
+                    Posteintrag.objects.create(
+                        datum=empfangen_am.date(),
+                        richtung=Posteintrag.RICHTUNG_EINGANG,
+                        typ=Posteintrag.TYP_EMAIL,
+                        absender_empfaenger=(absender_name or absender_email)[:300],
+                        betreff=betreff[:500],
+                        eingehende_email=neue_email,
+                    )
+                except Exception as exc:
+                    logger.warning("Postbuch-Eintrag fehlgeschlagen: %s", exc)
+
                 # Staff-Benutzer benachrichtigen
                 if benachrichtige_staff:
                     from django.contrib.auth import get_user_model

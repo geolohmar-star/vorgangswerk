@@ -1,0 +1,114 @@
+{% extends "portal/base.html" %}
+{% block title %}Dashboard – Vorgangswerk Portal{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h4 class="mb-0">Dashboard</h4>
+        <small class="text-muted">{{ user.email }}</small>
+    </div>
+    <div class="d-flex gap-2">
+        <a href="{% url 'portal:credits_kaufen' %}" class="btn btn-outline-secondary btn-sm">Credits kaufen</a>
+        <a href="{% url 'portal:upload' %}" class="btn btn-primary btn-sm">PDF analysieren</a>
+    </div>
+</div>
+
+{# Credits-Karte #}
+<div class="row mb-4">
+    <div class="col-md-4">
+        <div class="card h-100">
+            <div class="card-body text-center py-4">
+                <div style="font-size:2.5rem; font-weight:700; color:var(--vw-gruen);">
+                    {{ account.credits }}
+                </div>
+                <div class="text-muted">verfügbare Credits</div>
+                {% if account.credits == 0 %}
+                <a href="{% url 'portal:credits_kaufen' %}" class="btn btn-warning btn-sm mt-3">
+                    Credits kaufen
+                </a>
+                {% else %}
+                <a href="{% url 'portal:upload' %}" class="btn btn-primary btn-sm mt-3">
+                    Formular hochladen
+                </a>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    <div class="col-md-8">
+        <div class="card h-100">
+            <div class="card-header">Letzte Transaktionen</div>
+            <div class="card-body p-0">
+                {% if transaktionen %}
+                <table class="table table-sm mb-0">
+                    <tbody>
+                    {% for t in transaktionen %}
+                    <tr>
+                        <td class="ps-3">{{ t.erstellt_am|date:"d.m.Y H:i" }}</td>
+                        <td>{{ t.beschreibung|truncatechars:50 }}</td>
+                        <td class="text-end pe-3 fw-semibold {% if t.betrag > 0 %}text-success{% else %}text-danger{% endif %}">
+                            {{ t.betrag|stringformat:"+d" }}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+                {% else %}
+                <p class="p-3 text-muted mb-0">Noch keine Transaktionen.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+{# Analysen #}
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <span>Meine Analysen</span>
+        <a href="{% url 'portal:upload' %}" class="btn btn-primary btn-sm">+ Neues Formular</a>
+    </div>
+    <div class="card-body p-0">
+        {% if analysen %}
+        <table class="table table-hover mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th class="ps-3">Dateiname</th>
+                    <th>Status</th>
+                    <th>Erstellt</th>
+                    <th>Fertig</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for a in analysen %}
+            <tr>
+                <td class="ps-3">{{ a.dateiname|truncatechars:50 }}</td>
+                <td>
+                    <span class="status-{{ a.status }}">
+                        {% if a.status == "wartend" %}&#9679; Wartend
+                        {% elif a.status == "verarbeitung" %}&#9679; Verarbeitung...
+                        {% elif a.status == "fertig" %}&#10003; Fertig
+                        {% elif a.status == "fehler" %}&#10007; Fehler
+                        {% elif a.status == "importiert" %}&#9733; Importiert
+                        {% endif %}
+                    </span>
+                </td>
+                <td class="text-muted small">{{ a.erstellt_am|date:"d.m.Y H:i" }}</td>
+                <td class="text-muted small">{{ a.fertig_am|date:"d.m.Y H:i"|default:"–" }}</td>
+                <td class="text-end pe-3">
+                    <a href="{% url 'portal:analyse_detail' a.pk %}" class="btn btn-outline-secondary btn-sm">
+                        Details
+                    </a>
+                </td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <div class="p-4 text-center text-muted">
+            <p>Noch keine Analysen. Lade jetzt dein erstes Formular hoch!</p>
+            <a href="{% url 'portal:upload' %}" class="btn btn-primary">PDF hochladen</a>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

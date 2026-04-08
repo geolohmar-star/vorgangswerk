@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block title %}{% if neu %}Organisation anlegen{% else %}Organisation bearbeiten{% endif %} – Vorgangswerk{% endblock %}
+
+{% block content %}
+<div class="container py-4" style="max-width:620px">
+  <nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb">
+      <li class="breadcrumb-item"><a href="{% url 'post:org_liste' %}">Organisationsverzeichnis</a></li>
+      <li class="breadcrumb-item active">{% if neu %}Neu{% else %}{{ org.name }}{% endif %}</li>
+    </ol>
+  </nav>
+
+  <div class="card">
+    <div class="card-header"><strong>{% if neu %}Organisation anlegen{% else %}Organisation bearbeiten{% endif %}</strong></div>
+    <div class="card-body">
+      <form method="post">
+        {% csrf_token %}
+        <div class="row g-3">
+          <div class="col-12">
+            <label class="form-label">Name / Bezeichnung *</label>
+            {{ form.name }}
+          </div>
+          <div class="col-sm-6">
+            <label class="form-label">Typ</label>
+            {{ form.typ }}
+          </div>
+          <div class="col-sm-6">
+            <label class="form-label">E-Mail</label>
+            {{ form.email }}
+          </div>
+          <div class="col-sm-6">
+            <label class="form-label">Telefon</label>
+            {{ form.telefon }}
+          </div>
+          <div class="col-sm-6">
+            <label class="form-label">Fax</label>
+            {{ form.fax }}
+          </div>
+          <div class="col-12">
+            <label class="form-label">Straße / Hausnummer</label>
+            {{ form.strasse }}
+          </div>
+          <div class="col-sm-4">
+            <label class="form-label">PLZ</label>
+            {{ form.plz }}
+          </div>
+          <div class="col-sm-8">
+            <label class="form-label">Ort</label>
+            {{ form.ort }}
+          </div>
+          <div class="col-12">
+            <label class="form-label">Interne Notiz</label>
+            {{ form.notiz }}
+          </div>
+        </div>
+        {% if form.errors %}<div class="alert alert-danger mt-3">{{ form.errors }}</div>{% endif %}
+        <div class="d-flex gap-2 mt-3">
+          <button type="submit" class="btn btn-primary">Speichern</button>
+          <a href="{% url 'post:org_liste' %}" class="btn btn-outline-secondary">Abbrechen</a>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

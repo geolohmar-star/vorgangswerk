@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% block title %}Quiz-Detailauswertung{% endblock %}
+
+{% block content %}
+<div class="container py-4" style="max-width:860px;">
+
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+      <h1 class="h3 fw-bold mb-0" style="color:#1a4d2e;">Detailauswertung</h1>
+      <div class="text-muted small">{{ ergebnis.sitzung.pfad.name }} &mdash; {{ ergebnis.sitzung.vorgangsnummer|default:"–" }}</div>
+    </div>
+    <a href="{% url 'quiz:ergebnisse' ergebnis.sitzung.pfad.pk %}" class="btn btn-outline-secondary btn-sm">
+      &#8592; Alle Ergebnisse
+    </a>
+  </div>
+
+  {# Ergebnis-Karte #}
+  <div class="card {% if ergebnis.bestanden %}border-success{% else %}border-danger{% endif %} mb-4">
+    <div class="card-header {% if ergebnis.bestanden %}bg-success text-white{% else %}bg-danger text-white{% endif %} fw-bold">
+      {% if ergebnis.bestanden %}&#10003; Bestanden{% else %}&#10007; Nicht bestanden{% endif %}
+    </div>
+    <div class="card-body">
+      <div class="row text-center g-3">
+        <div class="col-md-3">
+          <div class="fs-3 fw-bold">{{ ergebnis.prozent_int }}&nbsp;%</div>
+          <div class="text-muted small">Erreicht</div>
+        </div>
+        <div class="col-md-3">
+          <div class="fs-3 fw-bold">{{ ergebnis.punkte_erreicht }} / {{ ergebnis.punkte_gesamt }}</div>
+          <div class="text-muted small">Punkte</div>
+        </div>
+        {% if ergebnis.note %}
+        <div class="col-md-3">
+          <div class="fs-3 fw-bold">Note {{ ergebnis.note }}</div>
+          <div class="text-muted small">{{ ergebnis.note_text }}</div>
+        </div>
+        {% endif %}
+        {% if ergebnis.bewertungsmodell == "fuehrerschein" %}
+        <div class="col-md-3">
+          <div class="fs-3 fw-bold">{{ ergebnis.fehlerpunkte }}</div>
+          <div class="text-muted small">Fehlerpunkte</div>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+    {% if hat_zertifikat %}
+    <div class="card-footer text-end">
+      <a href="{% url 'quiz:zertifikat_download' ergebnis.uuid %}" class="btn btn-sm btn-outline-success">
+        &#128196; Zertifikat herunterladen
+      </a>
+      <a href="{% url 'quiz:zertifikat_pruefen' ergebnis.uuid %}" class="btn btn-sm btn-outline-secondary ms-2" target="_blank">
+        Verifikationsseite
+      </a>
+    </div>
+    {% endif %}
+  </div>
+
+  {# Fragenauswertung #}
+  <h5 class="fw-bold mb-3">Fragenauswertung</h5>
+  {% for fid, detail in ergebnis.antworten_json.items %}
+  <div class="card mb-2 border-0 shadow-sm">
+    <div class="card-body py-2 px-3">
+      <div class="d-flex justify-content-between align-items-start">
+        <div class="small fw-semibold">{{ detail.label }}</div>
+        <div class="text-nowrap ms-3">
+          {% if detail.korrekt %}
+          <span class="badge bg-success">&#10003; {{ detail.punkte }} / {{ detail.max_punkte }} Pkt.</span>
+          {% elif detail.teilweise %}
+          <span class="badge bg-warning text-dark">~ {{ detail.punkte }} / {{ detail.max_punkte }} Pkt.</span>
+          {% else %}
+          <span class="badge bg-danger">&#10007; 0 / {{ detail.max_punkte }} Pkt.</span>
+          {% endif %}
+        </div>
+      </div>
+      <div class="small text-muted mt-1">Antwort: <em>{{ detail.antwort|default:"–" }}</em></div>
+      {% if detail.erklaerung %}
+      <div class="small mt-1 text-secondary">&#8505; {{ detail.erklaerung }}</div>
+      {% endif %}
+    </div>
+  </div>
+  {% empty %}
+  <div class="text-muted small">Keine Fragendetails verfügbar.</div>
+  {% endfor %}
+
+</div>
+{% endblock %}

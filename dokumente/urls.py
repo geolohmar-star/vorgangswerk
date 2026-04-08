@@ -34,13 +34,11 @@ urlpatterns = [
     ),
 
     # ---------------------------------------------------------------------------
-    # Collabora Online Editor
+    # OnlyOffice Document Server
     # ---------------------------------------------------------------------------
-    path("<int:pk>/collabora/", views.collabora_editor, name="collabora"),
-
-    # ---------------------------------------------------------------------------
-    # WOPI-Protokoll (kein Login-Decorator – Collabora nutzt Token)
-    # ---------------------------------------------------------------------------
-    path("wopi/files/<int:pk>/", views.wopi_files_dispatch, name="wopi_files"),
-    path("wopi/files/<int:pk>/contents/", views.wopi_contents_dispatch, name="wopi_contents"),
+    path("<int:pk>/onlyoffice/",           views.onlyoffice_editor,        name="onlyoffice"),
+    path("<int:pk>/onlyoffice/laden/",     views.onlyoffice_dokument_laden, name="onlyoffice_laden"),
+    path("<int:pk>/onlyoffice/callback/",  views.onlyoffice_callback,       name="onlyoffice_callback"),
+    path("<int:pk>/onlyoffice/forcesave/", views.onlyoffice_forcesave,      name="onlyoffice_forcesave"),
+    path("<int:pk>/onlyoffice/version/",   views.onlyoffice_version_check,  name="onlyoffice_version"),
 ]

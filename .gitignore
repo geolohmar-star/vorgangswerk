@@ -1,4 +1,6 @@
 .env
+*.pdf
+sicherungen/
 __pycache__/
 *.pyc
 *.pyo

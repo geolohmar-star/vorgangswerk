@@ -109,12 +109,67 @@ def task_detail(request, pk):
     ).values_list("bedingung_entscheidung", flat=True)
     hat_ausgaenge = ausgaenge.exists()
 
+    # Antragsdaten aufbereiten wenn content_object eine AntrSitzung ist
+    antrag_felder = []
+    sitzung = None
+    try:
+        from formulare.models import AntrSitzung
+        if isinstance(content_object, AntrSitzung):
+            sitzung = content_object
+            daten = sitzung.gesammelte_daten or {}
+            # Felddefinitionen aus allen Schritten sammeln für Labels
+            label_map = {}
+            for schritt in sitzung.pfad.schritte.all():
+                for feld in (schritt.felder_json or []):
+                    fid = feld.get("id") or feld.get("feldId")
+                    if fid:
+                        label_map[fid] = feld.get("label") or fid
+            for schluessel, wert in daten.items():
+                label = label_map.get(schluessel, schluessel)
+                antrag_felder.append({"label": label, "wert": wert, "schluessel": schluessel})
+    except Exception:
+        pass
+
+    # Briefvorlagen gefiltert nach Pfad-Kuerzel
+    vorlagen = []
+    briefe = []
+    dateien = []
+    try:
+        from korrespondenz.models import Briefvorlage, Briefvorgang
+        kuerzel = sitzung.pfad.kuerzel.upper() if sitzung else ""
+        if kuerzel:
+            vorlagen = list(Briefvorlage.objects.filter(ist_aktiv=True, pfad_kuerzel__iexact=kuerzel).order_by("gruppe", "titel"))
+        if not vorlagen:
+            vorlagen = list(Briefvorlage.objects.filter(ist_aktiv=True).order_by("titel"))
+        briefe = list(Briefvorgang.objects.filter(workflow_task=task).select_related("vorlage", "bearbeiter_signiert_von").order_by("-erstellt_am"))
+    except Exception:
+        pass
+    try:
+        if sitzung:
+            dateien = list(sitzung.dateien.all())
+    except Exception:
+        pass
+
+    # Verteiler-Empfaenger laden
+    verteiler = []
+    try:
+        from post.models import VerteilEmpfaenger
+        verteiler = list(VerteilEmpfaenger.objects.filter(workflow_task=task))
+    except Exception:
+        pass
+
     kontext = {
         "task": task,
         "content_object": content_object,
+        "sitzung": sitzung,
+        "antrag_felder": antrag_felder,
         "ausgaenge": list(ausgaenge),
         "hat_ausgaenge": hat_ausgaenge,
         "entscheidung_choices": WorkflowTask.ENTSCHEIDUNG_CHOICES,
+        "vorlagen": vorlagen,
+        "briefe": briefe,
+        "dateien": dateien,
+        "verteiler": verteiler,
     }
     return render(request, "workflow/task_detail.html", kontext)
 
@@ -252,8 +307,8 @@ def workflow_editor(request, pk=None):
 
     kontext = {
         "template": template,
-        "gruppen_json": json.dumps(gruppen),
-        "users_json": json.dumps(users),
+        "gruppen_json": gruppen,
+        "users_json": users,
         "aktion_choices": WorkflowStep.AKTION_CHOICES,
         "rolle_choices": WorkflowStep.ROLLE_CHOICES,
         "schritt_typ_choices": WorkflowStep.SCHRITT_TYP_CHOICES,
@@ -600,3 +655,227 @@ def workflow_status_partial(request, content_type_id, object_id):
         "offene_tasks": offene_tasks,
     }
     return render(request, "workflow/partials/_workflow_status.html", kontext)
+
+
+# ---------------------------------------------------------------------------
+# Task-Dokumente: Hilfsfunktionen
+# ---------------------------------------------------------------------------
+
+def _docx_zu_pdf(docx_bytes: bytes, brief) -> bytes:
+    """Konvertiert DOCX-Bytes zu PDF via python-docx → HTML → WeasyPrint."""
+    import io
+    from docx import Document
+    from weasyprint import HTML
+
+    doc = Document(io.BytesIO(docx_bytes))
+
+    def _escape(t):
+        return (t or "").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+    zeilen = []
+    for para in doc.paragraphs:
+        text = para.text.strip()
+        style = para.style.name if para.style else ""
+        if style.startswith("Heading 1") or style.startswith("berschrift 1"):
+            zeilen.append(f"<h1>{_escape(text)}</h1>")
+        elif style.startswith("Heading 2") or style.startswith("berschrift 2"):
+            zeilen.append(f"<h2>{_escape(text)}</h2>")
+        elif text:
+            zeilen.append(f"<p>{_escape(text)}</p>")
+        else:
+            zeilen.append("<p>&nbsp;</p>")
+
+    for table in doc.tables:
+        zeilen.append('<table border="1" cellpadding="4" cellspacing="0" style="border-collapse:collapse;width:100%;margin:8px 0;">')
+        for row in table.rows:
+            zeilen.append("<tr>")
+            for cell in row.cells:
+                cell_text = " ".join(p.text for p in cell.paragraphs if p.text.strip())
+                zeilen.append(f"<td>{_escape(cell_text)}</td>")
+            zeilen.append("</tr>")
+        zeilen.append("</table>")
+
+    absender = getattr(brief, "absender_name", "") or ""
+    betreff  = getattr(brief, "betreff", "") or ""
+    html = f"""<!DOCTYPE html><html><head><meta charset="utf-8">
+<style>
+  body {{ font-family: Arial, sans-serif; font-size: 11pt; margin: 2cm; }}
+  h1 {{ font-size: 14pt; }} h2 {{ font-size: 12pt; }}
+  p {{ margin: 4px 0; line-height: 1.5; }}
+</style></head><body>
+{''.join(zeilen)}
+</body></html>"""
+
+    return HTML(string=html).write_pdf()
+
+
+# ---------------------------------------------------------------------------
+# Task-Dokumente: Schreiben erstellen + signieren
+# ---------------------------------------------------------------------------
+
+@login_required
+@require_POST
+def workflow_brief_erstellen(request, task_pk):
+    """Erstellt einen Briefvorgang aus einer Vorlage, befuellt mit Antragsdaten."""
+    task = get_object_or_404(WorkflowTask, pk=task_pk)
+    if not task.kann_bearbeiten(request.user) and not request.user.is_staff:
+        messages.error(request, "Kein Zugriff.")
+        return redirect("workflow:task_detail", pk=task_pk)
+
+    vorlage_pk = request.POST.get("vorlage_pk")
+    from korrespondenz.models import Briefvorlage, Briefvorgang
+    vorlage = get_object_or_404(Briefvorlage, pk=vorlage_pk, ist_aktiv=True)
+
+    # Antragsdaten aus verknuepfter Sitzung
+    sitzung = None
+    content_object = task.instance.content_object
+    try:
+        from formulare.models import AntrSitzung
+        if isinstance(content_object, AntrSitzung):
+            sitzung = content_object
+    except Exception:
+        pass
+
+    # Empfaenger und Platzhalter aus Antragsdaten ableiten
+    empfaenger_name = ""
+    platz_extra = {}
+    if sitzung:
+        daten = sitzung.gesammelte_daten or {}
+        # Feldlabels fuer Mapping aufbauen
+        for schritt in sitzung.pfad.schritte.all():
+            for feld in (schritt.felder_json or []):
+                fid = feld.get("id") or feld.get("feldId", "")
+                label = feld.get("label", "")
+                wert = daten.get(fid, "")
+                if fid:
+                    platz_extra[fid] = str(wert) if wert else ""
+                if label:
+                    # Auch normalisiertes Label als Platzhalter
+                    label_key = label.lower().replace(" ", "_").replace("-", "_")
+                    platz_extra[label_key] = str(wert) if wert else ""
+                # Empfaenger-Name aus typischen Feldern
+                if not empfaenger_name and label.lower() in ("name", "vor- und nachname", "vor und nachname", "vollstaendiger name"):
+                    empfaenger_name = str(wert)
+
+        platz_extra["vorgangsnummer"] = sitzung.vorgangsnummer or ""
+        platz_extra["antrag_datum"] = sitzung.abgeschlossen_am.strftime("%d.%m.%Y") if sitzung.abgeschlossen_am else ""
+        platz_extra["pfad_name"] = sitzung.pfad.name
+        if sitzung.user:
+            platz_extra["antragsteller"] = sitzung.user.get_full_name() or sitzung.user.username
+            if not empfaenger_name:
+                empfaenger_name = sitzung.user.get_full_name() or sitzung.user.username
+
+    from korrespondenz.models import Firmendaten
+    firma = Firmendaten.laden()
+    from django.utils import timezone as tz
+
+    vorgang = Briefvorgang.objects.create(
+        vorlage=vorlage,
+        sitzung=sitzung,
+        workflow_task=task,
+        absender_name=vorlage.default_absender_name or firma.firmenname,
+        absender_strasse=vorlage.default_absender_strasse or firma.strasse,
+        absender_ort=vorlage.default_absender_ort or firma.plz_ort,
+        absender_telefon=vorlage.default_absender_telefon or firma.telefon,
+        absender_email=vorlage.default_absender_email or firma.email,
+        empfaenger_name=empfaenger_name or "—",
+        ort=vorlage.default_ort or firma.ort or "",
+        datum=tz.localdate(),
+        betreff=vorlage.titel,
+        grussformel=vorlage.default_grussformel or firma.grussformel,
+        unterschrift_name=request.user.get_full_name() or request.user.username,
+        erstellt_von=request.user,
+    )
+
+    # Vorlage befuellen
+    try:
+        from korrespondenz.views import _erstelle_platzhalter, _fuelle_vorlage
+        platz = _erstelle_platzhalter(vorgang)
+        platz.update(platz_extra)
+        ausgefuellt = _fuelle_vorlage(bytes(vorlage.inhalt), platz)
+        Briefvorgang.objects.filter(pk=vorgang.pk).update(inhalt=ausgefuellt)
+        vorgang.inhalt = ausgefuellt
+    except Exception as exc:
+        logger.error("Vorlage befuellen fehlgeschlagen: %s", exc)
+        messages.warning(request, "Vorlage konnte nicht vollstaendig befuellt werden.")
+
+    messages.success(request, f"Schreiben '{vorlage.titel}' erstellt.")
+    return redirect(f"/korrespondenz/{vorgang.pk}/editor/?zurueck=/workflow/task/{task_pk}/")
+
+
+@login_required
+@require_POST
+def workflow_brief_signieren(request, brief_pk):
+    """Konvertiert Briefvorgang zu PDF und signiert ihn (Bearbeiter-FES)."""
+    from korrespondenz.models import Briefvorgang
+    brief = get_object_or_404(Briefvorgang, pk=brief_pk)
+    task = brief.workflow_task
+    if task and not task.kann_bearbeiten(request.user) and not request.user.is_staff:
+        return JsonResponse({"ok": False, "fehler": "Kein Zugriff"}, status=403)
+
+    if not brief.inhalt:
+        return JsonResponse({"ok": False, "fehler": "Kein Dokument-Inhalt vorhanden"})
+
+    from django.conf import settings as conf
+    import json as _json, urllib.request as urlreq
+    oo_int = (getattr(conf, "ONLYOFFICE_INTERNAL_URL", "") or getattr(conf, "ONLYOFFICE_URL", "")).rstrip("/")
+    base_url = getattr(conf, "WOPI_BASE_URL", getattr(conf, "VORGANGSWERK_BASE_URL", "")).rstrip("/")
+
+    pdf_bytes = None
+
+    # 1. OO ConversionAPI: DOCX → PDF
+    if oo_int and base_url:
+        try:
+            from korrespondenz.views import _oo_jwt
+            dl_url = f"{base_url}/korrespondenz/{brief.pk}/oo-download/"
+            conv_key = f"conv-brief-{brief.pk}-v{brief.version}"
+            payload = {"async": False, "filetype": "docx", "key": conv_key, "outputtype": "pdf", "url": dl_url}
+            headers = {"Content-Type": "application/json"}
+            secret = getattr(conf, "ONLYOFFICE_JWT_SECRET", "")
+            if secret:
+                headers["Authorization"] = f"Bearer {_oo_jwt(payload)}"
+            req = urlreq.Request(
+                f"{oo_int}/ConvertService.ashx",
+                data=_json.dumps(payload).encode(),
+                headers=headers,
+                method="POST",
+            )
+            with urlreq.urlopen(req, timeout=30) as resp:
+                result = _json.loads(resp.read())
+            pdf_url = result.get("fileUrl", "")
+            if pdf_url:
+                if oo_int and getattr(conf, "ONLYOFFICE_URL", ""):
+                    pdf_url = pdf_url.replace(getattr(conf, "ONLYOFFICE_URL", "").rstrip("/"), oo_int, 1)
+                dl_req = urlreq.Request(pdf_url)
+                if secret:
+                    import jwt as pyjwt
+                    dl_req.add_header("Authorization", f"Bearer {pyjwt.encode({'url': pdf_url}, secret, algorithm='HS256')}")
+                with urlreq.urlopen(dl_req, timeout=30) as r:
+                    pdf_bytes = r.read()
+        except Exception as exc:
+            logger.error("OO-Konvertierung fehlgeschlagen fuer Brief %s: %s", brief_pk, exc)
+
+    # Fallback: DOCX → HTML → WeasyPrint wenn OO nicht erreichbar
+    if not pdf_bytes:
+        try:
+            pdf_bytes = _docx_zu_pdf(bytes(brief.inhalt), brief)
+        except Exception as exc:
+            logger.error("Fallback-PDF-Konvertierung fehlgeschlagen fuer Brief %s: %s", brief_pk, exc)
+            return JsonResponse({"ok": False, "fehler": f"PDF-Konvertierung fehlgeschlagen: {exc}"})
+
+    # 2. FES-Signatur
+    try:
+        from signatur.services import signiere_pdf
+        signiert = signiere_pdf(pdf_bytes, request.user, brief.betreff or "Schreiben")
+    except Exception as exc:
+        logger.error("FES-Signatur fehlgeschlagen fuer Brief %s: %s", brief_pk, exc)
+        return JsonResponse({"ok": False, "fehler": f"Signatur fehlgeschlagen: {exc}"})
+
+    from django.utils import timezone as tz
+    Briefvorgang.objects.filter(pk=brief_pk).update(
+        signiert_pdf=signiert,
+        bearbeiter_signiert_von=request.user,
+        bearbeiter_signiert_am=tz.now(),
+        status=Briefvorgang.STATUS_FERTIG,
+    )
+    return JsonResponse({"ok": True})

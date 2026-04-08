@@ -14,6 +14,8 @@ urlpatterns = [
     path("task/<int:pk>/", views.task_detail, name="task_detail"),
     path("task/<int:pk>/abholen/", views.task_abholen, name="task_abholen"),
     path("task/<int:pk>/zurueckgeben/", views.task_zurueckgeben, name="task_zurueckgeben"),
+    path("task/<int:task_pk>/brief-erstellen/", views.workflow_brief_erstellen, name="brief_erstellen"),
+    path("brief/<int:brief_pk>/signieren/", views.workflow_brief_signieren, name="brief_signieren"),
 
     # ---------------------------------------------------------------------------
     # Workflow-Templates

@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}Posteintrag loeschen – Vorgangswerk{% endblock %}
+
+{% block content %}
+<div class="container py-4" style="max-width:520px">
+  <div class="card border-danger">
+    <div class="card-header text-danger"><strong>Eintrag loeschen</strong></div>
+    <div class="card-body">
+      <p>Soll der Eintrag <strong>{{ eintrag.lfd_nr }}</strong> wirklich geloescht werden?</p>
+      <p class="text-muted small">{{ eintrag.datum|date:"d.m.Y" }} – {{ eintrag.absender_empfaenger }}: {{ eintrag.betreff }}</p>
+      <form method="post" class="d-flex gap-2">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-danger">Ja, loeschen</button>
+        <a href="{% url 'post:liste' %}" class="btn btn-outline-secondary">Abbrechen</a>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

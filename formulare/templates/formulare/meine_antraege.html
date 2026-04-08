@@ -40,6 +40,7 @@
                     {% elif s.status == "abgeschlossen" %}
                     <a href="{% url 'formulare:pfad_abgeschlossen' s.pk %}" class="btn btn-sm btn-outline-secondary">Ansehen</a>
                     <a href="{% url 'formulare:sitzung_pdf' s.pk %}" class="btn btn-sm btn-outline-success">&#128196; PDF</a>
+                    <a href="{% url 'formulare:sitzung_gesamtakte' s.pk %}" class="btn btn-sm btn-outline-secondary" title="Gesamtakte als ZIP">&#128230; ZIP</a>
                     {% endif %}
                     <form method="post" action="{% url 'formulare:sitzung_loeschen' s.pk %}">
                         {% csrf_token %}

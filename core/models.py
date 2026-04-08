@@ -46,6 +46,23 @@ class Benutzerprofil(models.Model):
         verbose_name="Benutzer",
     )
 
+    # E-Mail-Benachrichtigungen
+    email_bei_neuer_aufgabe = models.BooleanField(
+        default=True,
+        verbose_name="E-Mail bei neuer Aufgabe",
+        help_text="Benachrichtigung wenn eine neue Workflow-Aufgabe zugewiesen wird.",
+    )
+    email_bei_faelligkeit = models.BooleanField(
+        default=True,
+        verbose_name="E-Mail bei Fälligkeit",
+        help_text="Erinnerung wenn eine Aufgabe überfällig ist.",
+    )
+    email_bei_abschluss = models.BooleanField(
+        default=True,
+        verbose_name="E-Mail bei Abschluss",
+        help_text="Benachrichtigung wenn ein Workflow abgeschlossen wurde.",
+    )
+
     class Meta:
         ordering = ["user__last_name", "user__first_name"]
         verbose_name = "Benutzerprofil"
@@ -147,3 +164,72 @@ def audit(request, aktion, beschreibung="", app="", objekt_id="", objekt_typ="")
         objekt_typ=objekt_typ,
         ip_adresse=ip or None,
     )
+
+
+# ---------------------------------------------------------------------------
+# Roadmap / Innovationsboard
+# ---------------------------------------------------------------------------
+
+class RoadmapEintrag(models.Model):
+    STATUS_IDEE        = "idee"
+    STATUS_VERFUEGBAR  = "verfuegbar"
+    STATUS_GEPLANT     = "geplant"
+    STATUS_ENTWICKLUNG = "entwicklung"
+    STATUS_UMGESETZT   = "umgesetzt"
+    STATUS_CHOICES = [
+        (STATUS_IDEE,        "Idee / Vision"),
+        (STATUS_VERFUEGBAR,  "Standard heute verfuegbar"),
+        (STATUS_GEPLANT,     "Geplant"),
+        (STATUS_ENTWICKLUNG, "In Entwicklung"),
+        (STATUS_UMGESETZT,   "Umgesetzt"),
+    ]
+
+    STATUS_FARBE = {
+        STATUS_IDEE:        "secondary",
+        STATUS_VERFUEGBAR:  "info",
+        STATUS_GEPLANT:     "warning",
+        STATUS_ENTWICKLUNG: "primary",
+        STATUS_UMGESETZT:   "success",
+    }
+
+    KATEGORIE_INTEROP   = "interop"
+    KATEGORIE_SICHERHEIT = "sicherheit"
+    KATEGORIE_BUERGER   = "buerger"
+    KATEGORIE_KI        = "ki"
+    KATEGORIE_WORKFLOW  = "workflow"
+    KATEGORIE_SONSTIGES = "sonstiges"
+    KATEGORIE_CHOICES = [
+        (KATEGORIE_INTEROP,    "Interoperabilitaet / G2G"),
+        (KATEGORIE_SICHERHEIT, "Sicherheit / Compliance"),
+        (KATEGORIE_BUERGER,    "Buergerportal"),
+        (KATEGORIE_KI,         "KI / Automatisierung"),
+        (KATEGORIE_WORKFLOW,   "Workflow / Prozesse"),
+        (KATEGORIE_SONSTIGES,  "Sonstiges"),
+    ]
+
+    titel       = models.CharField(max_length=200, verbose_name="Titel")
+    zusammenfassung = models.TextField(verbose_name="Zusammenfassung")
+    details     = models.TextField(blank=True, verbose_name="Details / Technischer Hintergrund")
+    status      = models.CharField(max_length=20, choices=STATUS_CHOICES,
+                                   default=STATUS_IDEE, verbose_name="Status")
+    kategorie   = models.CharField(max_length=20, choices=KATEGORIE_CHOICES,
+                                   default=KATEGORIE_SONSTIGES, verbose_name="Kategorie")
+    standard    = models.CharField(max_length=200, blank=True,
+                                   verbose_name="Relevanter Standard / Gesetz")
+    link_url    = models.URLField(blank=True, verbose_name="Link (Dokumentation / Spec)")
+    link_label  = models.CharField(max_length=100, blank=True, verbose_name="Link-Beschriftung")
+    sortierung  = models.IntegerField(default=0, verbose_name="Sortierung")
+    erstellt_am = models.DateTimeField(auto_now_add=True)
+    geaendert_am = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["sortierung", "-erstellt_am"]
+        verbose_name = "Roadmap-Eintrag"
+        verbose_name_plural = "Roadmap"
+
+    def __str__(self):
+        return self.titel
+
+    @property
+    def status_farbe(self):
+        return self.STATUS_FARBE.get(self.status, "secondary")

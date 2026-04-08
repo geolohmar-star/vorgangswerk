@@ -31,6 +31,9 @@
             <a href="?{{ filter_qs }}&format=csv" class="btn btn-outline-success btn-sm">
                 &#8595; CSV exportieren
             </a>
+            <a href="{% url 'quiz:ergebnisse' pfad.pk %}" class="btn btn-outline-primary btn-sm">
+                &#128203; Quiz-Ergebnisse
+            </a>
         </div>
     </div>
 
@@ -85,26 +88,26 @@
                 {% for zeile in zeilen %}
                 <tr>
                     <td class="fw-semibold text-nowrap">
-                        {{ zeile.sitzung.vorgangsnummer|default:"—" }}
+                        {{ zeile.vorgangsnummer|default:"—" }}
                     </td>
                     <td class="text-muted text-nowrap">
-                        {{ zeile.datum|date:"d.m.Y H:i"|default:"—" }}
+                        {{ zeile.gestartet_am|date:"d.m.Y H:i"|default:"—" }}
                     </td>
                     <td>
-                        {% if zeile.sitzung.status == "abgeschlossen" %}
-                        <span class="badge bg-success">{{ zeile.sitzung.get_status_display }}</span>
-                        {% elif zeile.sitzung.status == "abgebrochen" %}
-                        <span class="badge bg-danger">{{ zeile.sitzung.get_status_display }}</span>
+                        {% if zeile.status == "Abgeschlossen" %}
+                        <span class="badge bg-success">{{ zeile.status }}</span>
+                        {% elif zeile.status == "Abgebrochen" %}
+                        <span class="badge bg-danger">{{ zeile.status }}</span>
                         {% else %}
-                        <span class="badge bg-secondary">{{ zeile.sitzung.get_status_display }}</span>
+                        <span class="badge bg-secondary">{{ zeile.status }}</span>
                         {% endif %}
                     </td>
-                    <td class="text-nowrap">{{ zeile.wer }}</td>
-                    {% for wert in zeile.werte %}
+                    <td class="text-nowrap">{{ zeile.einreicher }}</td>
+                    {% for wert in zeile.felder %}
                     <td title="{{ wert }}">{{ wert|default:"—"|truncatechars:40 }}</td>
                     {% endfor %}
                     <td class="text-nowrap">
-                        <a href="{% url 'formulare:sitzung_pdf' zeile.sitzung.pk %}"
+                        <a href="{% url 'formulare:sitzung_pdf' zeile.pk %}"
                            class="btn btn-outline-secondary btn-sm" title="PDF">&#128462;</a>
                     </td>
                 </tr>

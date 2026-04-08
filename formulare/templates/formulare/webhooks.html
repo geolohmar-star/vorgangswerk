@@ -1,0 +1,126 @@
+{% extends "base.html" %}
+{% block title %}Webhooks – Formularschnittstelle – Vorgangswerk{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+      <h2 class="mb-0">Webhooks <span class="badge bg-primary ms-2" style="font-size:.6em;">Formularschnittstelle</span></h2>
+      <p class="text-muted mb-0 small">HTTP-Callbacks bei Antrag-Ereignissen – für Fachverfahren-Anbindungen.</p>
+    </div>
+    <a href="{% url 'formulare:webhook_neu' %}" class="btn btn-success">+ Neuer Webhook</a>
+  </div>
+
+  <div class="alert border-0 mb-4 p-3" style="background:#f0f4ff;">
+    <div class="d-flex gap-3 align-items-start">
+      <span style="font-size:1.4rem;">&#9432;</span>
+      <div class="small">
+        <strong>Formularschnittstelle — kommerzielles Angebot</strong><br>
+        Die Vorgangswerk-Plattform ist Open Source und kostenlos nutzbar.
+        Dieses Modul ist der bezahlte Teil: Sobald Antragsdaten maschinell an ein Fachverfahren,
+        ein Bürgerkonto oder ein Zahlungssystem weitergegeben werden sollen, kommt die Formularschnittstelle
+        zum Einsatz. Jeder Webhook liefert FIM-konforme Nutzdaten mit HMAC-Signierung direkt in das Zielsystem —
+        ohne manuelle Übertragung.<br>
+        <span class="text-muted">Nächste Ausbaustufen: Zahlungs-Webhook (Stripe/Wero) · BundID-Validierung · OSCI-Zustellung · Fachverfahren-Konnektoren</span>
+      </div>
+    </div>
+  </div>
+
+  {% if messages %}
+    {% for m in messages %}
+    <div class="alert alert-{{ m.tags|default:'info' }} alert-dismissible">{{ m }}</div>
+    {% endfor %}
+  {% endif %}
+
+  {% if webhooks %}
+  <div class="card shadow-sm mb-4">
+    <div class="table-responsive">
+      <table class="table table-hover mb-0">
+        <thead class="table-light">
+          <tr>
+            <th scope="col">Bezeichnung</th>
+            <th scope="col">Ziel-URL</th>
+            <th scope="col">Pfad</th>
+            <th scope="col">Ereignisse</th>
+            <th scope="col">Status</th>
+            <th scope="col">Letzte Zustellung</th>
+            <th scope="col"><span class="visually-hidden">Aktionen</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for wh in webhooks %}
+          <tr>
+            <td class="fw-semibold">{{ wh.name }}</td>
+            <td class="font-monospace small text-truncate" style="max-width:220px;" title="{{ wh.url }}">{{ wh.url }}</td>
+            <td class="small">{{ wh.pfad.name|default:"global" }}</td>
+            <td class="small">{{ wh.ereignisse_display }}</td>
+            <td>
+              {% if wh.aktiv %}
+                <span class="badge bg-success">Aktiv</span>
+              {% else %}
+                <span class="badge bg-secondary">Inaktiv</span>
+              {% endif %}
+            </td>
+            <td class="small text-muted">
+              {% with letzte=wh.zustellungen.first %}
+                {% if letzte %}
+                  {% if letzte.zugestellt_am %}
+                    <span class="text-success">&#10003; {{ letzte.zugestellt_am|date:"d.m.Y H:i" }}</span>
+                  {% else %}
+                    <span class="text-danger">&#10007; {{ letzte.fehler|truncatechars:40 }}</span>
+                  {% endif %}
+                {% else %}—{% endif %}
+              {% endwith %}
+            </td>
+            <td class="text-end">
+              <a href="{% url 'formulare:webhook_bearbeiten' wh.pk %}" class="btn btn-xs btn-outline-secondary py-0 px-2">Bearbeiten</a>
+              <a href="{% url 'formulare:webhook_log' wh.pk %}" class="btn btn-xs btn-outline-secondary py-0 px-2">Log</a>
+              <a href="{% url 'formulare:webhook_testen' wh.pk %}" class="btn btn-xs btn-outline-primary py-0 px-2">Testen</a>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% else %}
+  <div class="card shadow-sm">
+    <div class="card-body text-center py-5 text-muted">
+      <p class="mb-3">Noch keine Webhooks konfiguriert.</p>
+      <a href="{% url 'formulare:webhook_neu' %}" class="btn btn-success">Ersten Webhook anlegen</a>
+    </div>
+  </div>
+  {% endif %}
+
+  <div class="card shadow-sm mt-4">
+    <div class="card-header fw-semibold">Payload-Beispiel — <code>antrag.eingereicht</code></div>
+    <div class="card-body p-0">
+      <pre class="p-3 mb-0 small" style="background:#f8f9fa;border-radius:0 0 .375rem .375rem;overflow-x:auto;">{
+  "ereignis": "antrag.eingereicht",
+  "zeitstempel": "2026-04-05T14:23:00+02:00",
+  "vorgangsnummer": "HUN-00001-20260405-1423",
+  "pfad": { "name": "Hundesteuer-Anmeldung", "kuerzel": "HUN" },
+  "antragsteller": { "typ": "benutzer", "name": "Max Muster", "email": "max@example.com" },
+  "felder": {
+    "vorname":      { "wert": "Max",    "bezeichnung": "Vorname",      "fim_id": "F60000003" },
+    "familienname": { "wert": "Muster", "bezeichnung": "Familienname", "fim_id": "F60000004" },
+    "haltungsbeginn": { "wert": "2026-04-01", "bezeichnung": "Haltungsbeginn", "fim_id": "F60000095" }
+  },
+  "dokumente": [{ "feld_id": "ausweis", "name": "ausweis.pdf", "url": "https://..." }],
+  "tracking_url": "https://vorgangswerk.example.com/vorgang/HUN-00001-.../?token=..."
+}</pre>
+    </div>
+  </div>
+
+  <div class="card shadow-sm mt-3">
+    <div class="card-header fw-semibold">Signierung</div>
+    <div class="card-body small">
+      Jede Anfrage enthält den Header <code>X-Webhook-Signature: sha256=&lt;hex&gt;</code>.<br>
+      Prüfung: <code>HMAC-SHA256(secret, request_body)</code> mit dem konfigurierten Secret.
+      <pre class="mt-2 mb-0 p-2" style="background:#f8f9fa;">import hmac, hashlib
+sig = hmac.new(secret.encode(), request.body, hashlib.sha256).hexdigest()
+assert request.headers["X-Webhook-Signature"] == f"sha256={sig}"</pre>
+    </div>
+  </div>
+</div>
+{% endblock %}

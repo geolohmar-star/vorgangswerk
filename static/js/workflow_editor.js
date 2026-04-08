@@ -265,6 +265,14 @@
         document.getElementById("node-gruppe").value = cfg.gruppeId || "";
         document.getElementById("node-user").value = cfg.userId || "";
         document.getElementById("node-frist").value = cfg.frist_tage || 3;
+        // Verteiler-Config laden
+        var vc = cfg.auto_config || {};
+        document.getElementById("vc-empfaenger").value = vc.empfaenger || "";
+        document.getElementById("vc-empfaenger-namen").value = vc.empfaenger_namen || "";
+        document.getElementById("vc-dokumente").value = vc.dokumente || "antrag_pdf";
+        document.getElementById("vc-betreff").value = vc.betreff || "";
+        document.getElementById("vc-begleittext").value = vc.begleittext || "";
+        _updateVerteilerUI(cfg.aktion_typ || "pruefen");
         document.getElementById("selected-node-panel").classList.remove("d-none");
         _updateNodeRolleUI(cfg.zustaendig_rolle || "gruppe");
     }
@@ -272,6 +280,15 @@
     document.getElementById("node-rolle").addEventListener("change", function () {
         _updateNodeRolleUI(this.value);
     });
+
+    document.getElementById("node-aktion-typ").addEventListener("change", function () {
+        _updateVerteilerUI(this.value);
+    });
+
+    function _updateVerteilerUI(aktionTyp) {
+        var panel = document.getElementById("verteiler-config");
+        if (panel) panel.classList.toggle("d-none", aktionTyp !== "verteilen");
+    }
 
     function _updateNodeRolleUI(rolle) {
         var gruppeWrap = document.getElementById("gruppe-select-wrap");
@@ -291,6 +308,17 @@
         cfg.gruppeId = parseInt(document.getElementById("node-gruppe").value) || null;
         cfg.userId = parseInt(document.getElementById("node-user").value) || null;
         cfg.frist_tage = parseInt(document.getElementById("node-frist").value) || 3;
+        // Verteiler-Config speichern
+        if (cfg.aktion_typ === "verteilen") {
+            cfg.auto_config = {
+                empfaenger:         document.getElementById("vc-empfaenger").value.trim(),
+                empfaenger_namen:   document.getElementById("vc-empfaenger-namen").value.trim(),
+                dokumente:          document.getElementById("vc-dokumente").value,
+                betreff:            document.getElementById("vc-betreff").value.trim(),
+                begleittext:        document.getElementById("vc-begleittext").value.trim(),
+            };
+            cfg.schritt_typ = "auto";
+        }
         nodeConfig[selectedNodeId] = cfg;
 
         // Position aus dem Netzwerk holen
@@ -411,5 +439,58 @@
             alert("Netzwerkfehler: " + err);
         });
     });
+
+    // ---------------------------------------------------------------------------
+    // Organisations-Autocomplete im Verteiler
+    // ---------------------------------------------------------------------------
+    var orgSuche = document.getElementById("vc-org-suche");
+    var orgDropdown = document.getElementById("vc-org-dropdown");
+    var orgTimer = null;
+
+    if (orgSuche) {
+        orgSuche.addEventListener("input", function () {
+            clearTimeout(orgTimer);
+            var q = orgSuche.value.trim();
+            if (q.length < 2) { orgDropdown.style.display = "none"; return; }
+            orgTimer = setTimeout(function () {
+                fetch("/postbuch/organisationen/autocomplete/?q=" + encodeURIComponent(q))
+                    .then(function (r) { return r.json(); })
+                    .then(function (data) {
+                        orgDropdown.innerHTML = "";
+                        if (!data.length) { orgDropdown.style.display = "none"; return; }
+                        data.forEach(function (o) {
+                            var item = document.createElement("a");
+                            item.className = "dropdown-item py-1";
+                            item.href = "#";
+                            item.innerHTML = "<strong>" + o.name + "</strong>"
+                                + (o.email ? " <small class='text-muted'>" + o.email + "</small>" : "")
+                                + " <span class='badge bg-light text-secondary border ms-1'>" + o.typ + "</span>";
+                            item.addEventListener("click", function (e) {
+                                e.preventDefault();
+                                // E-Mail anhängen
+                                var empf = document.getElementById("vc-empfaenger");
+                                var namen = document.getElementById("vc-empfaenger-namen");
+                                if (o.email) {
+                                    empf.value = empf.value
+                                        ? empf.value.replace(/,\s*$/, "") + ", " + o.email
+                                        : o.email;
+                                }
+                                namen.value = namen.value
+                                    ? namen.value.replace(/,\s*$/, "") + ", " + o.name
+                                    : o.name;
+                                orgSuche.value = "";
+                                orgDropdown.style.display = "none";
+                            });
+                            orgDropdown.appendChild(item);
+                        });
+                        orgDropdown.style.removeProperty("display");
+                    });
+            }, 250);
+        });
+
+        document.addEventListener("click", function (e) {
+            if (!orgSuche.contains(e.target)) orgDropdown.style.display = "none";
+        });
+    }
 
 }());

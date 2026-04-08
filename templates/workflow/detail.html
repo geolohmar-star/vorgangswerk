@@ -72,11 +72,30 @@
                     </span>
                   </td>
                   <td>
-                    {% if s.zustaendig_gruppe %}{{ s.zustaendig_gruppe.name }}
-                    {% elif s.zustaendig_user %}{{ s.zustaendig_user.get_full_name|default:s.zustaendig_user.username }}
-                    {% else %}{{ s.get_zustaendig_rolle_display }}{% endif %}
+                    {% if s.schritt_typ == 'auto' %}
+                      <span class="text-muted small">
+                        {% if s.aktion_typ == 'verteilen' %}
+                          <i class="bi bi-send"></i>
+                          {% if s.auto_config.empfaenger %}
+                            {{ s.auto_config.empfaenger|truncatechars:50 }}
+                          {% else %}
+                            Automatisch
+                          {% endif %}
+                        {% else %}
+                          Automatisch
+                        {% endif %}
+                      </span>
+                    {% elif s.zustaendig_gruppe %}
+                      {{ s.zustaendig_gruppe.name }}
+                    {% elif s.zustaendig_user %}
+                      {{ s.zustaendig_user.get_full_name|default:s.zustaendig_user.username }}
+                    {% elif s.zustaendig_rolle %}
+                      {{ s.get_zustaendig_rolle_display }}
+                    {% else %}
+                      <span class="text-muted">–</span>
+                    {% endif %}
                   </td>
-                  <td>{{ s.frist_tage }} Tage</td>
+                  <td>{% if s.frist_tage %}{{ s.frist_tage }} Tage{% else %}<span class="text-muted">–</span>{% endif %}</td>
                 </tr>
                 {% endfor %}
               </tbody>

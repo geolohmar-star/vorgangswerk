@@ -1,0 +1,55 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="csrf-token" content="{{ csrf_token }}">
+  <title>{{ dok.titel }} – OnlyOffice</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { display: flex; flex-direction: column; height: 100vh; overflow: hidden; background: #444; }
+    #topbar {
+      display: flex; align-items: center; gap: 12px;
+      padding: 6px 16px;
+      background: #1a4d2e; color: white;
+      font-family: system-ui, sans-serif; font-size: 0.85rem;
+      flex-shrink: 0;
+    }
+    #topbar a { color: #a7f3d0; text-decoration: none; }
+    #topbar a:hover { text-decoration: underline; }
+    #topbar .titel { font-weight: 600; color: white; }
+    #topbar .hinweis { color: #d1fae5; font-size: 0.75rem; margin-left: auto; }
+    #btn-speichern {
+      background: #16a34a; color: white; border: none;
+      padding: 4px 14px; border-radius: 4px; font-size: 0.82rem;
+      cursor: pointer; font-weight: 600;
+    }
+    #btn-speichern:hover { background: #15803d; }
+    #btn-speichern:disabled { background: #6b7280; cursor: not-allowed; }
+    #editor { flex: 1; width: 100%; border: none; }
+  </style>
+</head>
+<body>
+  <div id="topbar">
+    <a href="{% url 'dokumente:detail' dok.pk %}">&larr; Zurueck</a>
+    <span style="color:#6ee7b7;">|</span>
+    <span class="titel">{{ dok.titel }}</span>
+    <span class="hinweis">Version {{ dok.version }}</span>
+    <button id="btn-speichern">Speichern &amp; zurueck</button>
+  </div>
+  <div id="editor"></div>
+
+  {{ oo_config|json_script:"oo-config" }}
+  <div id="oo-data"
+       data-token="{{ token }}"
+       data-version="{{ dok.version }}"
+       data-url-forcesave="{% url 'dokumente:onlyoffice_forcesave' dok.pk %}"
+       data-url-version-check="{% url 'dokumente:onlyoffice_version' dok.pk %}"
+       data-url-back="{% url 'dokumente:detail' dok.pk %}">
+  </div>
+
+  <script src="{{ onlyoffice_url }}/web-apps/apps/api/documents/api.js"></script>
+  <script src="{% static 'js/onlyoffice_editor.js' %}"></script>
+</body>
+</html>

@@ -1,0 +1,127 @@
+{% extends "base.html" %}
+{% block title %}Postbuch – Vorgangswerk{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-4 py-4">
+
+  <div class="d-flex align-items-center justify-content-between mb-3">
+    <h4 class="mb-0">Postbuch <span class="badge bg-secondary fw-normal fs-6">{{ gesamt }}</span></h4>
+    <div class="d-flex gap-2">
+      <a href="{% url 'post:neu' %}?richtung=eingang" class="btn btn-sm btn-outline-primary">&#8592; Eingang erfassen</a>
+      <a href="{% url 'post:neu' %}?richtung=ausgang" class="btn btn-sm btn-primary">&#8594; Ausgang erfassen</a>
+      <a href="{% url 'post:csv_export' %}?richtung={{ filter_richtung }}&typ={{ filter_typ }}&q={{ filter_q }}&datum_von={{ filter_datum_von }}&datum_bis={{ filter_datum_bis }}"
+         class="btn btn-sm btn-outline-secondary">&#11015; CSV</a>
+    </div>
+  </div>
+
+  {# Filterleiste #}
+  <form method="get" class="row g-2 mb-3 align-items-end">
+    <div class="col-auto">
+      <select name="richtung" class="form-select form-select-sm">
+        <option value="">Alle Richtungen</option>
+        {% for val, label in richtung_choices %}
+        <option value="{{ val }}" {% if filter_richtung == val %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-auto">
+      <select name="typ" class="form-select form-select-sm">
+        <option value="">Alle Typen</option>
+        {% for val, label in typ_choices %}
+        <option value="{{ val }}" {% if filter_typ == val %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-auto">
+      <input type="date" name="datum_von" class="form-control form-control-sm" value="{{ filter_datum_von }}" title="Von">
+    </div>
+    <div class="col-auto">
+      <input type="date" name="datum_bis" class="form-control form-control-sm" value="{{ filter_datum_bis }}" title="Bis">
+    </div>
+    <div class="col">
+      <input type="search" name="q" class="form-control form-control-sm"
+             placeholder="Suche: Betreff, Absender/Empf., Tagebuch-Nr., Aktenzeichen..."
+             value="{{ filter_q }}">
+    </div>
+    <div class="col-auto">
+      <button type="submit" class="btn btn-sm btn-outline-secondary">Filtern</button>
+      <a href="{% url 'post:liste' %}" class="btn btn-sm btn-outline-secondary">Zurueck</a>
+    </div>
+  </form>
+
+  <div class="table-responsive">
+    <table class="table table-sm table-hover align-middle">
+      <thead class="table-light">
+        <tr>
+          <th>Tagebuch-Nr.</th>
+          <th>Datum</th>
+          <th>Richtung</th>
+          <th>Typ</th>
+          <th>Absender / Empfaenger</th>
+          <th>Betreff</th>
+          <th>Aktenzeichen</th>
+          <th>Belege</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for e in page_obj %}
+        <tr>
+          <td><code class="small">{{ e.lfd_nr }}</code></td>
+          <td class="text-nowrap">{{ e.datum|date:"d.m.Y" }}</td>
+          <td>
+            {% if e.richtung == "eingang" %}
+            <span class="badge bg-success-subtle text-success border border-success-subtle">&#8592; Eingang</span>
+            {% else %}
+            <span class="badge bg-primary-subtle text-primary border border-primary-subtle">&#8594; Ausgang</span>
+            {% endif %}
+          </td>
+          <td><span class="badge bg-light text-dark border">{{ e.get_typ_display }}</span></td>
+          <td class="text-truncate" style="max-width:180px">{{ e.absender_empfaenger }}</td>
+          <td class="text-truncate" style="max-width:250px">{{ e.betreff }}</td>
+          <td class="small text-muted">{{ e.vorgang_bezug|default:"–" }}</td>
+          <td>
+            {% if e.dokument %}
+            <a href="{% url 'dokumente:detail' e.dokument.pk %}" class="text-decoration-none small" title="{{ e.dokument.titel }}">
+              &#128196;
+            </a>
+            {% endif %}
+            {% if e.eingehende_email %}
+            <span title="Eingehende E-Mail verknuepft">&#9993;</span>
+            {% endif %}
+            {% if e.briefvorgang %}
+            <a href="/korrespondenz/{{ e.briefvorgang.pk }}/" class="text-decoration-none small" title="Briefvorgang">
+              &#9993;
+            </a>
+            {% endif %}
+          </td>
+          <td class="text-nowrap">
+            <a href="{% url 'post:bearbeiten' e.pk %}" class="btn btn-xs btn-outline-secondary btn-sm py-0 px-1">Bearbeiten</a>
+            <a href="{% url 'post:loeschen' e.pk %}" class="btn btn-xs btn-outline-danger btn-sm py-0 px-1">Loeschen</a>
+          </td>
+        </tr>
+        {% empty %}
+        <tr>
+          <td colspan="9" class="text-center text-muted py-4">Keine Eintraege vorhanden.</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  {% if page_obj.has_other_pages %}
+  <nav>
+    <ul class="pagination pagination-sm">
+      {% if page_obj.has_previous %}
+      <li class="page-item"><a class="page-link" href="?page={{ page_obj.previous_page_number }}&richtung={{ filter_richtung }}&typ={{ filter_typ }}&q={{ filter_q }}&datum_von={{ filter_datum_von }}&datum_bis={{ filter_datum_bis }}">Zurueck</a></li>
+      {% endif %}
+      <li class="page-item disabled"><span class="page-link">Seite {{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span></li>
+      {% if page_obj.has_next %}
+      <li class="page-item"><a class="page-link" href="?page={{ page_obj.next_page_number }}&richtung={{ filter_richtung }}&typ={{ filter_typ }}&q={{ filter_q }}&datum_von={{ filter_datum_von }}&datum_bis={{ filter_datum_bis }}">Weiter</a></li>
+      {% endif %}
+    </ul>
+  </nav>
+  {% endif %}
+
+</div>
+{% endblock %}

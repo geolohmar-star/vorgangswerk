@@ -76,6 +76,33 @@
                     {% endif %}
                 </div>
 
+                <hr class="my-3">
+                <p class="fw-semibold mb-2 small text-muted">E-Mail-Benachrichtigungen</p>
+
+                <div class="mb-2 form-check form-switch">
+                    {{ form.email_bei_neuer_aufgabe }}
+                    <label class="form-check-label" for="{{ form.email_bei_neuer_aufgabe.id_for_label }}">
+                        {{ form.email_bei_neuer_aufgabe.label }}
+                    </label>
+                    <div class="text-muted small">{{ form.email_bei_neuer_aufgabe.help_text }}</div>
+                </div>
+
+                <div class="mb-2 form-check form-switch">
+                    {{ form.email_bei_faelligkeit }}
+                    <label class="form-check-label" for="{{ form.email_bei_faelligkeit.id_for_label }}">
+                        {{ form.email_bei_faelligkeit.label }}
+                    </label>
+                    <div class="text-muted small">{{ form.email_bei_faelligkeit.help_text }}</div>
+                </div>
+
+                <div class="mb-3 form-check form-switch">
+                    {{ form.email_bei_abschluss }}
+                    <label class="form-check-label" for="{{ form.email_bei_abschluss.id_for_label }}">
+                        {{ form.email_bei_abschluss.label }}
+                    </label>
+                    <div class="text-muted small">{{ form.email_bei_abschluss.help_text }}</div>
+                </div>
+
                 <div class="d-flex gap-2">
                     <button type="submit" class="btn btn-sm"
                             style="background:#1a4d2e;color:#fff;">

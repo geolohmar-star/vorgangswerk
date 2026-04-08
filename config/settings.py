@@ -35,12 +35,22 @@ INSTALLED_APPS = [
     "django_otp",
     "django_otp.plugins.otp_totp",
     "django_otp.plugins.otp_static",
+    # API
+    "ninja",
+    # Login-Überwachung
+    "axes",
     # Vorgangswerk-Apps
     "core",
     "formulare",
     "workflow",
     "dokumente",
     "kommunikation",
+    "korrespondenz",
+    "signatur",
+    "portal",
+    "sicherung",
+    "post",
+    "quiz",
 ]
 
 # ---------------------------------------------------------------------------
@@ -50,11 +60,13 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
     "whitenoise.middleware.WhiteNoiseMiddleware",
+    "axes.middleware.AxesMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django_otp.middleware.OTPMiddleware",
+    "signatur.middleware.SignaturKeyMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
@@ -141,6 +153,12 @@ SESSION_COOKIE_AGE = config("SESSION_TIMEOUT", default=28800, cast=int)
 SESSION_COOKIE_HTTPONLY = True
 SESSION_COOKIE_SAMESITE = "Lax"
 
+CSRF_TRUSTED_ORIGINS = config(
+    "CSRF_TRUSTED_ORIGINS",
+    default="https://vorgangswerk.georg-klein.com",
+    cast=Csv(),
+)
+
 # ---------------------------------------------------------------------------
 # Auth
 # ---------------------------------------------------------------------------
@@ -176,9 +194,13 @@ IMAP_BENACHRICHTIGE_STAFF = config("IMAP_BENACHRICHTIGE_STAFF", default=True, ca
 # Collabora Online WOPI (optional)
 # ---------------------------------------------------------------------------
 
-COLLABORA_URL = config("COLLABORA_URL", default="")
-# Oeffentliche Basis-URL dieser Instanz (fuer WOPI-Callbacks von Collabora)
-VORGANGSWERK_BASE_URL = config("VORGANGSWERK_BASE_URL", default="http://localhost:8000")
+ONLYOFFICE_URL          = config("ONLYOFFICE_URL",          default="")
+ONLYOFFICE_INTERNAL_URL = config("ONLYOFFICE_INTERNAL_URL", default="http://host.docker.internal:8012")
+ONLYOFFICE_JWT_SECRET   = config("ONLYOFFICE_JWT_SECRET",   default="")
+# Oeffentliche Basis-URL dieser Instanz
+VORGANGSWERK_BASE_URL   = config("VORGANGSWERK_BASE_URL",   default="http://localhost:8000")
+# Interne URL fuer OnlyOffice→Django-Callbacks (vom OO-Container erreichbar)
+WOPI_BASE_URL           = config("WOPI_BASE_URL",           default="http://host.docker.internal:8100")
 
 # ---------------------------------------------------------------------------
 # Verschluesselung (AES-256-GCM fuer sensible Dokumente)
@@ -187,10 +209,49 @@ VORGANGSWERK_BASE_URL = config("VORGANGSWERK_BASE_URL", default="http://localhos
 VERSCHLUESSEL_KEY = config("VERSCHLUESSEL_KEY", default="")
 
 # ---------------------------------------------------------------------------
-# sign.me QES (optional)
+# Signatur
 # ---------------------------------------------------------------------------
 
 SIGNME_API_KEY = config("SIGNME_API_KEY", default="")
+API_KEY = config("API_KEY", default="")
+SIGNATUR_BACKEND = config("SIGNATUR_BACKEND", default="intern")
+SIGNATUR_SIGN_ME_URL = config("SIGNATUR_SIGN_ME_URL", default="https://api.sign-me.de")
+SIGNATUR_SIGN_ME_KEY = config("SIGNATUR_SIGN_ME_KEY", default="")
+
+# ---------------------------------------------------------------------------
+# Claude / Anthropic API
+# ---------------------------------------------------------------------------
+
+ANTHROPIC_API_KEY = config("ANTHROPIC_API_KEY", default="")
+
+# ---------------------------------------------------------------------------
+# Stripe (Portal-Zahlungen)
+# ---------------------------------------------------------------------------
+
+STRIPE_PUBLIC_KEY  = config("STRIPE_PUBLIC_KEY",  default="")
+STRIPE_SECRET_KEY  = config("STRIPE_SECRET_KEY",  default="")
+STRIPE_WEBHOOK_SECRET = config("STRIPE_WEBHOOK_SECRET", default="")
+
+# ---------------------------------------------------------------------------
+# Datensicherung (BSI CON.3)
+# ---------------------------------------------------------------------------
+
+SICHERUNGS_DIR = config("SICHERUNGS_DIR", default="/app/sicherungen")
+
+AUTHENTICATION_BACKENDS = [
+    "axes.backends.AxesStandaloneBackend",
+    "signatur.auth_backend.SignaturAuthBackend",
+]
+
+# ---------------------------------------------------------------------------
+# django-axes (Brute-Force-Schutz + Login-Übersicht)
+# ---------------------------------------------------------------------------
+
+AXES_FAILURE_LIMIT        = 5          # Sperren nach 5 Fehlversuchen
+AXES_COOLOFF_TIME         = 1          # Sperre: 1 Stunde
+AXES_LOCKOUT_PARAMETERS   = ["username", "ip_address"]
+AXES_RESET_ON_SUCCESS     = True       # Zähler zurücksetzen bei erfolgreichem Login
+AXES_VERBOSE              = False
 
 # ---------------------------------------------------------------------------
 # Logging (BSI: keine sensiblen Daten in Logs)

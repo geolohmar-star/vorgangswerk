@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}Pfad loeschen – {{ pfad.name }}{% endblock %}
+
+{% block content %}
+<div class="container mt-4" style="max-width: 540px;">
+  <div class="card border-danger">
+    <div class="card-header bg-danger text-white">
+      <h5 class="mb-0">Pfad loeschen</h5>
+    </div>
+    <div class="card-body">
+      <p>Soll der Pfad <strong>{{ pfad.name }}</strong>
+        {% if pfad.kuerzel %}<span class="badge bg-secondary">{{ pfad.kuerzel }}</span>{% endif %}
+        wirklich geloescht werden?</p>
+      <p class="text-danger small">
+        Alle zugehoerigen Sitzungen und Antragsdaten werden ebenfalls unwiderruflich geloescht.
+      </p>
+    </div>
+    <div class="card-footer d-flex gap-2 justify-content-end">
+      <a href="{% url 'formulare:liste' %}" class="btn btn-outline-secondary">Abbrechen</a>
+      <form method="post">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-danger">Ja, endgueltig loeschen</button>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

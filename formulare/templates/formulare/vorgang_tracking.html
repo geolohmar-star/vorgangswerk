@@ -1,0 +1,104 @@
+{% extends "formulare/base_public.html" %}
+
+{% block title %}Vorgangsstatus {{ vorgangsnummer }} – Vorgangswerk{% endblock %}
+
+{% block content %}
+<div class="container py-4" style="max-width:700px;">
+
+  <div class="mb-4">
+    <h2 class="h4 mb-1">Ihr Vorgangs-Status</h2>
+    <p class="text-muted mb-0">Vorgangsnummer: <strong>{{ vorgangsnummer }}</strong></p>
+  </div>
+
+  {% if fehler %}
+  <div class="alert alert-danger" role="alert">
+    <strong>Fehler:</strong> {{ fehler }}
+  </div>
+
+  {% else %}
+
+  {# Kopfzeile: Antrag #}
+  <div class="card shadow-sm mb-4">
+    <div class="card-header fw-semibold">Antrag</div>
+    <div class="card-body">
+      <dl class="row mb-0 small">
+        <dt class="col-sm-4">Formular</dt>
+        <dd class="col-sm-8">{{ sitzung.pfad.name }}</dd>
+        <dt class="col-sm-4">Eingereicht am</dt>
+        <dd class="col-sm-8">{{ sitzung.abgeschlossen_am|date:"d.m.Y H:i" }} Uhr</dd>
+        <dt class="col-sm-4">Status</dt>
+        <dd class="col-sm-8">
+          {% if sitzung.status == "abgeschlossen" %}
+            <span class="badge bg-success">Eingereicht</span>
+          {% elif sitzung.status == "laufend" %}
+            <span class="badge bg-warning text-dark">In Bearbeitung</span>
+          {% else %}
+            <span class="badge bg-secondary">{{ sitzung.get_status_display }}</span>
+          {% endif %}
+        </dd>
+      </dl>
+    </div>
+  </div>
+
+  {# Bearbeitungsstand #}
+  {% if instanzen %}
+  {% for instanz in instanzen %}
+  <div class="card shadow-sm mb-3">
+    <div class="card-header fw-semibold d-flex justify-content-between align-items-center">
+      <span>Bearbeitungsstand</span>
+      <span class="badge
+        {% if instanz.status == 'abgeschlossen' %}bg-success
+        {% elif instanz.status == 'abgebrochen' %}bg-danger
+        {% else %}bg-primary{% endif %}">
+        {{ instanz.get_status_display }}
+      </span>
+    </div>
+    <div class="card-body">
+      <div class="mb-3">
+        <div class="d-flex justify-content-between mb-1">
+          <small class="text-muted">Fortschritt</small>
+          <small class="fw-semibold">{{ instanz.fortschritt }}&thinsp;%</small>
+        </div>
+        <div class="progress" style="height:10px;" role="progressbar"
+             aria-label="Bearbeitungsfortschritt"
+             aria-valuenow="{{ instanz.fortschritt }}"
+             aria-valuemin="0" aria-valuemax="100">
+          <div class="progress-bar bg-success" style="width:{{ instanz.fortschritt }}%;"></div>
+        </div>
+      </div>
+
+      {% if instanz.aktueller_schritt and instanz.status != 'abgeschlossen' %}
+      <p class="mb-0 small text-muted">
+        Aktueller Schritt:
+        <strong>{{ instanz.aktueller_schritt.titel }}</strong>
+      </p>
+      {% elif instanz.status == 'abgeschlossen' %}
+      <p class="mb-0 small text-success fw-semibold">
+        &#10003; Ihr Antrag wurde abschliessend bearbeitet.
+      </p>
+      {% endif %}
+
+      <p class="mb-0 mt-2 small text-muted">
+        Gestartet: {{ instanz.gestartet_am|date:"d.m.Y H:i" }} Uhr
+      </p>
+    </div>
+  </div>
+  {% endfor %}
+
+  {% else %}
+  <div class="card shadow-sm mb-3">
+    <div class="card-body text-muted small">
+      Ihr Antrag wurde eingereicht und wird bearbeitet.
+      Sobald der Bearbeitungsprozess gestartet wurde, erscheint hier der aktuelle Stand.
+    </div>
+  </div>
+  {% endif %}
+
+  <div class="alert alert-light border small mt-4" role="note">
+    <strong>Hinweis:</strong> Bitte bewahren Sie den Link zu dieser Seite sicher auf.
+    Nur wer den Link kennt, kann den Bearbeitungsstand einsehen.
+  </div>
+
+  {% endif %}
+</div>
+{% endblock %}

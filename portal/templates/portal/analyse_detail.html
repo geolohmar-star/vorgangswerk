@@ -1,0 +1,159 @@
+{% extends "portal/base.html" %}
+{% block title %}Analyse – {{ analyse.dateiname }} – Vorgangswerk Portal{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-9">
+        <nav aria-label="breadcrumb" class="mb-3">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{% url 'portal:dashboard' %}">Dashboard</a></li>
+                <li class="breadcrumb-item active">Analyse</li>
+            </ol>
+        </nav>
+
+        <div class="card">
+            <div class="card-header py-3 d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">{{ analyse.dateiname }}</h5>
+                <span id="status-badge" class="badge fs-6 status-{{ analyse.status }}
+                    {% if analyse.status == 'fertig' %}bg-success
+                    {% elif analyse.status == 'fehler' %}bg-danger
+                    {% elif analyse.status == 'verarbeitung' %}bg-primary
+                    {% elif analyse.status == 'importiert' %}bg-purple text-white
+                    {% else %}bg-secondary{% endif %}">
+                    {{ analyse.get_status_display }}
+                </span>
+            </div>
+            <div class="card-body">
+                <dl class="row mb-3">
+                    <dt class="col-sm-3">Erstellt</dt>
+                    <dd class="col-sm-9">{{ analyse.erstellt_am|date:"d.m.Y H:i:s" }}</dd>
+                    {% if analyse.fertig_am %}
+                    <dt class="col-sm-3">Fertig</dt>
+                    <dd class="col-sm-9">{{ analyse.fertig_am|date:"d.m.Y H:i:s" }}</dd>
+                    {% endif %}
+                    <dt class="col-sm-3">Credits</dt>
+                    <dd class="col-sm-9">{{ analyse.credits_verbraucht }}</dd>
+                </dl>
+
+                {# Ladeanimation #}
+                {% if analyse.status == "wartend" or analyse.status == "verarbeitung" %}
+                <div id="warte-bereich" class="text-center py-4">
+                    <div class="spinner-border text-primary mb-3" style="width:3rem;height:3rem;"></div>
+                    <p class="text-muted mb-0" id="status-text">
+                        {% if analyse.status == "wartend" %}Warte auf Verarbeitung...{% else %}Claude analysiert das Formular...{% endif %}
+                    </p>
+                    <small class="text-muted">Dies kann 20–60 Sekunden dauern.</small>
+                </div>
+                {% endif %}
+
+                {# Fehler #}
+                {% if analyse.status == "fehler" %}
+                <div class="alert alert-danger">
+                    <strong>Analyse fehlgeschlagen:</strong><br>
+                    {{ analyse.fehler_meldung }}
+                </div>
+                <a href="{% url 'portal:upload' %}" class="btn btn-primary">Erneut versuchen</a>
+                {% endif %}
+
+                {# Ergebnis #}
+                {% if analyse.ergebnis_json %}
+                <div id="ergebnis-bereich">
+                    <h6 class="fw-semibold mb-3">Analyseergebnis</h6>
+
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <div class="p-3 bg-light rounded">
+                                <div class="small text-muted mb-1">Erkannter Name</div>
+                                <strong>{{ analyse.ergebnis_json.name }}</strong>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="p-3 bg-light rounded text-center">
+                                <div class="small text-muted mb-1">Schritte</div>
+                                <strong class="fs-4">{{ analyse.ergebnis_json.schritte|length }}</strong>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="p-3 bg-light rounded text-center">
+                                <div class="small text-muted mb-1">Transitionen</div>
+                                <strong class="fs-4">{{ analyse.ergebnis_json.transitionen|length }}</strong>
+                            </div>
+                        </div>
+                    </div>
+
+                    {% if analyse.ergebnis_json.beschreibung %}
+                    <p class="text-muted small mb-3">{{ analyse.ergebnis_json.beschreibung }}</p>
+                    {% endif %}
+
+                    {# Schritte-Vorschau #}
+                    <div class="mb-4">
+                        <h6 class="text-muted small fw-semibold text-uppercase mb-2">Erkannte Schritte</h6>
+                        <div class="list-group list-group-flush">
+                        {% for schritt in analyse.ergebnis_json.schritte %}
+                        <div class="list-group-item px-0 py-2 d-flex justify-content-between align-items-center">
+                            <div>
+                                <span class="badge bg-secondary me-2">{{ schritt.node_id }}</span>
+                                <strong>{{ schritt.titel }}</strong>
+                                {% if schritt.ist_start %}<span class="badge bg-success ms-1">Start</span>{% endif %}
+                                {% if schritt.ist_ende %}<span class="badge bg-warning text-dark ms-1">Ende</span>{% endif %}
+                            </div>
+                            <span class="text-muted small">{{ schritt.felder_json|length }} Felder</span>
+                        </div>
+                        {% endfor %}
+                        </div>
+                    </div>
+
+                    {% if analyse.status == "fertig" %}
+                    <form method="post" action="{% url 'portal:analyse_importieren' analyse.pk %}">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-primary btn-lg w-100">
+                            In Vorgangswerk importieren &rarr;
+                        </button>
+                    </form>
+                    <p class="text-muted small text-center mt-2">
+                        Der Pfad wird als Entwurf angelegt und ist zunächst nicht öffentlich.
+                        Du kannst ihn danach im Editor anpassen.
+                    </p>
+                    {% elif analyse.status == "importiert" and analyse.importierter_pfad_pk %}
+                    <a href="/formulare/editor/{{ analyse.importierter_pfad_pk }}/"
+                       class="btn btn-success btn-lg w-100">
+                        Im Editor öffnen &rarr;
+                    </a>
+                    {% endif %}
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+{% if analyse.status == "wartend" or analyse.status == "verarbeitung" %}
+<script>
+(function() {
+    const STATUS_URL = "{% url 'portal:analyse_status_json' analyse.pk %}";
+    const POLL_INTERVAL = 3000;
+
+    function poll() {
+        fetch(STATUS_URL)
+            .then(r => r.json())
+            .then(data => {
+                if (data.status === "fertig" || data.status === "fehler" || data.status === "importiert") {
+                    window.location.reload();
+                } else {
+                    const txt = document.getElementById("status-text");
+                    if (txt && data.status === "verarbeitung") {
+                        txt.textContent = "Claude analysiert das Formular...";
+                    }
+                    setTimeout(poll, POLL_INTERVAL);
+                }
+            })
+            .catch(() => setTimeout(poll, POLL_INTERVAL * 2));
+    }
+
+    setTimeout(poll, POLL_INTERVAL);
+})();
+</script>
+{% endif %}
+{% endblock %}

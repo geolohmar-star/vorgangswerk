@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: EUPL-1.2
 # Copyright (C) 2026 Georg Klein
 from django.contrib import admin
-from .models import AuditLog, Benutzerprofil
+from .models import AuditLog, Benutzerprofil, RoadmapEintrag
 
 
 @admin.register(Benutzerprofil)
@@ -25,3 +25,11 @@ class AuditLogAdmin(admin.ModelAdmin):
 
     def has_delete_permission(self, request, obj=None):
         return False
+
+
+@admin.register(RoadmapEintrag)
+class RoadmapEintragAdmin(admin.ModelAdmin):
+    list_display = ["titel", "kategorie", "status", "standard", "sortierung"]
+    list_filter = ["status", "kategorie"]
+    list_editable = ["status", "sortierung"]
+    search_fields = ["titel", "zusammenfassung", "standard"]

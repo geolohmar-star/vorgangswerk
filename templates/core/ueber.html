@@ -1,0 +1,297 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}Über Vorgangswerk{% endblock %}
+
+{% block content %}
+<div class="container py-5" style="max-width:860px;">
+
+  {# Hero #}
+  <div class="text-center mb-5">
+    <h1 class="display-5 fw-bold mb-2">Vorgangswerk</h1>
+    <p class="lead text-muted mb-4">
+      Open-Source-Verwaltungsplattform für den deutschen öffentlichen Sektor.<br>
+      Keine Lizenzkosten. Kein Vendor-Lock-in. Der Quellcode gehört der Allgemeinheit.
+    </p>
+    <div class="d-flex justify-content-center gap-4 text-center">
+      <div>
+        <div class="fs-2 fw-bold text-primary">{{ stats.formulare }}</div>
+        <div class="text-muted small">aktive Formulare</div>
+      </div>
+      <div>
+        <div class="fs-2 fw-bold text-primary">{{ stats.antraege }}</div>
+        <div class="text-muted small">eingereichte Anträge</div>
+      </div>
+      <div>
+        <div class="fs-2 fw-bold text-primary">{{ stats.workflows }}</div>
+        <div class="text-muted small">aktive Workflows</div>
+      </div>
+      <div>
+        <div class="fs-2 fw-bold text-primary">{{ stats.briefe }}</div>
+        <div class="text-muted small">erstellte Schreiben</div>
+      </div>
+    </div>
+  </div>
+
+  {# Features #}
+  <h4 class="fw-bold mb-4 border-bottom pb-2">Was Vorgangswerk heute kann</h4>
+
+  <div class="row g-4 mb-5">
+
+    <div class="col-md-6">
+      <div class="card h-100 border-0 shadow-sm">
+        <div class="card-body">
+          <div class="fs-3 mb-2">&#128196;</div>
+          <h5 class="fw-bold">Formulare ohne Medienbruch</h5>
+          <p class="text-muted small mb-0">
+            Strukturierte Antragsstrecken mit bedingten Feldern, Datei-Uploads,
+            Berechnungen und DSGVO-Einwilligungen. Öffentliche Formulare
+            funktionieren ohne Bürgerkonto. Automatische PDF-Erzeugung beim Abschluss.
+            Alles per Editor – keine Zeile Code nötig.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-md-6">
+      <div class="card h-100 border-0 shadow-sm">
+        <div class="card-body">
+          <div class="fs-3 mb-2">&#9881;&#65039;</div>
+          <h5 class="fw-bold">Workflow-Engine mit visuellem Editor</h5>
+          <p class="text-muted small mb-0">
+            Anträge starten automatisch den zugehörigen Prozess: Prüfen → Verteilen →
+            Entscheiden → Abschließen. Jeder Schritt ist zuweisbar, mit Frist hinterlegt
+            und eskalierbar. Der Graph-Editor läuft direkt im Browser –
+            kein BPMN-Werkzeug, keine XML-Dateien.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-md-6">
+      <div class="card h-100 border-0 shadow-sm">
+        <div class="card-body">
+          <div class="fs-3 mb-2">&#128233;</div>
+          <h5 class="fw-bold">Schreiben auf Knopfdruck</h5>
+          <p class="text-muted small mb-0">
+            Bescheide, Quittungen, Anschreiben und Benachrichtigungen werden direkt
+            aus Vorlagen erzeugt – ohne ein einziges Datenfeld erneut einzutippen.
+            Alle Antragsdaten fließen automatisch in das Schreiben ein.
+            Fertige Briefe landen im integrierten DMS und können sofort
+            elektronisch signiert oder per Post versendet werden.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-md-6">
+      <div class="card h-100 border-0 shadow-sm">
+        <div class="card-body">
+          <div class="fs-3 mb-2">&#10003;</div>
+          <h5 class="fw-bold">Verteiler mit Quittierungsknopf</h5>
+          <p class="text-muted small mb-0">
+            Jeder Verteiler-Empfänger erhält eine E-Mail mit eindeutigem UUID-Link.
+            Ein Klick = Empfangsbestätigung – ohne Login, ohne Bürgerkonto.
+            Der Sachbearbeiter sieht in Echtzeit wer quittiert hat.
+            Jeder Versand wird automatisch im Postbuch protokolliert.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-md-6">
+      <div class="card h-100 border-0 shadow-sm">
+        <div class="card-body">
+          <div class="fs-3 mb-2">&#128274;</div>
+          <h5 class="fw-bold">Elektronische Signatur</h5>
+          <p class="text-muted small mb-0">
+            Dokumente signieren mit interner FES (pyhanko + eigene CA, offline-fähig)
+            oder mit QES über die Bundesdruckerei (sign.me) – rechtlich gleichwertig
+            zur handschriftlichen Unterschrift (§ 126a BGB).
+            Backend per Konfiguration wechselbar, beide Wege in einer Plattform.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-md-6">
+      <div class="card h-100 border-0 shadow-sm">
+        <div class="card-body">
+          <div class="fs-3 mb-2">&#128193;</div>
+          <h5 class="fw-bold">Integriertes DMS mit Browser-Editor</h5>
+          <p class="text-muted small mb-0">
+            Eigenes Dokumentenmanagementsystem mit Kollaborations-Editor
+            (OnlyOffice Document Server, WOPI-konform).
+            Keine Abhängigkeit von Microsoft 365 oder Google Docs.
+            Gesamtakte als ZIP-Export auf Knopfdruck.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-md-6">
+      <div class="card h-100 border-0 shadow-sm">
+        <div class="card-body">
+          <div class="fs-3 mb-2">&#128101;</div>
+          <h5 class="fw-bold">Postbuch &amp; Organisationsverzeichnis</h5>
+          <p class="text-muted small mb-0">
+            Lückenloser Posteingang und Postausgang mit Vorgangsbezug.
+            Integriertes Organisationsverzeichnis für Behörden, Gerichte und
+            Meldestellen – mit Autocomplete im Workflow-Verteiler.
+            CSV-Export für Auswertungen.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-md-6">
+      <div class="card h-100 border-0 shadow-sm">
+        <div class="card-body">
+          <div class="fs-3 mb-2">&#128737;&#65039;</div>
+          <h5 class="fw-bold">Datensicherung nach BSI CON.3</h5>
+          <p class="text-muted small mb-0">
+            Automatische Sicherungen mit AES-256-GCM und SHA-256-Prüfsummen.
+            Fünfstufige Integritätsprüfung: Datei → Prüfsumme → Entschlüsselung →
+            Archiv → SQL-Dump. Wiederherstellungsfunktion mit Bestätigungspflicht
+            direkt aus der Oberfläche.
+          </p>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  {# Alleinstellungsmerkmale #}
+  <div class="card border-primary mb-5">
+    <div class="card-header bg-primary text-white fw-bold">
+      Was andere nicht haben
+    </div>
+    <ul class="list-group list-group-flush">
+      <li class="list-group-item small">&#10003;&nbsp; Schreiben aus Vorlagen ohne Datenneuerfassung – Bescheide, Quittungen, Anschreiben direkt aus dem Antrag</li>
+      <li class="list-group-item small">&#10003;&nbsp; Verteiler-Quittierung per UUID-Link – Empfänger bestätigen ohne Login, Echtzeit-Status für den Sachbearbeiter</li>
+      <li class="list-group-item small">&#10003;&nbsp; Visueller Graph-Workflow-Editor im Browser – kein externer Designer, kein XML</li>
+      <li class="list-group-item small">&#10003;&nbsp; FES + QES in einer Plattform, offline-fähig für FES</li>
+      <li class="list-group-item small">&#10003;&nbsp; Öffentliche Formulare ohne Bürgerkonto – BundID-Anbindung vorbereitet</li>
+      <li class="list-group-item small">&#10003;&nbsp; EUPL-1.2 lizenziert – keine Lizenzkosten, kein Vendor-Lock-in, Quellcode gehört der Allgemeinheit</li>
+      <li class="list-group-item small">&#10003;&nbsp; BSI-CON.3-konforme Datensicherung mit Restore direkt aus der Oberfläche</li>
+    </ul>
+  </div>
+
+  {# Marktvergleich MACH formsolutions #}
+  <div class="card border-0 shadow-sm mb-5">
+    <div class="card-header fw-bold bg-dark text-white">
+      &#128200; Kostenvergleich: Vorgangswerk vs. MACH formsolutions
+    </div>
+    <div class="card-body p-0">
+      <table class="table table-bordered table-hover mb-0 small">
+        <thead class="table-light">
+          <tr>
+            <th style="width:35%">Kostenpunkt</th>
+            <th class="text-center text-danger" style="width:32.5%">MACH formsolutions</th>
+            <th class="text-center text-success" style="width:32.5%">Vorgangswerk</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Einführung / Setup</td>
+            <td class="text-center text-danger">15.000 – 80.000 €</td>
+            <td class="text-center text-success">0 € (Self-hosted)</td>
+          </tr>
+          <tr>
+            <td>Jährliche Betriebsgebühr</td>
+            <td class="text-center text-danger">20.000 – 150.000 €/Jahr</td>
+            <td class="text-center text-success">0 € Lizenz<br><span class="text-muted">(nur Serverkosten)</span></td>
+          </tr>
+          <tr>
+            <td>Kosten pro neues Formular</td>
+            <td class="text-center text-danger">500 – 5.000 € (intern + extern)</td>
+            <td class="text-center text-success">Minuten per KI-Import</td>
+          </tr>
+          <tr>
+            <td>Kleines Projekt (5 Formulare)</td>
+            <td class="text-center text-danger">30.000 – 60.000 € erstmalig</td>
+            <td class="text-center text-success">~0 € Lizenz</td>
+          </tr>
+          <tr>
+            <td>Landkreis / vollständig</td>
+            <td class="text-center text-danger">100.000 – 400.000 €+/Jahr</td>
+            <td class="text-center text-success">Keine Nutzungsgebühr</td>
+          </tr>
+          <tr>
+            <td>Anbieter-Bindung (Lock-in)</td>
+            <td class="text-center text-danger">Hoch – proprietär</td>
+            <td class="text-center text-success">Keine – EUPL-1.2</td>
+          </tr>
+          <tr>
+            <td>Workflow-Engine</td>
+            <td class="text-center text-danger">Add-on / kostenpflichtig</td>
+            <td class="text-center text-success">Enthalten</td>
+          </tr>
+          <tr>
+            <td>Dokumentenmanagement</td>
+            <td class="text-center text-danger">Separates Produkt</td>
+            <td class="text-center text-success">Enthalten</td>
+          </tr>
+          <tr>
+            <td>Elektronische Signatur (FES/QES)</td>
+            <td class="text-center text-danger">Separater Dienst</td>
+            <td class="text-center text-success">Enthalten</td>
+          </tr>
+          <tr>
+            <td>KI-gestützter Formular-Import</td>
+            <td class="text-center text-danger">Nicht vorhanden</td>
+            <td class="text-center text-success">&#10003; PDF → Pfad per Claude AI</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="card-footer text-muted small">
+      MACH-Preise basieren auf Marktbeobachtungen und &#246;ffentlichen Vergleichswerten (Stand 2026). Keine Gew&#228;hr.
+      Vorgangswerk erhebt keine Lizenz- oder Nutzungsgebühren für den Open-Source-Kern.
+    </div>
+  </div>
+
+  {# Roadmap Teaser #}
+  <div class="card border-0 bg-light mb-4">
+    <div class="card-body d-flex justify-content-between align-items-center">
+      <div>
+        <div class="fw-bold mb-1">&#128161; Innovationsboard</div>
+        <div class="text-muted small">
+          BundID, E-Rechnung, FIT-Connect, XÖV, OSCI – was heute schon nutzbar ist
+          und was als nächstes kommt.
+        </div>
+      </div>
+      <a href="{% url 'core:roadmap' %}" class="btn btn-outline-primary btn-sm ms-3 text-nowrap">
+        Zum Board
+      </a>
+    </div>
+  </div>
+
+  {# Anleitung Download #}
+  <div class="card border-0 shadow-sm mb-4">
+    <div class="card-body d-flex align-items-center gap-3">
+      <div class="fs-2"><i class="bi bi-file-earmark-pdf-fill text-danger"></i></div>
+      <div class="flex-grow-1">
+        <div class="fw-bold mb-1">Schritt-für-Schritt-Anleitung (PDF)</div>
+        <div class="text-muted small">
+          Formular erstellen · Workflow aufbauen · OnlyOffice-Vorlage integrieren –
+          als druckfertige Anleitung zum Mitnehmen.
+        </div>
+      </div>
+      <a href="{% static 'docs/vorgangswerk-anleitung.pdf' %}"
+         download="Vorgangswerk-Anleitung.pdf"
+         class="btn btn-danger text-nowrap">
+        <i class="bi bi-download me-1"></i> PDF herunterladen
+      </a>
+    </div>
+  </div>
+
+  {# Lizenz #}
+  <p class="text-muted small text-center">
+    Vorgangswerk ist freie Software, lizenziert unter der
+    <strong>European Union Public Licence 1.2 (EUPL-1.2)</strong> –
+    der Open-Source-Lizenz, die explizit für öffentliche Verwaltungen entwickelt wurde.
+    Copyright &copy; 2026 Georg Klein.
+  </p>
+
+</div>
+{% endblock %}

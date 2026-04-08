@@ -85,7 +85,16 @@
                 <div class="row g-3">
 
                 {% for feld in felder_render %}
+                {% if feld.versteckt %}
+                {% if feld.typ == "berechnung" %}
+                <input type="hidden" name="{{ feld.id }}" id="berechnung-hidden-{{ feld.id }}"
+                       data-berechnung-id="{{ feld.id }}" data-formel="{{ feld.formel }}">
+                {% else %}
+                <input type="hidden" name="{{ feld.id }}" value="{{ vorwerte|get_item:feld.id }}">
+                {% endif %}
+                {% else %}
                 {% with typ=feld.typ id=feld.id label=feld.label pflicht=feld.pflicht %}
+                {% if feld.zeige_wenn %}<div class="zeige-wenn-wrapper" data-zeige-wenn="{{ feld.zeige_wenn }}" {% if not vorwerte|get_item:feld.zeige_wenn %}style="display:none;"{% endif %}>{% endif %}
 
                 {% if typ == "abschnitt" %}
                 <div class="col-12">
@@ -132,6 +141,23 @@
                               {% if pflicht %}required{% endif %}>{{ vorwerte|get_item:id }}</textarea>
                 </div>
 
+                {% elif typ == "bankverbindung" %}
+                <div class="{% if feld.breite == 50 %}col-md-6{% elif feld.breite == 25 %}col-md-3{% elif feld.breite == 75 %}col-md-9{% else %}col-12{% endif %}">
+                    <label class="form-label fw-semibold" for="f-{{ id }}">
+                        {{ label }}{% if pflicht %} <span class="text-danger">*</span>{% endif %}
+                    </label>
+                    <select class="form-select" name="{{ id }}" id="f-{{ id }}"
+                            data-bankverbindung="{{ id }}"
+                            {% if pflicht %}required{% endif %}>
+                        <option value="">— bitte wählen —</option>
+                        {% for bank in bankverbindungen %}
+                        <option value="{{ bank.kuerzel }}" {% if vorwerte|get_item:id == bank.kuerzel %}selected{% endif %}>
+                            {{ bank.bezeichnung }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+
                 {% elif typ == "auswahl" or typ == "radio" %}
                 <div class="{% if feld.breite == 50 %}col-md-6{% elif feld.breite == 25 %}col-md-3{% elif feld.breite == 75 %}col-md-9{% else %}col-12{% endif %}">
                     <label class="form-label fw-semibold">
@@ -141,7 +167,7 @@
                     <select class="form-select" name="{{ id }}" id="f-{{ id }}" {% if pflicht %}required{% endif %}>
                         <option value="">— bitte wählen —</option>
                         {% for opt in feld.optionen %}
-                        <option value="{{ opt }}" {% if vorwerte|get_item:id == opt %}selected{% endif %}>{{ opt }}</option>
+                        <option value="{{ opt|opt_value }}" {% if vorwerte|get_item:id == opt|opt_value %}selected{% endif %}>{{ opt|opt_label }}</option>
                         {% endfor %}
                     </select>
                     {% else %}
@@ -149,10 +175,10 @@
                         {% for opt in feld.optionen %}
                         <div class="form-check">
                             <input class="form-check-input" type="radio" name="{{ id }}"
-                                   id="f-{{ id }}-{{ forloop.counter }}" value="{{ opt }}"
+                                   id="f-{{ id }}-{{ forloop.counter }}" value="{{ opt|opt_value }}"
                                    {% if pflicht %}required{% endif %}
-                                   {% if vorwerte|get_item:id == opt %}checked{% endif %}>
-                            <label class="form-check-label" for="f-{{ id }}-{{ forloop.counter }}">{{ opt }}</label>
+                                   {% if vorwerte|get_item:id == opt|opt_value %}checked{% endif %}>
+                            <label class="form-check-label" for="f-{{ id }}-{{ forloop.counter }}">{{ opt|opt_label }}</label>
                         </div>
                         {% endfor %}
                     </div>
@@ -253,6 +279,8 @@
                     </label>
                     <input type="text" class="form-control" name="{{ id }}" id="f-{{ id }}"
                            placeholder="{{ feld.hilfetext|default:'HH-AB 1234' }}" maxlength="12"
+                           pattern="[A-ZÄÖÜ]{1,3}-[A-Z]{1,2} [0-9]{1,4}[HE]?"
+                           title="Format: GL-AK 123 (Kürzel-Buchstaben Ziffern)"
                            value="{{ vorwerte|get_item:id }}"
                            {% if pflicht %}required{% endif %}>
                 </div>
@@ -289,8 +317,8 @@
                         {% for opt in feld.optionen %}
                         <div class="form-check">
                             <input class="form-check-input" type="checkbox"
-                                   name="{{ id }}" id="f-{{ id }}-{{ forloop.counter }}" value="{{ opt }}">
-                            <label class="form-check-label" for="f-{{ id }}-{{ forloop.counter }}">{{ opt }}</label>
+                                   name="{{ id }}" id="f-{{ id }}-{{ forloop.counter }}" value="{{ opt|opt_value }}">
+                            <label class="form-check-label" for="f-{{ id }}-{{ forloop.counter }}">{{ opt|opt_label }}</label>
                         </div>
                         {% endfor %}
                     </div>
@@ -370,6 +398,56 @@
                     {% endif %}
                 </div>
 
+                {% elif typ == "bild" %}
+                <div class="{% if feld.breite == 50 %}col-md-6{% elif feld.breite == 25 %}col-md-3{% elif feld.breite == 75 %}col-md-9{% else %}col-12{% endif %}">
+                    <label class="form-label fw-semibold" for="f-{{ id }}">
+                        {{ label }}{% if pflicht %} <span class="text-danger">*</span>{% endif %}
+                    </label>
+                    {% with vorhandene_ref=vorwerte|default_if_none:'' %}
+                    {% if vorhandene_ref %}
+                    <div class="alert alert-success py-2 small mb-2">
+                        <i class="bi bi-image"></i> Bild bereits hochgeladen – neues Bild waehlen um zu ersetzen.
+                    </div>
+                    {% endif %}
+                    {% endwith %}
+                    <input type="file" class="form-control" name="{{ id }}" id="f-{{ id }}"
+                           accept="image/jpeg,image/png,image/webp,image/gif"
+                           {% if pflicht and not vorwerte %}required{% endif %}
+                           onchange="
+                             var inp=this;
+                             var prev=document.getElementById('prev-{{ id }}');
+                             var err=document.getElementById('err-{{ id }}');
+                             err.textContent='';
+                             prev.style.display='none';
+                             if(inp.files&&inp.files[0]){
+                               var r=new FileReader();
+                               r.onload=function(e){
+                                 var img=new Image();
+                                 img.onload=function(){
+                                   if(img.width<600||img.height<400){
+                                     err.textContent='Bild zu klein ('+img.width+'×'+img.height+' px). Mindestens 600×400 px erforderlich.';
+                                     inp.value='';
+                                   } else {
+                                     prev.src=e.target.result;
+                                     prev.style.display='block';
+                                   }
+                                 };
+                                 img.src=e.target.result;
+                               };
+                               r.readAsDataURL(inp.files[0]);
+                             }">
+                    <div id="err-{{ id }}" class="text-danger small mt-1"></div>
+                    <div class="mt-2">
+                        <img id="prev-{{ id }}" src="#" alt="Vorschau"
+                             style="display:none;max-height:250px;max-width:100%;border-radius:6px;border:1px solid #dee2e6;object-fit:contain;">
+                    </div>
+                    {% if feld.hilfetext %}
+                    <div class="form-text">{{ feld.hilfetext }}</div>
+                    {% else %}
+                    <div class="form-text">Erlaubte Formate: JPG, PNG, WEBP, GIF &middot; Mind. 600&times;400 px &middot; Max. 10 MB.</div>
+                    {% endif %}
+                </div>
+
                 {% elif typ == "link" %}
                 <div class="col-12">
                     <a href="{{ feld.url }}" target="{{ feld.ziel|default:'_blank' }}"
@@ -380,7 +458,7 @@
 
                 {% elif typ == "textblock" %}
                 <div class="col-12">
-                    <div class="alert alert-light border" id="textblock-{{ id }}">{{ feld.text }}</div>
+                    <div class="alert alert-light border" id="textblock-{{ id }}" data-template="{{ feld.text }}">{{ feld.text }}</div>
                 </div>
 
                 {% elif typ == "pdf_email" %}
@@ -427,6 +505,229 @@
                     </div>
                 </div>
 
+                {% elif typ == "zahlung" %}
+                <div class="col-12">
+                    {% with bezahlt=vorwerte|get_item:id %}
+                    {% if bezahlt == "demo_bezahlt" %}
+                    {# Bereits bezahlt – Bestätigung anzeigen #}
+                    <div class="card border-success">
+                        <div class="card-header fw-semibold d-flex align-items-center gap-2"
+                             style="background:#d1fae5; color:#065f46;">
+                            <svg width="18" height="18" viewBox="0 0 20 20" fill="currentColor">
+                                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clip-rule="evenodd"/>
+                            </svg>
+                            {{ label }} – Zahlung eingegangen
+                        </div>
+                        <div class="card-body py-2 small text-success">
+                            Transaktion erfolgreich abgeschlossen. Referenz: <code>DEMO-{{ id|upper }}</code>
+                        </div>
+                    </div>
+                    <input type="hidden" name="{{ id }}" value="demo_bezahlt">
+                    {% else %}
+                    {# Zahlung noch ausstehend #}
+                    <div class="card border-primary" id="zahlung-widget-{{ id }}">
+                        <div class="card-header fw-semibold d-flex align-items-center gap-2"
+                             style="background:#eff6ff; color:#1e3a8a;">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/>
+                            </svg>
+                            {{ label }}{% if pflicht %} <span class="text-danger">*</span>{% endif %}
+                        </div>
+                        <div class="card-body">
+
+                            {# Betrag #}
+                            <div class="d-flex align-items-center gap-3 mb-4">
+                                <div class="text-center">
+                                    <div class="text-muted small">Zu zahlen</div>
+                                    <div class="fw-bold fs-4" style="color:#1e3a8a;" id="zahlung-betrag-anzeige-{{ id }}">
+                                        {% if feld.betrag_quelle == "feld" %}
+                                        <span class="text-muted fst-italic small">wird berechnet…</span>
+                                        {% else %}
+                                        {{ feld.betrag_fest|default:"0.00"|floatformat:2 }}&nbsp;EUR
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                {% if feld.verwendungszweck %}
+                                <div class="text-muted small border-start ps-3">
+                                    Verwendungszweck:<br>
+                                    <span class="text-dark">{{ feld.verwendungszweck }}</span>
+                                </div>
+                                {% endif %}
+                            </div>
+
+                            {# Methoden-Tabs #}
+                            {% if feld.methoden %}
+                            <ul class="nav nav-tabs mb-3" id="zahlung-tabs-{{ id }}" role="tablist">
+                                {% for methode in feld.methoden %}
+                                <li class="nav-item" role="presentation">
+                                    <button class="nav-link {% if forloop.first %}active{% endif %}"
+                                            id="tab-{{ id }}-{{ methode }}"
+                                            data-bs-toggle="tab"
+                                            data-bs-target="#panel-{{ id }}-{{ methode }}"
+                                            type="button" role="tab">
+                                        {% if methode == "stripe_karte" %}&#x1F4B3;&nbsp;Karte
+                                        {% elif methode == "stripe_sepa" %}&#x1F3E6;&nbsp;SEPA-Lastschrift
+                                        {% elif methode == "wero" %}&#x26A1;&nbsp;Wero
+                                        {% else %}{{ methode }}{% endif %}
+                                    </button>
+                                </li>
+                                {% endfor %}
+                            </ul>
+                            <div class="tab-content" id="zahlung-tab-content-{{ id }}">
+                                {% for methode in feld.methoden %}
+                                <div class="tab-pane fade {% if forloop.first %}show active{% endif %}"
+                                     id="panel-{{ id }}-{{ methode }}" role="tabpanel">
+
+                                    {% if methode == "stripe_karte" %}
+                                    {# Stripe Card Elements Demo #}
+                                    <div class="mb-3">
+                                        <label class="form-label small fw-semibold">Karteninhaber</label>
+                                        <input type="text" class="form-control form-control-sm"
+                                               placeholder="Max Mustermann" autocomplete="cc-name">
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label small fw-semibold">Kartennummer</label>
+                                        <div class="input-group input-group-sm">
+                                            <input type="text" class="form-control font-monospace"
+                                                   placeholder="4242 4242 4242 4242" maxlength="19"
+                                                   autocomplete="cc-number">
+                                            <span class="input-group-text">
+                                                <svg width="24" height="16" viewBox="0 0 38 24" fill="none">
+                                                    <rect width="38" height="24" rx="4" fill="#1a1f71"/>
+                                                    <text x="5" y="17" font-size="12" fill="#fff" font-family="sans-serif" font-weight="bold">VISA</text>
+                                                </svg>
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <div class="row g-2 mb-3">
+                                        <div class="col-6">
+                                            <label class="form-label small fw-semibold">Ablaufdatum</label>
+                                            <input type="text" class="form-control form-control-sm font-monospace"
+                                                   placeholder="MM / JJ" maxlength="7" autocomplete="cc-exp">
+                                        </div>
+                                        <div class="col-6">
+                                            <label class="form-label small fw-semibold">CVC</label>
+                                            <input type="text" class="form-control form-control-sm font-monospace"
+                                                   placeholder="123" maxlength="4" autocomplete="cc-csc">
+                                        </div>
+                                    </div>
+                                    <div class="d-flex align-items-center gap-2 mb-2">
+                                        <svg width="14" height="14" viewBox="0 0 20 20" fill="#6b7280">
+                                            <path fill-rule="evenodd" d="M10 1a4.5 4.5 0 00-4.5 4.5V9H5a2 2 0 00-2 2v6a2 2 0 002 2h10a2 2 0 002-2v-6a2 2 0 00-2-2h-.5V5.5A4.5 4.5 0 0010 1zm3 8V5.5a3 3 0 10-6 0V9h6z" clip-rule="evenodd"/>
+                                        </svg>
+                                        <small class="text-muted">Gesichert durch Stripe – Ihre Daten werden Ende-zu-Ende verschlüsselt.</small>
+                                    </div>
+
+                                    {% elif methode == "stripe_sepa" %}
+                                    {# SEPA Demo #}
+                                    <div class="mb-3">
+                                        <label class="form-label small fw-semibold">Kontoinhaber</label>
+                                        <input type="text" class="form-control form-control-sm"
+                                               placeholder="Max Mustermann" autocomplete="name">
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label small fw-semibold">IBAN</label>
+                                        <input type="text" class="form-control form-control-sm font-monospace"
+                                               placeholder="DE89 3704 0044 0532 0130 00" maxlength="34">
+                                    </div>
+                                    <div class="alert alert-light border small py-2 mb-3">
+                                        Mit Angabe Ihrer IBAN ermächtigen Sie uns, Zahlungen von Ihrem Konto
+                                        per SEPA-Lastschrift einzuziehen. Gläubiger-ID: <code>DE98ZZZ09999999999</code>
+                                    </div>
+
+                                    {% elif methode == "wero" %}
+                                    {# Wero Demo #}
+                                    <div class="text-center py-2">
+                                        <p class="text-muted small mb-3">
+                                            Scannen Sie den QR-Code mit Ihrer Banking-App oder öffnen Sie den Wero-Link.
+                                        </p>
+                                        {# Platzhalter-QR (SVG-Muster) #}
+                                        <div class="d-inline-block border rounded p-2 mb-3" style="background:#fff;">
+                                            <svg width="120" height="120" viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                                <rect width="120" height="120" fill="white"/>
+                                                <!-- Finder patterns -->
+                                                <rect x="4" y="4" width="34" height="34" rx="4" fill="#1e1e1e"/>
+                                                <rect x="8" y="8" width="26" height="26" rx="2" fill="white"/>
+                                                <rect x="12" y="12" width="18" height="18" rx="1" fill="#1e1e1e"/>
+                                                <rect x="82" y="4" width="34" height="34" rx="4" fill="#1e1e1e"/>
+                                                <rect x="86" y="8" width="26" height="26" rx="2" fill="white"/>
+                                                <rect x="90" y="12" width="18" height="18" rx="1" fill="#1e1e1e"/>
+                                                <rect x="4" y="82" width="34" height="34" rx="4" fill="#1e1e1e"/>
+                                                <rect x="8" y="86" width="26" height="26" rx="2" fill="white"/>
+                                                <rect x="12" y="90" width="18" height="18" rx="1" fill="#1e1e1e"/>
+                                                <!-- Wero logo placeholder in center -->
+                                                <rect x="46" y="46" width="28" height="28" rx="4" fill="#6200ea"/>
+                                                <text x="60" y="65" text-anchor="middle" font-size="11" fill="white" font-family="sans-serif" font-weight="bold">W</text>
+                                                <!-- Data modules (decorative) -->
+                                                <rect x="46" y="4" width="6" height="6" fill="#1e1e1e"/>
+                                                <rect x="54" y="4" width="6" height="6" fill="#1e1e1e"/>
+                                                <rect x="62" y="4" width="6" height="6" fill="#1e1e1e"/>
+                                                <rect x="46" y="12" width="6" height="6" fill="#1e1e1e"/>
+                                                <rect x="62" y="12" width="6" height="6" fill="#1e1e1e"/>
+                                                <rect x="46" y="20" width="6" height="6" fill="#1e1e1e"/>
+                                                <rect x="54" y="20" width="6" height="6" fill="#1e1e1e"/>
+                                                <rect x="4" y="46" width="6" height="6" fill="#1e1e1e"/>
+                                                <rect x="4" y="54" width="6" height="6" fill="#1e1e1e"/>
+                                                <rect x="4" y="62" width="6" height="6" fill="#1e1e1e"/>
+                                                <rect x="12" y="46" width="6" height="6" fill="#1e1e1e"/>
+                                                <rect x="12" y="62" width="6" height="6" fill="#1e1e1e"/>
+                                                <rect x="20" y="46" width="6" height="6" fill="#1e1e1e"/>
+                                                <rect x="20" y="54" width="6" height="6" fill="#1e1e1e"/>
+                                                <rect x="110" y="46" width="6" height="6" fill="#1e1e1e"/>
+                                                <rect x="110" y="54" width="6" height="6" fill="#1e1e1e"/>
+                                                <rect x="110" y="62" width="6" height="6" fill="#1e1e1e"/>
+                                                <rect x="102" y="46" width="6" height="6" fill="#1e1e1e"/>
+                                                <rect x="102" y="62" width="6" height="6" fill="#1e1e1e"/>
+                                                <rect x="94" y="46" width="6" height="6" fill="#1e1e1e"/>
+                                                <rect x="46" y="110" width="6" height="6" fill="#1e1e1e"/>
+                                                <rect x="54" y="110" width="6" height="6" fill="#1e1e1e"/>
+                                                <rect x="46" y="102" width="6" height="6" fill="#1e1e1e"/>
+                                                <rect x="54" y="94" width="6" height="6" fill="#1e1e1e"/>
+                                                <rect x="62" y="94" width="6" height="6" fill="#1e1e1e"/>
+                                                <rect x="70" y="94" width="6" height="6" fill="#1e1e1e"/>
+                                                <rect x="78" y="102" width="6" height="6" fill="#1e1e1e"/>
+                                                <rect x="70" y="110" width="6" height="6" fill="#1e1e1e"/>
+                                                <rect x="78" y="110" width="6" height="6" fill="#1e1e1e"/>
+                                            </svg>
+                                        </div>
+                                        <br>
+                                        <a href="#" class="btn btn-sm btn-outline-primary" onclick="return false;">
+                                            &#x26A1;&nbsp;In Wero-App öffnen
+                                        </a>
+                                        <div class="text-muted small mt-2">
+                                            Wero ist der europäische Bezahldienst der Banken –
+                                            verfügbar in Sparkassen-, Volksbanken- und Deutsche Bank-App.
+                                        </div>
+                                    </div>
+                                    {% endif %}
+
+                                </div>
+                                {% endfor %}
+                            </div>
+                            {% endif %}
+
+                            {# Demo-Zahlung abschicken #}
+                            <div class="mt-3 pt-3 border-top d-flex align-items-center gap-3">
+                                <button type="button" class="btn btn-success"
+                                        id="btn-zahlung-demo-{{ id }}"
+                                        onclick="zahlung_demo_bestaetigen('{{ id }}')">
+                                    &#x2714;&nbsp;Zahlung abschließen
+                                </button>
+                                <small class="text-muted">
+                                    <svg width="12" height="12" viewBox="0 0 20 20" fill="#f59e0b">
+                                        <path fill-rule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5zm0 9a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd"/>
+                                    </svg>
+                                    Demo-Modus – keine echte Zahlung
+                                </small>
+                            </div>
+
+                        </div>
+                    </div>
+                    <input type="hidden" name="{{ id }}" id="zahlung-input-{{ id }}" value="">
+                    {% endif %}
+                    {% endwith %}
+                </div>
+
                 {% elif typ == "leerblock" %}
                 <div class="col-12" style="height:1rem;"></div>
 
@@ -459,6 +760,10 @@
                             <div class="px-3 py-2 bg-light border-bottom">
                                 <span class="fw-bold small" style="color:#1a4d2e;">{{ eintrag.label }}</span>
                             </div>
+                            {% elif eintrag.typ == "_abschnitt_sub" %}
+                            <div class="px-3 py-1 border-bottom" style="background:#f8fdf8;">
+                                <span class="small text-muted">{{ eintrag.label }}</span>
+                            </div>
                             {% else %}
                             <div class="px-3 py-2 {% if not forloop.last %}border-bottom{% endif %}">
                                 <dt class="text-muted small fw-semibold">{{ eintrag.label }}</dt>
@@ -474,6 +779,12 @@
                                         </a>
                                     {% elif eintrag.typ == "datei" and eintrag.datei_pk %}
                                     <span class="small">&#128206; {{ eintrag.wert }}</span>
+                                    {% elif eintrag.typ == "zahlung" %}
+                                        {% if eintrag.wert == "demo_bezahlt" %}
+                                        <span class="badge bg-success">&#10003; Zahlung eingegangen</span>
+                                        {% else %}
+                                        <span class="badge bg-warning text-dark">Zahlung ausstehend</span>
+                                        {% endif %}
                                     {% else %}{{ eintrag.wert }}{% endif %}
                                 </dd>
                             </div>
@@ -487,6 +798,135 @@
                     </div>
                 </div>
 
+                {# ---- Quiz-Feldtypen ---- #}
+                {% elif typ == "quizhinweis" %}
+                <div class="col-12">
+                    <div class="alert alert-info py-2 mb-0">
+                        {% if feld.label %}<strong>{{ feld.label }}:</strong> {% endif %}{{ feld.text }}
+                    </div>
+                </div>
+
+                {% elif typ == "quizfrage" %}
+                <div class="col-12">
+                    <fieldset class="quiz-frage border rounded p-3 mb-1" style="border-color:#1a4d2e !important;">
+                        <legend class="fw-semibold fs-6 px-2 float-none w-auto" style="color:#1a4d2e;">
+                            {{ label }}{% if pflicht %} <span class="text-danger">*</span>{% endif %}
+                        </legend>
+                        {% if feld.antwort_typ == "multiple" %}
+                        <div class="d-flex flex-column gap-2">
+                            {% for antwort in feld.antworten %}
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox"
+                                       name="{{ id }}" value="{{ antwort.text }}"
+                                       id="f-{{ id }}-{{ forloop.counter }}"
+                                       {% if antwort.text in vorwerte|get_item:id %}checked{% endif %}>
+                                <label class="form-check-label" for="f-{{ id }}-{{ forloop.counter }}">{{ antwort.text }}</label>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        {% else %}
+                        <div class="d-flex flex-column gap-2">
+                            {% for antwort in feld.antworten %}
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio"
+                                       name="{{ id }}" value="{{ antwort.text }}"
+                                       id="f-{{ id }}-{{ forloop.counter }}"
+                                       {% if pflicht %}required{% endif %}
+                                       {% if vorwerte|get_item:id == antwort.text %}checked{% endif %}>
+                                <label class="form-check-label" for="f-{{ id }}-{{ forloop.counter }}">{{ antwort.text }}</label>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        {% endif %}
+                        {% if feld.punkte %}
+                        <div class="text-muted small mt-2">&#9654; {{ feld.punkte }} Punkt{% if feld.punkte != 1 %}e{% endif %}</div>
+                        {% endif %}
+                    </fieldset>
+                </div>
+
+                {% elif typ == "quizergebnis" %}
+                <div class="col-12">
+                    {% if quiz_vorschau %}
+                    <div class="card {% if quiz_vorschau.bestanden %}border-success{% else %}border-danger{% endif %} mb-2">
+                        <div class="card-header fw-bold {% if quiz_vorschau.bestanden %}bg-success text-white{% else %}bg-danger text-white{% endif %}">
+                            {% if quiz_vorschau.bestanden %}&#10003; Bestanden{% else %}&#10007; Nicht bestanden{% endif %}
+                        </div>
+                        <div class="card-body">
+                            <div class="row text-center g-2">
+                                <div class="col">
+                                    <div class="fs-3 fw-bold">{{ quiz_vorschau.prozent_int }}&nbsp;%</div>
+                                    <div class="text-muted small">Erreicht</div>
+                                </div>
+                                <div class="col">
+                                    <div class="fs-3 fw-bold">{{ quiz_vorschau.punkte_erreicht }} / {{ quiz_vorschau.punkte_gesamt }}</div>
+                                    <div class="text-muted small">Punkte</div>
+                                </div>
+                                {% if quiz_vorschau.note %}
+                                <div class="col">
+                                    <div class="fs-3 fw-bold">Note {{ quiz_vorschau.note }}</div>
+                                    <div class="text-muted small">{{ quiz_vorschau.note_text }}</div>
+                                </div>
+                                {% endif %}
+                                {% if quiz_vorschau.bewertungsmodell == "fuehrerschein" %}
+                                <div class="col">
+                                    <div class="fs-3 fw-bold">{{ quiz_vorschau.fehlerpunkte }}</div>
+                                    <div class="text-muted small">Fehlerpunkte</div>
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        {% if quiz_vorschau.bestanden %}
+                        <div class="card-footer small text-success">
+                            &#128196; Nach dem Abschliessen erhalten Sie ein Zertifikat zum Herunterladen.
+                        </div>
+                        {% else %}
+                        <div class="card-footer small text-danger">
+                            Sie können den Test durch Abschliessen beenden oder mit &#8592; zurückgehen und Antworten korrigieren.
+                        </div>
+                        {% endif %}
+                    </div>
+                    {% if quiz_vorschau.fragen_auswertung %}
+                    <div class="mt-3">
+                        <h6 class="fw-semibold mb-2">Auswertung im Detail</h6>
+                        {% for frage in quiz_vorschau.fragen_auswertung %}
+                        <div class="border rounded mb-2 overflow-hidden">
+                            <div class="px-3 py-2 d-flex align-items-start gap-2
+                                {% if frage.korrekt %}bg-success bg-opacity-10{% elif frage.teilweise %}bg-warning bg-opacity-10{% else %}bg-danger bg-opacity-10{% endif %}">
+                                <span class="flex-shrink-0 mt-1">
+                                    {% if frage.korrekt %}&#10003;{% elif frage.teilweise %}&#9651;{% else %}&#10007;{% endif %}
+                                </span>
+                                <span class="small fw-semibold">{{ frage.label }}</span>
+                                <span class="ms-auto small text-muted flex-shrink-0">{{ frage.punkte }}/{{ frage.max_punkte }} P.</span>
+                            </div>
+                            <div class="px-3 py-2 d-flex flex-column gap-1">
+                                {% for antwort in frage.antworten %}
+                                <div class="d-flex align-items-center gap-2 small rounded px-2 py-1
+                                    {% if antwort.gewaehlt and antwort.korrekt %}bg-success bg-opacity-10 text-success fw-semibold
+                                    {% elif antwort.gewaehlt and not antwort.korrekt %}bg-danger bg-opacity-10 text-danger
+                                    {% elif not antwort.gewaehlt and antwort.korrekt %}bg-success bg-opacity-10 text-success
+                                    {% endif %}">
+                                    {% if antwort.gewaehlt and antwort.korrekt %}&#10003;
+                                    {% elif antwort.gewaehlt and not antwort.korrekt %}&#10007;
+                                    {% elif not antwort.gewaehlt and antwort.korrekt %}&#9675;
+                                    {% else %}&nbsp;{% endif %}
+                                    {{ antwort.text }}
+                                    {% if not antwort.gewaehlt and antwort.korrekt %}<span class="ms-1 text-muted" style="font-size:.7rem;">(richtige Antwort)</span>{% endif %}
+                                </div>
+                                {% endfor %}
+                                {% if frage.erklaerung %}
+                                <div class="small text-muted mt-1 ps-1" style="font-size:.78rem;">&#8505; {{ frage.erklaerung }}</div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+
+                    {% else %}
+                    <div class="alert alert-secondary py-2 small">Ihr Ergebnis wird nach dem Abschliessen berechnet.</div>
+                    {% endif %}
+                </div>
+
                 {% else %}
                 <div class="{% if feld.breite == 50 %}col-md-6{% elif feld.breite == 25 %}col-md-3{% elif feld.breite == 75 %}col-md-9{% else %}col-12{% endif %}">
                     <label class="form-label fw-semibold" for="f-{{ id }}">
@@ -498,7 +938,9 @@
                 </div>
                 {% endif %}
 
+                {% if feld.zeige_wenn %}</div>{% endif %}
                 {% endwith %}
+                {% endif %}
                 {% endfor %}
 
                 </div>
@@ -540,6 +982,83 @@
 {% load static %}
 <script type="application/json" id="gesammelte-daten">{{ gesammelte_daten_json|safe }}</script>
 {{ schritt.felder_json|json_script:"schritt-felder" }}
+<script type="application/json" id="bankverbindungen-daten">{{ bankverbindungen_json|safe }}</script>
 <script src="{% static 'js/pfad_schritt.js' %}"></script>
+<script>
+function zahlung_demo_bestaetigen(feldId) {
+    var btn  = document.getElementById('btn-zahlung-demo-' + feldId);
+    var inp  = document.getElementById('zahlung-input-' + feldId);
+    var widget = document.getElementById('zahlung-widget-' + feldId);
+    if (!btn || !inp) return;
+
+    // Spinner-Phase
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status"></span> Verarbeitung…';
+
+    setTimeout(function() {
+        inp.value = 'demo_bezahlt';
+
+        // Widget durch Erfolgs-Banner ersetzen
+        if (widget) {
+            widget.outerHTML =
+                '<div class="card border-success" id="zahlung-bestaetigt-' + feldId + '">' +
+                '  <div class="card-header fw-semibold d-flex align-items-center gap-2" style="background:#d1fae5;color:#065f46;">' +
+                '    <svg width="18" height="18" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clip-rule="evenodd"/></svg>' +
+                '    Zahlung eingegangen' +
+                '  </div>' +
+                '  <div class="card-body py-2 small text-success">' +
+                '    Transaktion erfolgreich. Referenz: <code>DEMO-' + feldId.toUpperCase() + '-' + Date.now() + '</code>' +
+                '  </div>' +
+                '</div>';
+        }
+    }, 1800);
+}
+</script>
+
+<script>
+// zeige_wenn – Live-Ein/Ausblenden
+(function () {
+    "use strict";
+
+    function _feldWert(feldId) {
+        // bool/checkbox
+        var cb = document.querySelector('input[type="checkbox"][name="' + feldId + '"]');
+        if (cb) return cb.checked;
+        // checkboxen (mehrere)
+        var cbs = document.querySelectorAll('input[type="checkbox"][name="' + feldId + '"]:checked');
+        if (cbs.length > 0) return Array.from(cbs).map(function(c){ return c.value; });
+        // radio
+        var radio = document.querySelector('input[type="radio"][name="' + feldId + '"]:checked');
+        if (radio) return radio.value;
+        // text/select
+        var el = document.querySelector('[name="' + feldId + '"]');
+        return el ? el.value : "";
+    }
+
+    function _istAktiv(bedingung) {
+        var wert = _feldWert(bedingung);
+        if (Array.isArray(wert)) return wert.length > 0;
+        if (typeof wert === "boolean") return wert;
+        return wert && wert !== "False" && wert !== "false";
+    }
+
+    function _aktualisiere() {
+        document.querySelectorAll(".zeige-wenn-wrapper").forEach(function (wrapper) {
+            var bedingung = wrapper.dataset.zeigeWenn;
+            wrapper.style.display = _istAktiv(bedingung) ? "" : "none";
+            // required-Attribute an/abschalten
+            wrapper.querySelectorAll("[required]").forEach(function (el) {
+                el.disabled = !_istAktiv(bedingung);
+            });
+        });
+    }
+
+    document.addEventListener("DOMContentLoaded", function () {
+        _aktualisiere();
+        document.addEventListener("change", _aktualisiere);
+        document.addEventListener("input", _aktualisiere);
+    });
+}());
+</script>
 {% endblock %}
 {% endblock %}

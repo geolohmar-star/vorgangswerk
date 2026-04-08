@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% block title %}Zertifikat prüfen – Vorgangswerk{% endblock %}
+
+{% block content %}
+<div class="container py-5" style="max-width:640px;">
+
+  {% if ungueltig %}
+  <div class="text-center">
+    <div class="fs-1 mb-3">&#10060;</div>
+    <h1 class="h3 fw-bold text-danger">Zertifikat ungültig</h1>
+    <p class="text-muted">Das Zertifikat mit diesem Code konnte nicht gefunden werden.<br>
+    Möglicherweise wurde die URL verändert oder das Zertifikat existiert nicht.</p>
+  </div>
+
+  {% else %}
+  <div class="text-center mb-4">
+    <div class="fs-1 mb-2">&#10003;</div>
+    <h1 class="h3 fw-bold text-success">Zertifikat gültig</h1>
+    <p class="text-muted">Dieses Zertifikat ist authentisch und wurde von Vorgangswerk ausgestellt.</p>
+  </div>
+
+  <div class="card border-success shadow-sm mb-4">
+    <div class="card-header bg-success text-white fw-bold">Zertifikatsdetails</div>
+    <ul class="list-group list-group-flush">
+      <li class="list-group-item d-flex justify-content-between">
+        <span class="text-muted small">Prüfung</span>
+        <span class="fw-semibold small">{{ ergebnis.sitzung.pfad.name }}</span>
+      </li>
+      <li class="list-group-item d-flex justify-content-between">
+        <span class="text-muted small">Vorgangsnummer</span>
+        <span class="fw-semibold small">{{ ergebnis.sitzung.vorgangsnummer|default:"–" }}</span>
+      </li>
+      <li class="list-group-item d-flex justify-content-between">
+        <span class="text-muted small">Ergebnis</span>
+        <span class="fw-semibold small">{{ ergebnis.prozent_int }} % – Bestanden</span>
+      </li>
+      {% if ergebnis.note %}
+      <li class="list-group-item d-flex justify-content-between">
+        <span class="text-muted small">Note</span>
+        <span class="fw-semibold small">{{ ergebnis.note }} – {{ ergebnis.note_text }}</span>
+      </li>
+      {% endif %}
+      <li class="list-group-item d-flex justify-content-between">
+        <span class="text-muted small">Ausgestellt am</span>
+        <span class="fw-semibold small">{{ ergebnis.erstellt_am|date:"d.m.Y" }}</span>
+      </li>
+      {% if hat_zertifikat and ergebnis.zertifikat.ablaufdatum %}
+      <li class="list-group-item d-flex justify-content-between">
+        <span class="text-muted small">Gültig bis</span>
+        <span class="fw-semibold small">{{ ergebnis.zertifikat.ablaufdatum|date:"d.m.Y" }}</span>
+      </li>
+      {% endif %}
+      <li class="list-group-item d-flex justify-content-between">
+        <span class="text-muted small">Verifikations-ID</span>
+        <span class="text-monospace small" style="font-size:0.7rem;">{{ ergebnis.uuid }}</span>
+      </li>
+    </ul>
+  </div>
+
+  {% if hat_zertifikat %}
+  <div class="text-center">
+    <a href="{% url 'quiz:zertifikat_download' ergebnis.uuid %}" class="btn btn-success">
+      &#128196; Zertifikat herunterladen
+    </a>
+  </div>
+  {% endif %}
+
+  {% endif %}
+</div>
+{% endblock %}

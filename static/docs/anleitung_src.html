@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<style>
+  @page {
+    size: A4;
+    margin: 2.2cm 2.4cm 2.4cm 2.4cm;
+    @bottom-center {
+      content: "Vorgangswerk · Anleitung · Seite " counter(page) " von " counter(pages);
+      font-size: 8pt;
+      color: #888;
+    }
+  }
+  body {
+    font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+    font-size: 10.5pt;
+    line-height: 1.55;
+    color: #222;
+  }
+  h1 { font-size: 22pt; color: #1a4d2e; margin: 0 0 4pt; }
+  h2 { font-size: 14pt; color: #1a4d2e; border-bottom: 2px solid #1a4d2e; padding-bottom: 3pt; margin: 24pt 0 8pt; page-break-after: avoid; }
+  h3 { font-size: 11pt; color: #2e7d32; margin: 14pt 0 5pt; page-break-after: avoid; }
+  h4 { font-size: 10pt; color: #555; margin: 10pt 0 3pt; page-break-after: avoid; }
+  p  { margin: 0 0 7pt; }
+  ul, ol { margin: 0 0 8pt 0; padding-left: 18pt; }
+  li { margin-bottom: 3pt; }
+  code {
+    font-family: "Courier New", monospace;
+    font-size: 9pt;
+    background: #f4f4f4;
+    border: 1px solid #ddd;
+    border-radius: 3px;
+    padding: 0 3pt;
+  }
+  pre {
+    background: #f4f4f4;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    padding: 8pt 10pt;
+    font-size: 8.5pt;
+    font-family: "Courier New", monospace;
+    white-space: pre-wrap;
+    margin: 6pt 0 10pt;
+    page-break-inside: avoid;
+  }
+  .cover {
+    text-align: center;
+    padding-top: 80pt;
+    page-break-after: always;
+  }
+  .cover .subtitle { font-size: 12pt; color: #555; margin-top: 8pt; }
+  .cover .meta { font-size: 9pt; color: #999; margin-top: 40pt; }
+  .cover .logo-bar {
+    display: inline-block;
+    background: #1a4d2e;
+    color: #fff;
+    font-size: 24pt;
+    font-weight: bold;
+    padding: 10pt 24pt;
+    border-radius: 8pt;
+    margin-bottom: 16pt;
+    letter-spacing: 1pt;
+  }
+  .toc-title { font-size: 13pt; font-weight: bold; color: #1a4d2e; margin-bottom: 10pt; }
+  .toc-entry { margin: 3pt 0; font-size: 10pt; }
+  .toc-entry .dots { color: #bbb; }
+  .toc { page-break-after: always; }
+  .step {
+    background: #f9f9f9;
+    border-left: 4px solid #1a4d2e;
+    padding: 8pt 10pt;
+    margin: 6pt 0 10pt;
+    border-radius: 0 4pt 4pt 0;
+    page-break-inside: avoid;
+  }
+  .step strong { color: #1a4d2e; }
+  .hint {
+    background: #e8f5e9;
+    border: 1px solid #a5d6a7;
+    border-radius: 4pt;
+    padding: 7pt 10pt;
+    margin: 8pt 0;
+    font-size: 9.5pt;
+    page-break-inside: avoid;
+  }
+  .warn {
+    background: #fff8e1;
+    border: 1px solid #ffe082;
+    border-radius: 4pt;
+    padding: 7pt 10pt;
+    margin: 8pt 0;
+    font-size: 9.5pt;
+    page-break-inside: avoid;
+  }
+  .badge {
+    display: inline-block;
+    background: #1a4d2e;
+    color: #fff;
+    font-size: 8pt;
+    padding: 1pt 5pt;
+    border-radius: 10pt;
+    vertical-align: middle;
+  }
+  .section-intro {
+    color: #444;
+    font-size: 10pt;
+    margin-bottom: 12pt;
+    border-left: 3px solid #ccc;
+    padding-left: 8pt;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 8pt 0 12pt;
+    font-size: 9.5pt;
+    page-break-inside: avoid;
+  }
+  th {
+    background: #1a4d2e;
+    color: #fff;
+    padding: 5pt 8pt;
+    text-align: left;
+  }
+  td {
+    padding: 4pt 8pt;
+    border-bottom: 1px solid #e0e0e0;
+  }
+  tr:nth-child(even) td { background: #f5f5f5; }
+</style>
+</head>
+<body>
+
+<!-- ==================== DECKBLATT ==================== -->
+<div class="cover">
+  <div class="logo-bar">Vorgangswerk</div>
+  <h1>Schritt-für-Schritt-Anleitung</h1>
+  <p class="subtitle">
+    Formular erstellen · Workflow aufbauen · OnlyOffice-Vorlage integrieren
+  </p>
+  <p class="meta">Version 1.0 · April 2026 · EUPL-1.2</p>
+</div>
+
+<!-- ==================== INHALTSVERZEICHNIS ==================== -->
+<div class="toc">
+  <div class="toc-title">Inhalt</div>
+  <div class="toc-entry">1 &nbsp; Überblick &amp; Konzept</div>
+  <div class="toc-entry">2 &nbsp; Formular erstellen (Pfad-Editor)</div>
+  <div class="toc-entry" style="padding-left:14pt; font-size:9.5pt; color:#555;">
+    2.1 Neuen Pfad anlegen &nbsp;·&nbsp; 2.2 Schritte &amp; Felder &nbsp;·&nbsp;
+    2.3 Bedingungen &nbsp;·&nbsp; 2.4 Testen &amp; veröffentlichen
+  </div>
+  <div class="toc-entry">3 &nbsp; Workflow aufbauen (Graph-Editor)</div>
+  <div class="toc-entry" style="padding-left:14pt; font-size:9.5pt; color:#555;">
+    3.1 Template anlegen &nbsp;·&nbsp; 3.2 Knoten &amp; Kanten &nbsp;·&nbsp;
+    3.3 Formular verknüpfen &nbsp;·&nbsp; 3.4 Aufgaben &amp; Fristen
+  </div>
+  <div class="toc-entry">4 &nbsp; OnlyOffice-Vorlage integrieren</div>
+  <div class="toc-entry" style="padding-left:14pt; font-size:9.5pt; color:#555;">
+    4.1 Vorlage vorbereiten &nbsp;·&nbsp; 4.2 Platzhalter &nbsp;·&nbsp;
+    4.3 Dokument erzeugen &nbsp;·&nbsp; 4.4 Vorlage hochladen
+  </div>
+  <div class="toc-entry">5 &nbsp; Vollständiges Beispiel (Ende-zu-Ende)</div>
+  <div class="toc-entry">6 &nbsp; Häufige Fehler &amp; Lösungen</div>
+</div>
+
+<!-- ==================== 1 ÜBERBLICK ==================== -->
+<h2>1 &nbsp; Überblick &amp; Konzept</h2>
+<p class="section-intro">
+  Vorgangswerk verbindet drei Bausteine zu einem durchgängigen Prozess:
+  Bürger oder Mitarbeitende füllen ein <strong>Formular</strong> aus,
+  der Antrag startet automatisch einen <strong>Workflow</strong>,
+  und am Ende erzeugt das System ein fertiges <strong>Dokument</strong>
+  auf Basis einer OnlyOffice-Vorlage – ohne Medienbruch.
+</p>
+
+<table>
+  <tr><th>Baustein</th><th>Was er tut</th><th>Wo er konfiguriert wird</th></tr>
+  <tr><td><strong>Formular (Pfad)</strong></td><td>Strukturierte Eingabemaske mit Feldern, Dateien, Bedingungen</td><td>Formulare → Pfad-Editor</td></tr>
+  <tr><td><strong>Workflow</strong></td><td>Visuelle Abfolge von Aufgaben, Entscheidungen, Zuweisungen</td><td>Workflow → Graph-Editor</td></tr>
+  <tr><td><strong>Dokument-Vorlage</strong></td><td>DOCX/ODT mit Platzhaltern, wird automatisch befüllt</td><td>Dokumente → hochladen → Vorlage markieren</td></tr>
+</table>
+
+<div class="hint">
+  <strong>Hinweis:</strong> Alle drei Bausteine können unabhängig voneinander genutzt werden.
+  Die stärkste Wirkung entfalten sie als Einheit: Formular → Workflow → Dokument.
+</div>
+
+
+<!-- ==================== 2 FORMULAR ==================== -->
+<h2>2 &nbsp; Formular erstellen (Pfad-Editor)</h2>
+<p class="section-intro">
+  Ein Formular besteht aus mehreren <em>Schritten</em>, jeder Schritt aus mehreren <em>Feldern</em>.
+  Der Pfad-Editor ist vollständig browserbasiert – kein Code, keine Datenbank-Migration.
+</p>
+
+<h3>2.1 Neuen Pfad anlegen</h3>
+<div class="step"><strong>Schritt 1</strong> – Menü: <em>Formulare → Formulare verwalten → + Neuer Pfad</em></div>
+<div class="step"><strong>Schritt 2</strong> – Felder ausfüllen:
+  <ul>
+    <li><strong>Name</strong> – interner Bezeichner, z. B. „Bauantrag Kleinvorhaben"</li>
+    <li><strong>Beschreibung</strong> – kurzer Hinweis für Antragstellende</li>
+    <li><strong>Kategorie</strong> – frei wählbar (Bau, Soziales, Ordnung …)</li>
+    <li><strong>Öffentlich</strong> – aktivieren, wenn das Formular ohne Login aufrufbar sein soll</li>
+    <li><strong>Workflow-Vorlage</strong> – optional: verknüpften Workflow wählen (kann später gesetzt werden)</li>
+  </ul>
+</div>
+<div class="step"><strong>Schritt 3</strong> – <em>Speichern</em> → der neue Pfad öffnet den Editor.</div>
+
+<h3>2.2 Schritte &amp; Felder hinzufügen</h3>
+<div class="step"><strong>Schritt 1</strong> – Im Pfad-Editor: <em>+ Schritt hinzufügen</em> → Schritt benennen (z. B. „Persönliche Daten").</div>
+<div class="step"><strong>Schritt 2</strong> – Im Schritt: <em>+ Feld hinzufügen</em> → Feldtyp wählen:</div>
+
+<table>
+  <tr><th>Feldtyp</th><th>Verwendung</th></tr>
+  <tr><td><code>text</code></td><td>Freitext, einzeilig</td></tr>
+  <tr><td><code>textarea</code></td><td>Freitext, mehrzeilig</td></tr>
+  <tr><td><code>zahl</code></td><td>Ganzzahl oder Dezimalzahl</td></tr>
+  <tr><td><code>datum</code></td><td>Datumsauswahl (ISO 8601)</td></tr>
+  <tr><td><code>auswahl</code></td><td>Dropdown mit vordefinierten Optionen</td></tr>
+  <tr><td><code>checkbox</code></td><td>Ja/Nein-Schalter</td></tr>
+  <tr><td><code>datei</code></td><td>Datei-Upload (PDF, JPG, DOCX …)</td></tr>
+  <tr><td><code>dsgvo</code></td><td>DSGVO-Einwilligung mit verpflichtender Bestätigung</td></tr>
+  <tr><td><code>info</code></td><td>Reiner Informationstext, kein Eingabefeld</td></tr>
+</table>
+
+<div class="step"><strong>Schritt 3</strong> – Pro Feld einstellen:
+  <ul>
+    <li><strong>Bezeichnung</strong> – Beschriftung die der Antragsteller sieht</li>
+    <li><strong>Technischer Schlüssel</strong> – eindeutiger Name ohne Leerzeichen, z. B. <code>vorname</code> (wird später als Platzhalter genutzt)</li>
+    <li><strong>Pflichtfeld</strong> – ob das Feld ausgefüllt werden muss</li>
+    <li><strong>Hilfetext</strong> – optionaler Erklärungstext unter dem Feld</li>
+    <li><strong>Optionen</strong> (nur bei Auswahl-Feldern) – kommagetrennte Liste</li>
+  </ul>
+</div>
+<div class="step"><strong>Schritt 4</strong> – Reihenfolge der Schritte und Felder per Drag &amp; Drop ändern.</div>
+
+<h3>2.3 Bedingungen (bedingte Felder)</h3>
+<p>Felder können ausgeblendet oder angezeigt werden, abhängig vom Wert eines anderen Felds:</p>
+<div class="step"><strong>Schritt 1</strong> – Feld öffnen → <em>Bedingung hinzufügen</em></div>
+<div class="step"><strong>Schritt 2</strong> – Ausfüllen:
+  <ul>
+    <li><strong>Wenn Feld</strong> – Technischer Schlüssel des auslösenden Felds (z. B. <code>art_des_vorhabens</code>)</li>
+    <li><strong>Operator</strong> – <code>gleich</code>, <code>ungleich</code>, <code>enthaelt</code></li>
+    <li><strong>Wert</strong> – z. B. <code>Neubau</code></li>
+  </ul>
+</div>
+<div class="hint">
+  Das bedingte Feld erscheint nur, wenn die Bedingung erfüllt ist. Mehrere Bedingungen werden mit UND verknüpft.
+</div>
+
+<h3>2.4 Testen &amp; veröffentlichen</h3>
+<div class="step"><strong>Schritt 1</strong> – Im Pfad-Editor: <em>Vorschau</em> → das Formular öffnet sich im Browser, alle Felder und Bedingungen sind sofort wirksam.</div>
+<div class="step"><strong>Schritt 2</strong> – Wenn alles stimmt: <em>Aktiv</em>-Schalter auf <em>Ein</em> setzen → das Formular ist jetzt aufrufbar.</div>
+<div class="step"><strong>Schritt 3</strong> – Öffentliche Formulare sind ohne Login unter <code>/antraege/&lt;pfad-id&gt;/</code> erreichbar. Den Link aus der Übersicht kopieren und teilen.</div>
+<div class="warn">
+  <strong>Achtung:</strong> Änderungen am technischen Schlüssel eines Felds sind nach dem ersten produktiven Antrag zu vermeiden – bestehende Antrags-Daten referenzieren den alten Schlüssel.
+</div>
+
+
+<!-- ==================== 3 WORKFLOW ==================== -->
+<h2>3 &nbsp; Workflow aufbauen (Graph-Editor)</h2>
+<p class="section-intro">
+  Der Workflow beschreibt, was nach dem Eingang eines Antrags passiert:
+  wer prüft, wer entscheidet, welche Fristen gelten.
+  Der Graph-Editor visualisiert den Prozess als Knotendiagramm.
+</p>
+
+<h3>3.1 Workflow-Template anlegen</h3>
+<div class="step"><strong>Schritt 1</strong> – Menü: <em>Workflow → Workflow-Editor → + Neues Template</em></div>
+<div class="step"><strong>Schritt 2</strong> – Felder:
+  <ul>
+    <li><strong>Name</strong> – z. B. „Bauantrag-Prüfprozess"</li>
+    <li><strong>Beschreibung</strong> – interner Verwendungszweck</li>
+    <li><strong>Aktiv</strong> – nur aktive Templates können Instanzen starten</li>
+  </ul>
+</div>
+<div class="step"><strong>Schritt 3</strong> – <em>Speichern</em> → der Editor öffnet einen leeren Graph.</div>
+
+<h3>3.2 Knoten &amp; Kanten</h3>
+<p>Der Graph besteht aus <strong>Knoten</strong> (Aufgaben / Entscheidungen) und <strong>Kanten</strong> (Übergänge).</p>
+
+<table>
+  <tr><th>Knoten-Typ</th><th>Bedeutung</th></tr>
+  <tr><td><strong>start</strong></td><td>Startpunkt – wird automatisch angelegt</td></tr>
+  <tr><td><strong>aufgabe</strong></td><td>Manuelle Aufgabe, die einem Benutzer oder einer Gruppe zugewiesen wird</td></tr>
+  <tr><td><strong>entscheidung</strong></td><td>Verzweigungspunkt – ausgehende Kanten tragen Bedingungen</td></tr>
+  <tr><td><strong>benachrichtigung</strong></td><td>Automatische E-Mail oder Systemmeldung</td></tr>
+  <tr><td><strong>ende</strong></td><td>Abschluss der Instanz</td></tr>
+</table>
+
+<div class="step"><strong>Knoten hinzufügen</strong> – Im Editor-Bereich: Rechtsklick → <em>Knoten hinzufügen</em> → Typ wählen → Bezeichnung eingeben.</div>
+<div class="step"><strong>Kante ziehen</strong> – Knoten-Ausgangs-Handle (rechts) auf Eingangs-Handle (links) des Zielknotens ziehen. Ein Klick auf die Kante öffnet die Bedingung (optional).</div>
+<div class="step"><strong>Knoten konfigurieren</strong> – Doppelklick auf einen Knoten:
+  <ul>
+    <li><strong>Bearbeiter</strong> – konkreter Benutzer oder Gruppe</li>
+    <li><strong>Frist (Tage)</strong> – Anzahl Werktage ab Eingang des Schritts</li>
+    <li><strong>Beschreibung</strong> – Arbeitsanweisung, die dem Bearbeiter angezeigt wird</li>
+    <li><strong>Formular-Schritt</strong> – optionaler Verweis auf einen Pfad-Schritt zur Datennacherfassung im Workflow</li>
+  </ul>
+</div>
+
+<h3>3.3 Formular verknüpfen</h3>
+<div class="step"><strong>Schritt 1</strong> – Im Formular-Editor: <em>Pfad bearbeiten → Workflow-Vorlage → Template auswählen</em> → Speichern.</div>
+<div class="step"><strong>Schritt 2</strong> – Ab sofort startet jede abgeschlossene Antragssitzung automatisch eine neue Instanz dieses Workflows. Der erste <em>start</em>-Knoten wird sofort ausgeführt, die erste Aufgabe im Arbeitsstapel erzeugt.</div>
+<div class="hint">
+  Der Workflow empfängt alle Formularfelder als Kontext: <code>antrag.felder.vorname</code>, <code>antrag.felder.strasse</code> usw. Diese Werte sind in Benachrichtigungsvorlagen und Dokument-Platzhaltern verwendbar.
+</div>
+
+<h3>3.4 Aufgaben &amp; Fristen</h3>
+<div class="step"><strong>Arbeitsstapel</strong> – Jede offene Aufgabe erscheint im Arbeitsstapel des zugewiesenen Bearbeiters. Fristige Aufgaben werden farbig markiert (gelb = heute, rot = überfällig).</div>
+<div class="step"><strong>Aufgabe abschließen</strong> – Der Bearbeiter öffnet die Aufgabe, trägt ein Ergebnis ein und klickt <em>Abschließen</em>. Das System aktiviert automatisch den nächsten Knoten.</div>
+<div class="step"><strong>Entscheidung</strong> – Bei Entscheidungsknoten wählt der Bearbeiter den Ausgang (z. B. „Genehmigt" / „Abgelehnt"). Nur die passende Kante wird aktiviert.</div>
+
+
+<!-- ==================== 4 ONLYOFFICE ==================== -->
+<h2>4 &nbsp; OnlyOffice-Vorlage integrieren</h2>
+<p class="section-intro">
+  Vorgangswerk erzeugt Dokumente (Bescheide, Anschreiben, Quittungen) vollautomatisch
+  aus DOCX-Vorlagen. Platzhalter in geschweiften Klammern werden mit Antragsdaten gefüllt.
+</p>
+
+<h3>4.1 Vorlage in OnlyOffice vorbereiten</h3>
+<div class="step"><strong>Schritt 1</strong> – Menü: <em>Dokumente → Neues Dokument</em> oder eine bestehende DOCX öffnen.</div>
+<div class="step"><strong>Schritt 2</strong> – Das Dokument öffnet sich im integrierten OnlyOffice-Editor (WOPI).</div>
+<div class="step"><strong>Schritt 3</strong> – Briefkopf, Fußzeile und Layoutelemente wie gewünscht gestalten. Für Felder, die später automatisch gefüllt werden, Platzhalter in doppelten geschweiften Klammern einfügen (siehe 4.2).</div>
+<div class="step"><strong>Schritt 4</strong> – Speichern (<em>Strg+S</em>) – das Dokument wird automatisch im DMS versioniert.</div>
+
+<h3>4.2 Platzhalter-Syntax</h3>
+<p>Platzhalter werden beim Dokumenterzeugen durch echte Werte ersetzt:</p>
+<pre>{{ vorname }}             → Wert des Formularfelds mit Schlüssel "vorname"
+{{ nachname }}            → Nachname des Antragstellers
+{{ datum }}               → aktuelles Datum (dd.mm.YYYY)
+{{ antrag_id }}           → interne Antrags-ID
+{{ bearbeiter }}          → Name des zugewiesenen Sachbearbeiters
+{{ aktenzeichen }}        → generiertes Aktenzeichen
+{{ feld.art_des_vorhabens }} → beliebiges Formularfeld über feld.schluessel</pre>
+
+<div class="hint">
+  <strong>Tipp:</strong> Technische Schlüssel aus dem Formular-Editor (Abschnitt 2.2)
+  sind direkt als Platzhalter nutzbar. Prüfen Sie die genaue Schreibweise im Pfad-Editor.
+</div>
+
+<h3>4.3 Dokument aus Vorlage erzeugen</h3>
+<p>Das Erzeugen eines Dokuments aus einer Vorlage geschieht auf zwei Wegen:</p>
+
+<h4>Weg A – Manuell aus der Aufgabe heraus</h4>
+<div class="step"><strong>Schritt 1</strong> – Arbeitsstapel → Aufgabe öffnen → <em>Dokument erzeugen</em></div>
+<div class="step"><strong>Schritt 2</strong> – Vorlage auswählen → <em>Erstellen</em></div>
+<div class="step"><strong>Schritt 3</strong> – Das fertige Dokument erscheint im DMS und in der Aufgabe. Es kann direkt im Browser geöffnet, gedruckt oder signiert werden.</div>
+
+<h4>Weg B – Automatisch im Workflow</h4>
+<div class="step"><strong>Schritt 1</strong> – Im Workflow-Editor: Knoten vom Typ <em>Aufgabe</em> konfigurieren → <em>Vorlage automatisch erzeugen</em> aktivieren → Vorlage auswählen.</div>
+<div class="step"><strong>Schritt 2</strong> – Sobald dieser Knoten aktiviert wird, erzeugt das System das Dokument ohne Benutzerinteraktion und legt es im DMS ab.</div>
+
+<h3>4.4 Vorlage im DMS als Vorlage markieren</h3>
+<div class="step"><strong>Schritt 1</strong> – Menü: <em>Dokumente → [Dokument auswählen] → Bearbeiten</em></div>
+<div class="step"><strong>Schritt 2</strong> – Häkchen bei <em>Als Vorlage verwenden</em> setzen → Speichern.</div>
+<div class="step"><strong>Schritt 3</strong> – Die Datei erscheint ab sofort in allen Vorlage-Auswahlfeldern (Aufgabe-Editor, automatischer Schritt).</div>
+<div class="warn">
+  <strong>Achtung:</strong> Vorlagen werden beim Erzeugen gelesen, nicht verändert.
+  Änderungen an der Vorlage wirken sich auf alle zukünftigen Dokumente aus,
+  nicht auf bereits erzeugte.
+</div>
+
+
+<!-- ==================== 5 BEISPIEL ==================== -->
+<h2>5 &nbsp; Vollständiges Beispiel: Bewohnerparkausweis</h2>
+<p class="section-intro">
+  Dieses Beispiel zeigt den vollständigen Prozess von der Formular-Konfiguration
+  bis zum fertigen Bescheid.
+</p>
+
+<h3>5.1 Formular anlegen</h3>
+<ol>
+  <li>Formulare → + Neuer Pfad → Name: <em>„Antrag Bewohnerparkausweis"</em>, Öffentlich: Ja</li>
+  <li>Schritt 1: <em>„Persönliche Angaben"</em>
+    <ul>
+      <li>Feld <code>vorname</code> (Text, Pflicht)</li>
+      <li>Feld <code>nachname</code> (Text, Pflicht)</li>
+      <li>Feld <code>geburtsdatum</code> (Datum, Pflicht)</li>
+    </ul>
+  </li>
+  <li>Schritt 2: <em>„Fahrzeug &amp; Anschrift"</em>
+    <ul>
+      <li>Feld <code>kennzeichen</code> (Text, Pflicht)</li>
+      <li>Feld <code>strasse</code> (Text, Pflicht)</li>
+      <li>Feld <code>parkzone</code> (Auswahl: A, B, C, D, Pflicht)</li>
+    </ul>
+  </li>
+  <li>Schritt 3: <em>„Nachweise"</em>
+    <ul>
+      <li>Feld <code>zulassungsbescheinigung</code> (Datei, Pflicht)</li>
+      <li>Feld <code>meldebescheinigung</code> (Datei, optional)</li>
+      <li>Feld <code>dsgvo_einwilligung</code> (DSGVO, Pflicht)</li>
+    </ul>
+  </li>
+  <li>Vorschau testen → Aktiv setzen</li>
+</ol>
+
+<h3>5.2 Workflow anlegen</h3>
+<ol>
+  <li>Workflow → + Neues Template → Name: <em>„Parkausweis-Prüfung"</em></li>
+  <li>Knoten: <strong>start</strong> → <strong>Prüfung durch Sachbearbeiter</strong> (Typ: Aufgabe, Gruppe: Ordnungsamt, Frist: 5 Tage) → <strong>Entscheidung: Genehmigt / Abgelehnt</strong></li>
+  <li>Kante „Genehmigt" → <strong>Ausweis erzeugen</strong> (Aufgabe, Vorlage: Parkausweis-Bescheid) → <strong>ende</strong></li>
+  <li>Kante „Abgelehnt" → <strong>Ablehnungsbescheid senden</strong> (Benachrichtigung) → <strong>ende</strong></li>
+  <li>Template speichern → Aktiv setzen</li>
+</ol>
+
+<h3>5.3 Formular mit Workflow verknüpfen</h3>
+<ol>
+  <li>Formulare → Pfad bearbeiten → Workflow-Vorlage: <em>„Parkausweis-Prüfung"</em> → Speichern</li>
+</ol>
+
+<h3>5.4 Vorlage in OnlyOffice erstellen</h3>
+<ol>
+  <li>Dokumente → Neues Dokument → Dateinamen: <em>„Parkausweis-Bescheid.docx"</em></li>
+  <li>Briefkopf: Behördenlogo, Anschrift</li>
+  <li>Adressfeld einfügen:
+    <pre>{{ vorname }} {{ nachname }}
+{{ strasse }}
+[PLZ Ort]</pre>
+  </li>
+  <li>Bescheid-Text mit Platzhaltern:
+    <pre>Sehr geehrte/r {{ vorname }} {{ nachname }},
+
+Ihr Antrag auf Ausstellung eines Bewohnerparkausweises
+für das Kennzeichen {{ kennzeichen }} in der Parkzone {{ parkzone }}
+wurde am {{ datum }} genehmigt.
+
+Mit freundlichen Grüßen
+{{ bearbeiter }}</pre>
+  </li>
+  <li>Speichern → Dokument-Detailseite → <em>Als Vorlage verwenden</em> aktivieren</li>
+</ol>
+
+<h3>5.5 Ablauf im Betrieb</h3>
+<ol>
+  <li>Bürger ruft den öffentlichen Formular-Link auf, füllt alle Felder aus und klickt <em>Antrag einreichen</em>.</li>
+  <li>Das System startet automatisch eine Instanz von „Parkausweis-Prüfung".</li>
+  <li>Im Arbeitsstapel des Ordnungsamts erscheint die neue Aufgabe <em>„Prüfung durch Sachbearbeiter"</em>.</li>
+  <li>Der Sachbearbeiter öffnet die Aufgabe, sieht alle Antragsdaten und Anhänge, trifft die Entscheidung <em>Genehmigt</em>.</li>
+  <li>Das System aktiviert automatisch den Knoten <em>„Ausweis erzeugen"</em>, füllt die DOCX-Vorlage mit den Antragsdaten aus und legt das fertige Dokument im DMS ab.</li>
+  <li>Der Sachbearbeiter öffnet das Dokument im Browser, signiert es elektronisch und versendet es per integrierten Verteiler.</li>
+</ol>
+
+
+<!-- ==================== 6 FEHLER ==================== -->
+<h2>6 &nbsp; Häufige Fehler &amp; Lösungen</h2>
+
+<table>
+  <tr><th>Problem</th><th>Ursache</th><th>Lösung</th></tr>
+  <tr>
+    <td>Platzhalter bleibt im Dokument stehen (z. B. <code>{{ vorname }}</code>)</td>
+    <td>Technischer Schlüssel im Formular stimmt nicht exakt mit dem Platzhalter überein (Groß/Kleinschreibung, Leerzeichen)</td>
+    <td>Schlüssel im Pfad-Editor prüfen. Platzhalter muss exakt übereinstimmen.</td>
+  </tr>
+  <tr>
+    <td>Workflow startet nicht nach Formularabschluss</td>
+    <td>Workflow-Template nicht mit dem Pfad verknüpft, oder Template nicht aktiv</td>
+    <td>Pfad-Editor → Workflow-Vorlage auswählen. Template auf Aktiv setzen.</td>
+  </tr>
+  <tr>
+    <td>Aufgabe erscheint nicht im Arbeitsstapel</td>
+    <td>Bearbeiter oder Gruppe am Knoten nicht konfiguriert</td>
+    <td>Workflow-Editor → Knoten doppelklicken → Bearbeiter / Gruppe eintragen.</td>
+  </tr>
+  <tr>
+    <td>Vorlage erscheint nicht in der Auswahl</td>
+    <td>Dokument nicht als Vorlage markiert</td>
+    <td>Dokumente → Dokument → Bearbeiten → „Als Vorlage verwenden" aktivieren.</td>
+  </tr>
+  <tr>
+    <td>Bedingte Felder werden immer angezeigt</td>
+    <td>Bedingung referenziert falschen technischen Schlüssel</td>
+    <td>Schlüssel des auslösenden Felds im Pfad-Editor kontrollieren und Bedingung aktualisieren.</td>
+  </tr>
+  <tr>
+    <td>PDF-Vorschau des Antrags zeigt keine Dateianhänge</td>
+    <td>Datei-Felder erscheinen in der PDF als Hinweis „Datei hochgeladen", nicht als eingebettetes Bild</td>
+    <td>Erwartetes Verhalten – Anhänge werden separat im DMS abgelegt.</td>
+  </tr>
+</table>
+
+<div class="hint" style="margin-top:20pt;">
+  <strong>Support &amp; Quellcode:</strong> Vorgangswerk ist EUPL-1.2 lizenziert.
+  Fragen, Fehler und Verbesserungsvorschläge können als Issue im Repository gemeldet werden.
+</div>
+
+</body>
+</html>

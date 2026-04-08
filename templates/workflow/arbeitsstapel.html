@@ -30,11 +30,11 @@
         <table class="table table-hover mb-0">
           <thead class="table-light">
             <tr>
-              <th>Schritt</th>
-              <th>Workflow</th>
-              <th>Status</th>
-              <th>Frist</th>
-              <th></th>
+              <th scope="col">Schritt</th>
+              <th scope="col">Workflow</th>
+              <th scope="col">Status</th>
+              <th scope="col">Frist</th>
+              <th scope="col"><span class="visually-hidden">Aktionen</span></th>
             </tr>
           </thead>
           <tbody>
@@ -50,7 +50,7 @@
               <td>
                 {{ task.frist|date:"d.m.Y H:i" }}
                 {% if task.ist_ueberfaellig %}
-                <span class="text-danger fw-bold ms-1">ueberfaellig</span>
+                <span class="text-danger fw-bold ms-1">Überfällig</span>
                 {% endif %}
               </td>
               <td>
@@ -81,10 +81,10 @@
         <table class="table table-hover mb-0">
           <thead class="table-light">
             <tr>
-              <th>Schritt</th>
-              <th>Workflow</th>
-              <th>Frist</th>
-              <th></th>
+              <th scope="col">Schritt</th>
+              <th scope="col">Workflow</th>
+              <th scope="col">Frist</th>
+              <th scope="col"><span class="visually-hidden">Aktionen</span></th>
             </tr>
           </thead>
           <tbody>
@@ -100,7 +100,7 @@
                 <form method="post" action="{% url 'workflow:task_zurueckgeben' task.pk %}">
                   {% csrf_token %}
                   <button type="submit" class="btn btn-sm btn-outline-secondary">
-                    Zurueckgeben
+                    Zurückgeben
                   </button>
                 </form>
               </td>
@@ -125,11 +125,11 @@
         <table class="table table-hover mb-0">
           <thead class="table-light">
             <tr>
-              <th>Schritt</th>
-              <th>Workflow</th>
-              <th>Gruppe</th>
-              <th>Frist</th>
-              <th></th>
+              <th scope="col">Schritt</th>
+              <th scope="col">Workflow</th>
+              <th scope="col">Gruppe</th>
+              <th scope="col">Frist</th>
+              <th scope="col"><span class="visually-hidden">Aktionen</span></th>
             </tr>
           </thead>
           <tbody>

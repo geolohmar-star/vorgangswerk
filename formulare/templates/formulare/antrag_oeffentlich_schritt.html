@@ -73,6 +73,14 @@
                 <div class="row g-3">
 
                 {% for feld in felder_render %}
+                {% if feld.versteckt %}
+                {% if feld.typ == "berechnung" %}
+                <input type="hidden" name="{{ feld.id }}" id="berechnung-hidden-{{ feld.id }}"
+                       data-berechnung-id="{{ feld.id }}" data-formel="{{ feld.formel }}">
+                {% else %}
+                <input type="hidden" name="{{ feld.id }}" value="{{ vorwerte|get_item:feld.id }}">
+                {% endif %}
+                {% else %}
                 {% with typ=feld.typ id=feld.id label=feld.label pflicht=feld.pflicht %}
 
                 {% if typ == "abschnitt" %}
@@ -118,6 +126,23 @@
                               {% if pflicht %}required{% endif %}></textarea>
                 </div>
 
+                {% elif typ == "bankverbindung" %}
+                <div class="{% if feld.breite == 50 %}col-md-6{% elif feld.breite == 25 %}col-md-3{% elif feld.breite == 75 %}col-md-9{% else %}col-12{% endif %}">
+                    <label class="form-label fw-semibold" for="f-{{ id }}">
+                        {{ label }}{% if pflicht %} <span class="text-danger">*</span>{% endif %}
+                    </label>
+                    <select class="form-select" name="{{ id }}" id="f-{{ id }}"
+                            data-bankverbindung="{{ id }}"
+                            {% if pflicht %}required{% endif %}>
+                        <option value="">— bitte wählen —</option>
+                        {% for bank in bankverbindungen %}
+                        <option value="{{ bank.kuerzel }}" {% if vorwerte|get_item:id == bank.kuerzel %}selected{% endif %}>
+                            {{ bank.bezeichnung }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+
                 {% elif typ == "auswahl" or typ == "radio" %}
                 <div class="{% if feld.breite == 50 %}col-md-6{% elif feld.breite == 25 %}col-md-3{% elif feld.breite == 75 %}col-md-9{% else %}col-12{% endif %}">
                     <label class="form-label fw-semibold">
@@ -127,7 +152,7 @@
                     <select class="form-select" name="{{ id }}" id="f-{{ id }}" {% if pflicht %}required{% endif %}>
                         <option value="">— bitte wählen —</option>
                         {% for opt in feld.optionen %}
-                        <option value="{{ opt }}">{{ opt }}</option>
+                        <option value="{{ opt|opt_value }}">{{ opt|opt_label }}</option>
                         {% endfor %}
                     </select>
                     {% else %}
@@ -135,9 +160,9 @@
                         {% for opt in feld.optionen %}
                         <div class="form-check">
                             <input class="form-check-input" type="radio" name="{{ id }}"
-                                   id="f-{{ id }}-{{ forloop.counter }}" value="{{ opt }}"
+                                   id="f-{{ id }}-{{ forloop.counter }}" value="{{ opt|opt_value }}"
                                    {% if pflicht %}required{% endif %}>
-                            <label class="form-check-label" for="f-{{ id }}-{{ forloop.counter }}">{{ opt }}</label>
+                            <label class="form-check-label" for="f-{{ id }}-{{ forloop.counter }}">{{ opt|opt_label }}</label>
                         </div>
                         {% endfor %}
                     </div>
@@ -230,6 +255,8 @@
                     </label>
                     <input type="text" class="form-control" name="{{ id }}" id="f-{{ id }}"
                            placeholder="{{ feld.hilfetext|default:'HH-AB 1234' }}" maxlength="12"
+                           pattern="[A-ZÄÖÜ]{1,3}-[A-Z]{1,2} [0-9]{1,4}[HE]?"
+                           title="Format: GL-AK 123 (Kürzel-Buchstaben Ziffern)"
                            {% if pflicht %}required{% endif %}>
                 </div>
 
@@ -263,8 +290,8 @@
                         {% for opt in feld.optionen %}
                         <div class="form-check">
                             <input class="form-check-input" type="checkbox"
-                                   name="{{ id }}" id="f-{{ id }}-{{ forloop.counter }}" value="{{ opt }}">
-                            <label class="form-check-label" for="f-{{ id }}-{{ forloop.counter }}">{{ opt }}</label>
+                                   name="{{ id }}" id="f-{{ id }}-{{ forloop.counter }}" value="{{ opt|opt_value }}">
+                            <label class="form-check-label" for="f-{{ id }}-{{ forloop.counter }}">{{ opt|opt_label }}</label>
                         </div>
                         {% endfor %}
                     </div>
@@ -324,7 +351,7 @@
 
                 {% elif typ == "textblock" %}
                 <div class="col-12">
-                    <div class="alert alert-light border">{{ feld.text }}</div>
+                    <div class="alert alert-light border" data-template="{{ feld.text }}">{{ feld.text }}</div>
                 </div>
 
                 {% elif typ == "pdf_email" %}
@@ -393,6 +420,10 @@
                             <div class="px-3 py-2 bg-light border-bottom">
                                 <span class="fw-bold small" style="color:#1a4d2e;">{{ eintrag.label }}</span>
                             </div>
+                            {% elif eintrag.typ == "_abschnitt_sub" %}
+                            <div class="px-3 py-1 border-bottom" style="background:#f8fdf8;">
+                                <span class="small text-muted">{{ eintrag.label }}</span>
+                            </div>
                             {% else %}
                             <div class="px-3 py-2 {% if not forloop.last %}border-bottom{% endif %}">
                                 <dt class="text-muted small fw-semibold">{{ eintrag.label }}</dt>
@@ -423,6 +454,7 @@
                 {% endif %}
 
                 {% endwith %}
+                {% endif %}
                 {% endfor %}
 
                 </div>
@@ -443,6 +475,7 @@
 {% load static %}
 {{ gesammelte_daten_json|json_script:"gesammelte-daten" }}
 {{ schritt.felder_json|json_script:"schritt-felder" }}
+<script type="application/json" id="bankverbindungen-daten">{{ bankverbindungen_json|safe }}</script>
 <script src="{% static 'js/pfad_schritt.js' %}"></script>
 {% endblock %}
 {% endblock %}

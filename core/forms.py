@@ -11,9 +11,12 @@ class BenutzerprofilForm(forms.ModelForm):
 
     class Meta:
         model = Benutzerprofil
-        fields = ["abteilung", "telefon", "sprache"]
+        fields = [
+            "abteilung", "telefon", "sprache",
+            "email_bei_neuer_aufgabe", "email_bei_faelligkeit", "email_bei_abschluss",
+        ]
         widgets = {
             "abteilung": forms.TextInput(attrs={"class": "form-control"}),
-            "telefon": forms.TextInput(attrs={"class": "form-control"}),
-            "sprache": forms.Select(attrs={"class": "form-select"}),
+            "telefon":   forms.TextInput(attrs={"class": "form-control"}),
+            "sprache":   forms.Select(attrs={"class": "form-select"}),
         }

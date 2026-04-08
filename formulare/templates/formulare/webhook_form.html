@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+{% block title %}Webhook {{ aktion }} – Vorgangswerk{% endblock %}
+
+{% block content %}
+<div class="container mt-4" style="max-width:680px;">
+  <a href="{% url 'formulare:webhooks' %}" class="btn btn-sm btn-outline-secondary mb-3">&larr; Zurück</a>
+  <h2 class="mb-4">Webhook {{ aktion }}</h2>
+
+  {% if fehler %}
+  <div class="alert alert-danger">{{ fehler }}</div>
+  {% endif %}
+
+  <form method="post" class="card shadow-sm">
+    {% csrf_token %}
+    <div class="card-body">
+
+      <div class="mb-3">
+        <label class="form-label fw-semibold">Bezeichnung <span class="text-danger">*</span></label>
+        <input type="text" name="name" class="form-control" required
+               value="{{ webhook.name|default:'' }}" placeholder="z.B. MACH-Anbindung Hundesteuer">
+      </div>
+
+      <div class="mb-3">
+        <label class="form-label fw-semibold">Ziel-URL <span class="text-danger">*</span></label>
+        <input type="url" name="url" class="form-control font-monospace" required
+               value="{{ webhook.url|default:'' }}" placeholder="https://fachverfahren.gemeinde.de/webhook">
+      </div>
+
+      <div class="mb-3">
+        <label class="form-label fw-semibold">Signing-Secret <span class="text-danger">*</span></label>
+        <div class="input-group">
+          <input type="text" name="secret" class="form-control font-monospace"
+                 value="{{ webhook.secret|default:'' }}" id="webhook-secret"
+                 placeholder="Mindestens 32 Zeichen" required>
+          <button type="button" class="btn btn-outline-secondary" id="btn-secret-gen">
+            Generieren
+          </button>
+        </div>
+        <small class="text-muted">Wird für HMAC-SHA256-Signierung verwendet. Sicher aufbewahren.</small>
+      </div>
+
+      <div class="mb-3">
+        <label class="form-label fw-semibold">Antragspfad</label>
+        <select name="pfad_id" class="form-select">
+          <option value="">— Gilt für alle Pfade —</option>
+          {% for p in pfade %}
+          <option value="{{ p.pk }}" {% if webhook.pfad_id == p.pk %}selected{% endif %}>
+            {% if p.kuerzel %}[{{ p.kuerzel }}] {% endif %}{{ p.name }}
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="mb-3">
+        <label class="form-label fw-semibold">Ereignisse</label>
+        {% for wert, label in ereignis_choices %}
+        <div class="form-check">
+          <input class="form-check-input" type="checkbox" name="ereignisse"
+                 value="{{ wert }}" id="erg-{{ wert }}"
+                 {% if wert in aktive_ereignisse %}checked{% endif %}>
+          <label class="form-check-label" for="erg-{{ wert }}">
+            <strong>{{ wert }}</strong> — {{ label }}
+          </label>
+        </div>
+        {% endfor %}
+      </div>
+
+      <div class="form-check form-switch mb-3">
+        <input class="form-check-input" type="checkbox" name="aktiv" id="webhook-aktiv"
+               {% if webhook.aktiv|default:True %}checked{% endif %}>
+        <label class="form-check-label" for="webhook-aktiv">Aktiv</label>
+      </div>
+
+    </div>
+    <div class="card-footer d-flex gap-2">
+      <button type="submit" class="btn btn-success">Speichern</button>
+      <a href="{% url 'formulare:webhooks' %}" class="btn btn-outline-secondary">Abbrechen</a>
+      {% if webhook.pk %}
+      <form method="post" action="{% url 'formulare:webhook_loeschen' webhook.pk %}"
+            class="ms-auto" onsubmit="return confirm('Webhook wirklich löschen?')">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-outline-danger">Löschen</button>
+      </form>
+      {% endif %}
+    </div>
+  </form>
+</div>
+
+{% block extra_js %}
+<script>
+document.getElementById("btn-secret-gen").addEventListener("click", function () {
+  var arr = new Uint8Array(32);
+  crypto.getRandomValues(arr);
+  document.getElementById("webhook-secret").value = Array.from(arr).map(b => b.toString(16).padStart(2, "0")).join("");
+});
+</script>
+{% endblock %}
+{% endblock %}

@@ -156,8 +156,9 @@
 
         {% for eintrag in zusammenfassung %}
             {% if eintrag.typ == "_abschnitt" %}
-            <!-- Loop-Trennzeile wird zum PDF-Abschnitt -->
             <div class="abschnitt-titel" style="margin-top:0.4cm;">{{ eintrag.label }}</div>
+            {% elif eintrag.typ == "_abschnitt_sub" %}
+            <div class="abschnitt-titel" style="margin-top:0.2cm;font-size:0.8em;color:#555;">{{ eintrag.label }}</div>
             {% else %}
             <div class="abschnitt" style="margin-bottom:0.1cm;">
                 <table class="daten">

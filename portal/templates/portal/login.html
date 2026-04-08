@@ -1,0 +1,39 @@
+{% extends "portal/base.html" %}
+{% block title %}Anmelden – Vorgangswerk Portal{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-5">
+        <div class="card">
+            <div class="card-header py-3">
+                <h5 class="mb-0">Portal-Anmeldung</h5>
+            </div>
+            <div class="card-body p-4">
+                {% if fehler %}
+                <div class="alert alert-danger">{{ fehler }}</div>
+                {% endif %}
+
+                <form method="post" novalidate>
+                    {% csrf_token %}
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">E-Mail-Adresse</label>
+                        <input type="email" name="email" class="form-control" required
+                               value="{{ email|default:'' }}" autofocus>
+                    </div>
+                    <div class="mb-4">
+                        <label class="form-label fw-semibold">Passwort</label>
+                        <input type="password" name="passwort" class="form-control" required>
+                    </div>
+                    <button type="submit" class="btn btn-primary w-100">Anmelden</button>
+                </form>
+
+                <div class="text-center mt-3">
+                    <small class="text-muted">
+                        Noch kein Konto? <a href="{% url 'portal:registrierung' %}">Jetzt registrieren</a>
+                    </small>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -23,3 +23,16 @@ def split(value, sep=","):
 def strip(value):
     """Entfernt fuehrendes/abschliessendes Leerzeichen."""
     return str(value).strip()
+
+
+@register.filter
+def opt_label(opt):
+    """Gibt den Anzeigetext einer Option zurueck (vor dem | oder ganzer String)."""
+    return str(opt).split("|")[0].strip()
+
+
+@register.filter
+def opt_value(opt):
+    """Gibt den Wert einer Option zurueck (nach dem | oder Anzeigetext)."""
+    parts = str(opt).split("|", 1)
+    return parts[1].strip() if len(parts) > 1 else parts[0].strip()

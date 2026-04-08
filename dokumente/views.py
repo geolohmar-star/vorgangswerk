@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: EUPL-1.2
 # Copyright (C) 2026 Georg Klein
-"""Dokumente-App Views: Upload, Download, WOPI-Protokoll fuer Collabora Online."""
+"""Dokumente-App Views: Upload, Download, OnlyOffice-Integration."""
+import json
 import logging
 import mimetypes
 
@@ -40,8 +41,43 @@ def _protokolliere(dokument, aktion, user, request=None, notiz=""):
     )
 
 
-def _get_collabora_url():
-    return getattr(settings, "COLLABORA_URL", "").rstrip("/")
+# ---------------------------------------------------------------------------
+# OnlyOffice – Hilfsfunktionen
+# ---------------------------------------------------------------------------
+
+# MIME-Typ → OnlyOffice fileType
+_MIME_ZU_EXT = {
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "docx",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet":        "xlsx",
+    "application/vnd.openxmlformats-officedocument.presentationml.presentation": "pptx",
+    "application/msword":                                                         "doc",
+    "application/vnd.ms-excel":                                                   "xls",
+    "application/vnd.ms-powerpoint":                                              "ppt",
+    "application/vnd.oasis.opendocument.text":                                    "odt",
+    "application/vnd.oasis.opendocument.spreadsheet":                             "ods",
+    "application/vnd.oasis.opendocument.presentation":                            "odp",
+    "application/pdf":                                                            "pdf",
+}
+
+_ONLYOFFICE_MIME_TYPEN = set(_MIME_ZU_EXT.keys())
+
+
+def _onlyoffice_jwt(payload: dict) -> str:
+    """Signiert den OnlyOffice-Config-Payload als HS256-JWT."""
+    import jwt as pyjwt
+    secret = getattr(settings, "ONLYOFFICE_JWT_SECRET", "")
+    if not secret:
+        return ""
+    return pyjwt.encode(payload, secret, algorithm="HS256")
+
+
+def _document_type(file_type: str) -> str:
+    """Gibt den OnlyOffice documentType zurueck (word / cell / slide)."""
+    if file_type in ("docx", "doc", "odt", "pdf"):
+        return "word"
+    if file_type in ("xlsx", "xls", "ods"):
+        return "cell"
+    return "slide"
 
 
 # ---------------------------------------------------------------------------
@@ -74,7 +110,7 @@ def dokument_liste(request):
         "kategorien": kategorien,
         "suche": suche,
         "aktive_kategorie": kategorie_id,
-        "collabora_aktiv": bool(_get_collabora_url()),
+        "onlyoffice_aktiv": bool(getattr(settings, "ONLYOFFICE_URL", "")),
     }
     return render(request, "dokumente/liste.html", kontext)
 
@@ -137,7 +173,7 @@ def dokument_detail(request, pk):
         "dok": dok,
         "versionen": versionen,
         "protokolle": protokolle,
-        "collabora_aktiv": bool(_get_collabora_url()),
+        "onlyoffice_aktiv": bool(getattr(settings, "ONLYOFFICE_URL", "")),
     }
     return render(request, "dokumente/detail.html", kontext)
 
@@ -289,130 +325,218 @@ def dokument_loeschen(request, pk):
 
 
 # ---------------------------------------------------------------------------
-# Collabora WOPI – Editor oeffnen
+# OnlyOffice – Editor, Laden, Callback, ForceSave, VersionCheck
 # ---------------------------------------------------------------------------
 
 
 @login_required
-def collabora_editor(request, pk):
-    """Oeffnet das Dokument im Collabora Online Editor (WOPI).
+def onlyoffice_editor(request, pk):
+    """Oeffnet das Dokument im OnlyOffice Document Server.
 
-    Erzeugt einen frischen WOPI-Token und liefert die Editor-Seite.
+    Erzeugt eine JWT-signierte Editor-Konfiguration. OnlyOffice laedt das
+    Dokument server-seitig ueber onlyoffice_dokument_laden().
     """
     dok = get_object_or_404(Dokument, pk=pk)
-    collabora_url = _get_collabora_url()
+    onlyoffice_url = getattr(settings, "ONLYOFFICE_URL", "").rstrip("/")
 
-    if not collabora_url:
-        messages.error(request, "Collabora Online ist nicht konfiguriert (COLLABORA_URL fehlt).")
+    if not onlyoffice_url:
+        messages.error(request, "OnlyOffice ist nicht konfiguriert (ONLYOFFICE_URL fehlt).")
         return redirect("dokumente:detail", pk=pk)
 
-    if not dok.ist_office_dokument:
-        messages.error(request, "Dieser Dateityp kann nicht in Collabora bearbeitet werden.")
+    if dok.dateityp not in _ONLYOFFICE_MIME_TYPEN:
+        messages.error(request, "Dieser Dateityp kann nicht in OnlyOffice bearbeitet werden.")
         return redirect("dokumente:detail", pk=pk)
 
-    token = dok.erstelle_wopi_token()
-
-    base_url = getattr(
-        settings, "VORGANGSWERK_BASE_URL",
-        request.build_absolute_uri("/").rstrip("/"),
+    # Interne URL fuer OnlyOffice-Server-Callbacks (muss vom Docker-Container erreichbar sein)
+    vorgangswerk_base = (
+        getattr(settings, "WOPI_BASE_URL", "").rstrip("/")
+        or getattr(settings, "VORGANGSWERK_BASE_URL", "").rstrip("/")
     )
-    wopi_src = f"{base_url}/dokumente/wopi/files/{dok.pk}/"
 
-    kontext = {
-        "dok": dok,
-        "collabora_url": collabora_url,
-        "wopi_src": wopi_src,
-        "wopi_token": token,
+    file_type = _MIME_ZU_EXT.get(dok.dateityp, "docx")
+    doc_key = f"vorgangswerk-{dok.pk}-v{dok.version}"
+
+    config = {
+        "document": {
+            "fileType": file_type,
+            "key":      doc_key,
+            "title":    dok.dateiname,
+            "url":      f"{vorgangswerk_base}/dokumente/{dok.pk}/onlyoffice/laden/",
+        },
+        "documentType": _document_type(file_type),
+        "editorConfig": {
+            "callbackUrl": f"{vorgangswerk_base}/dokumente/{dok.pk}/onlyoffice/callback/",
+            "lang":        "de-DE",
+            "mode":        "edit",
+            "user": {
+                "id":   str(request.user.pk),
+                "name": request.user.get_full_name() or request.user.username,
+            },
+            "customization": {
+                "spellcheck": True,
+            },
+        },
     }
-    return render(request, "dokumente/collabora_editor.html", kontext)
+    token = _onlyoffice_jwt(config)
+
+    _protokolliere(dok, ZugriffsProtokoll.AKTION_COLLABORA, request.user, request,
+                   "OnlyOffice-Editor geoeffnet")
+
+    return render(request, "dokumente/onlyoffice_editor.html", {
+        "dok":            dok,
+        "onlyoffice_url": onlyoffice_url,
+        "oo_config":      config,
+        "token":          token,
+    })
 
 
-# ---------------------------------------------------------------------------
-# WOPI-Protokoll (fuer Collabora Online)
-# ---------------------------------------------------------------------------
+def onlyoffice_dokument_laden(request, pk):
+    """Liefert den Dokumentinhalt an den OnlyOffice-Server (server-seitig, kein Browser).
 
-
-@csrf_exempt
-def wopi_files_dispatch(request, pk):
-    """WOPI CheckFileInfo – GET /dokumente/wopi/files/{pk}/"""
-    token = request.GET.get("access_token", "")
-    dok = get_object_or_404(Dokument, pk=pk)
-
-    if not dok.wopi_token or dok.wopi_token != token or not dok.wopi_token_gueltig():
-        return HttpResponse("Unauthorized", status=401)
-
-    user_id = ""
-    user_name = "Unbekannt"
-    if request.user.is_authenticated:
-        user_id = str(request.user.pk)
-        user_name = request.user.get_full_name() or request.user.username
-
-    info = {
-        "BaseFileName": dok.dateiname,
-        "Size": dok.groesse_bytes,
-        "Version": str(dok.version),
-        "OwnerId": str(dok.erstellt_von_id or ""),
-        "UserId": user_id,
-        "UserFriendlyName": user_name,
-        "UserCanWrite": True,
-        "UserCanRename": False,
-        "SupportsUpdate": True,
-        "SupportsLocks": False,
-        "SupportsGetLock": False,
-        "LastModifiedTime": dok.geaendert_am.strftime("%Y-%m-%dT%H:%M:%SZ"),
-    }
-    return JsonResponse(info)
-
-
-@csrf_exempt
-def wopi_contents_dispatch(request, pk):
-    """WOPI GetFile/PutFile – /dokumente/wopi/files/{pk}/contents/
-
-    GET → liefert Dateiinhalt
-    POST → speichert bearbeiteten Inhalt
+    Authentifizierung per JWT-Header (wenn ONLYOFFICE_JWT_SECRET konfiguriert).
     """
-    token = request.GET.get("access_token", "")
+    import jwt as pyjwt
+
+    secret = getattr(settings, "ONLYOFFICE_JWT_SECRET", "")
+    if secret:
+        auth_header = request.headers.get("Authorization", "")
+        if not auth_header.startswith("Bearer "):
+            return HttpResponse("Unauthorized", status=401)
+        try:
+            pyjwt.decode(auth_header[7:], secret, algorithms=["HS256"])
+        except pyjwt.PyJWTError:
+            return HttpResponse("Unauthorized", status=401)
+
+    dok = get_object_or_404(Dokument, pk=pk)
+    return HttpResponse(bytes(dok.inhalt), content_type=dok.dateityp or "application/octet-stream")
+
+
+@csrf_exempt
+def onlyoffice_callback(request, pk):
+    """Empfaengt die bearbeitete Datei vom OnlyOffice-Server und speichert sie.
+
+    OnlyOffice sendet status 2 (alle Editoren weg) oder 6 (forcesave).
+    """
+    import urllib.request as urlreq
+    import jwt as pyjwt
+
+    if request.method != "POST":
+        return JsonResponse({"error": 0})
+
+    try:
+        daten = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({"error": 1})
+
+    # JWT pruefen
+    secret = getattr(settings, "ONLYOFFICE_JWT_SECRET", "")
+    if secret:
+        auth_header = request.headers.get("Authorization", "")
+        if auth_header.startswith("Bearer "):
+            try:
+                pyjwt.decode(auth_header[7:], secret, algorithms=["HS256"])
+            except pyjwt.PyJWTError:
+                logger.warning("OnlyOffice Callback: ungueltige JWT fuer Dok %s", pk)
+                return JsonResponse({"error": 1})
+
+    status = daten.get("status")
+    if status not in (2, 6):
+        return JsonResponse({"error": 0})
+
+    download_url = daten.get("url")
+    if not download_url:
+        return JsonResponse({"error": 0})
+
+    # Download-URL von oeffentlicher auf interne OnlyOffice-URL umschreiben
+    # (Cloudflare entfernt Auth-Header; interner Weg umgeht das)
+    oo_public   = getattr(settings, "ONLYOFFICE_URL", "").rstrip("/")
+    oo_internal = getattr(settings, "ONLYOFFICE_INTERNAL_URL", "").rstrip("/")
+    if oo_public and oo_internal and download_url.startswith(oo_public):
+        download_url = download_url.replace(oo_public, oo_internal, 1)
+
     dok = get_object_or_404(Dokument, pk=pk)
 
-    if not dok.wopi_token or dok.wopi_token != token or not dok.wopi_token_gueltig():
-        return HttpResponse("Unauthorized", status=401)
+    try:
+        dl_req = urlreq.Request(download_url)
+        if secret:
+            dl_token = pyjwt.encode({"url": download_url}, secret, algorithm="HS256")
+            dl_req.add_header("Authorization", f"Bearer {dl_token}")
+        with urlreq.urlopen(dl_req, timeout=30) as resp:
+            neuer_inhalt = resp.read()
+    except Exception as exc:
+        logger.error("OnlyOffice Callback: Download fehlgeschlagen Dok %s: %s", pk, exc)
+        return JsonResponse({"error": 1})
 
-    if request.method == "GET":
-        # GetFile
-        response = HttpResponse(bytes(dok.inhalt), content_type="application/octet-stream")
-        response["Content-Disposition"] = f'attachment; filename="{dok.dateiname}"'
-        return response
+    with transaction.atomic():
+        DokumentVersion.objects.create(
+            dokument=dok,
+            version_nr=dok.version,
+            inhalt=bytes(dok.inhalt),
+            groesse_bytes=dok.groesse_bytes,
+            erstellt_von=None,
+            kommentar="via OnlyOffice",
+        )
+        dok.inhalt = neuer_inhalt
+        dok.groesse_bytes = len(neuer_inhalt)
+        dok.version += 1
+        dok.save(update_fields=["inhalt", "groesse_bytes", "version"])
+        _protokolliere(dok, ZugriffsProtokoll.AKTION_COLLABORA, None,
+                       notiz=f"OnlyOffice v{dok.version}")
 
-    elif request.method == "POST":
-        # PutFile – Collabora speichert den bearbeiteten Inhalt
-        inhalt = request.body
-        if not inhalt:
-            return JsonResponse({"LastModifiedTime": dok.geaendert_am.strftime("%Y-%m-%dT%H:%M:%SZ")})
+    logger.info("OnlyOffice Callback: Dok %s als Version %s gespeichert", pk, dok.version)
+    return JsonResponse({"error": 0})
 
-        with transaction.atomic():
-            DokumentVersion.objects.create(
-                dokument=dok,
-                version_nr=dok.version,
-                inhalt=bytes(dok.inhalt),
-                groesse_bytes=dok.groesse_bytes,
-                erstellt_von=None,
-                kommentar="Vor Collabora-Speicherung",
-            )
-            dok.inhalt = inhalt
-            dok.groesse_bytes = len(inhalt)
-            dok.version += 1
-            dok.save(update_fields=["inhalt", "groesse_bytes", "version"])
-            # Protokoll mit Dokument-Ersteller als Naehrungswert
-            _protokolliere(
-                dok, ZugriffsProtokoll.AKTION_COLLABORA, dok.erstellt_von,
-                notiz=f"Collabora v{dok.version}",
-            )
 
-        return JsonResponse({
-            "LastModifiedTime": dok.geaendert_am.strftime("%Y-%m-%dT%H:%M:%SZ"),
-        })
+@login_required
+@require_POST
+def onlyoffice_forcesave(request, pk):
+    """Loest einen Force-Save im OnlyOffice Command Service aus.
 
-    return HttpResponse("Method Not Allowed", status=405)
+    Wird vom 'Speichern & zurueck'-Button im Editor aufgerufen.
+    """
+    import urllib.request as urlreq
+
+    dok = get_object_or_404(Dokument, pk=pk)
+    # Interne URL fuer Command Service (nicht durch Cloudflare)
+    oo_url = (
+        getattr(settings, "ONLYOFFICE_INTERNAL_URL", "").rstrip("/")
+        or getattr(settings, "ONLYOFFICE_URL", "").rstrip("/")
+    )
+    if not oo_url:
+        return JsonResponse({"ok": False, "fehler": "OnlyOffice nicht konfiguriert"})
+
+    doc_key = f"vorgangswerk-{dok.pk}-v{dok.version}"
+    payload = json.dumps({"c": "forcesave", "key": doc_key}).encode("utf-8")
+    req = urlreq.Request(
+        f"{oo_url}/coauthoring/CommandService.ashx",
+        data=payload,
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+
+    secret = getattr(settings, "ONLYOFFICE_JWT_SECRET", "")
+    if secret:
+        import jwt as pyjwt
+        token = pyjwt.encode({"c": "forcesave", "key": doc_key}, secret, algorithm="HS256")
+        req.add_header("Authorization", f"Bearer {token}")
+
+    try:
+        with urlreq.urlopen(req, timeout=10) as resp:
+            antwort = json.loads(resp.read())
+        # error 0 = OK, error 4 = kein aktiver Editor (auch OK)
+        if antwort.get("error") in (0, 4):
+            return JsonResponse({"ok": True})
+        return JsonResponse({"ok": False, "fehler": f"OO Fehler {antwort.get('error')}"})
+    except Exception as exc:
+        logger.error("ForceSave fehlgeschlagen Dok %s: %s", pk, exc)
+        return JsonResponse({"ok": False, "fehler": str(exc)})
+
+
+@login_required
+def onlyoffice_version_check(request, pk):
+    """Gibt die aktuelle Versionsnummer des Dokuments zurueck (fuer Polling)."""
+    dok = get_object_or_404(Dokument, pk=pk)
+    return JsonResponse({"version": dok.version})
 
 
 # ---------------------------------------------------------------------------

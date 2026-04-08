@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block title %}Webhook-Log – {{ webhook.name }} – Vorgangswerk{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+  <a href="{% url 'formulare:webhooks' %}" class="btn btn-sm btn-outline-secondary mb-3">&larr; Webhooks</a>
+  <h2 class="mb-1">Log: {{ webhook.name }}</h2>
+  <p class="text-muted small mb-4">{{ webhook.url }}</p>
+
+  {% if zustellungen %}
+  <div class="card shadow-sm">
+    <div class="table-responsive">
+      <table class="table table-sm mb-0">
+        <thead class="table-light">
+          <tr>
+            <th scope="col">Zeitpunkt</th>
+            <th scope="col">Ereignis</th>
+            <th scope="col">Versuche</th>
+            <th scope="col">HTTP</th>
+            <th scope="col">Status</th>
+            <th scope="col"><span class="visually-hidden">Detail</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for z in zustellungen %}
+          <tr>
+            <td class="small">{{ z.erstellt_am|date:"d.m.Y H:i:s" }}</td>
+            <td><code class="small">{{ z.ereignis }}</code></td>
+            <td class="text-center">{{ z.versuche }}</td>
+            <td class="text-center">
+              {% if z.letzter_status_code %}
+                <span class="badge {% if z.letzter_status_code < 300 %}bg-success{% else %}bg-danger{% endif %}">
+                  {{ z.letzter_status_code }}
+                </span>
+              {% else %}—{% endif %}
+            </td>
+            <td>
+              {% if z.zugestellt_am %}
+                <span class="text-success small">&#10003; {{ z.zugestellt_am|date:"H:i:s" }}</span>
+              {% else %}
+                <span class="text-danger small">{{ z.fehler|truncatechars:50 }}</span>
+              {% endif %}
+            </td>
+            <td>
+              <button class="btn btn-xs btn-outline-secondary py-0 px-2"
+                      data-bs-toggle="collapse" data-bs-target="#payload-{{ z.pk }}">
+                Payload
+              </button>
+            </td>
+          </tr>
+          <tr class="collapse" id="payload-{{ z.pk }}">
+            <td colspan="6" class="p-0">
+              <pre class="m-0 p-3 small" style="background:#f8f9fa;font-size:.75rem;overflow-x:auto;" id="pl-{{ z.pk }}">Lädt...</pre>
+              {{ z.payload_json|json_script:forloop.counter }}
+              <script>
+              (function(){
+                var el = document.getElementById("pl-{{ z.pk }}");
+                var d = document.getElementById("{{ forloop.counter }}");
+                if(d) try { el.textContent = JSON.stringify(JSON.parse(d.textContent), null, 2); } catch(e){}
+              })();
+              </script>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% else %}
+  <div class="card shadow-sm">
+    <div class="card-body text-muted text-center py-4">Noch keine Zustellungen.</div>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

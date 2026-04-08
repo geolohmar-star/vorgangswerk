@@ -40,9 +40,21 @@
                 <a href="{% url 'formulare:pfad_auswertung' pfad.pk %}" class="btn btn-outline-primary btn-sm">
                     Auswertung
                 </a>
+                {% if pfad.kuerzel %}
+                <a href="{% url 'korrespondenz:vorlage_generieren' %}?pfad={{ pfad.kuerzel }}"
+                   class="btn btn-outline-success btn-sm">
+                    + Vorlage erstellen
+                </a>
+                {% endif %}
                 <a href="{% url 'formulare:pfad_editor' pfad.pk %}" class="btn btn-outline-secondary btn-sm">
                     Bearbeiten
                 </a>
+                <form method="post" action="{% url 'formulare:pfad_kopieren' pfad.pk %}">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-outline-secondary btn-sm" title="Kopie erstellen">
+                        &#128203; Kopieren
+                    </button>
+                </form>
                 <form method="post" action="{% url 'formulare:pfad_loeschen' pfad.pk %}"
                       data-loeschen-form data-name="{{ pfad.name }}"
                       data-anzahl="{{ pfad.sitzungen.count }}">

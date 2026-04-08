@@ -103,9 +103,9 @@
                        class="btn btn-sm btn-outline-primary" title="Herunterladen">
                       Download
                     </a>
-                    {% if collabora_aktiv and dok.ist_office_dokument %}
-                    <a href="{% url 'dokumente:collabora' dok.pk %}"
-                       class="btn btn-sm btn-outline-success" title="In Collabora bearbeiten">
+                    {% if onlyoffice_aktiv and dok.ist_office_dokument %}
+                    <a href="{% url 'dokumente:onlyoffice' dok.pk %}"
+                       class="btn btn-sm btn-outline-success" title="In OnlyOffice bearbeiten">
                       Bearbeiten
                     </a>
                     {% endif %}

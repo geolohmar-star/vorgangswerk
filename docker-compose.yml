@@ -39,7 +39,11 @@ services:
       DB_USER: vorgangswerk
       DB_PASSWORD: ${DB_PASSWORD:-vorgangswerk}
       ALLOWED_HOSTS: ${ALLOWED_HOSTS:-localhost,127.0.0.1}
-      COLLABORA_URL: ${COLLABORA_URL:-}
+      ONLYOFFICE_URL: ${ONLYOFFICE_URL:-https://office.georg-klein.com}
+      ONLYOFFICE_INTERNAL_URL: ${ONLYOFFICE_INTERNAL_URL:-http://host.docker.internal:8012}
+      ONLYOFFICE_JWT_SECRET: ${ONLYOFFICE_JWT_SECRET:-vorgangswerk-oo-secret}
+      VORGANGSWERK_BASE_URL: ${VORGANGSWERK_BASE_URL:-http://localhost:8100}
+      WOPI_BASE_URL: ${WOPI_BASE_URL:-http://host.docker.internal:8100}
       VERSCHLUESSEL_KEY: ${VERSCHLUESSEL_KEY:-}
       SIGNME_API_KEY: ${SIGNME_API_KEY:-}
       EMAIL_HOST: ${EMAIL_HOST:-}
@@ -49,10 +53,15 @@ services:
       IMAP_HOST: ${IMAP_HOST:-}
       IMAP_USER: ${IMAP_USER:-}
       IMAP_PASSWORD: ${IMAP_PASSWORD:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      STRIPE_PUBLIC_KEY: ${STRIPE_PUBLIC_KEY:-}
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
     ports:
-      - "8000:8000"
+      - "8100:8000"
     volumes:
       - staticfiles:/app/staticfiles
+      - sicherungen:/app/sicherungen
 
   # ---------------------------------------------------------------------------
   # E-Mail-Worker (IMAP-Polling)
@@ -76,20 +85,57 @@ services:
       IMAP_PASSWORD: ${IMAP_PASSWORD:-}
 
   # ---------------------------------------------------------------------------
-  # Collabora Online (optional – auskommentieren wenn nicht benoetigt)
+  # OnlyOffice Document Server
+  # Hinweis: Wird auf diesem Server vom PRIMA-Compose geteilt (Port 8012).
+  # Eigener Container nur bei Bedarf: docker compose --profile onlyoffice up
   # ---------------------------------------------------------------------------
-  # collabora:
-  #   image: collabora/code:latest
-  #   restart: unless-stopped
-  #   environment:
-  #     aliasgroup1: http://web:8000
-  #     DONT_GEN_SSL_CERT: "YES"
-  #     extra_params: --o:ssl.enable=false --o:ssl.termination=true
-  #   ports:
-  #     - "9980:9980"
-  #   cap_add:
-  #     - MKNOD
+  onlyoffice:
+    image: onlyoffice/documentserver:latest
+    restart: unless-stopped
+    profiles:
+      - onlyoffice
+    environment:
+      JWT_ENABLED: "true"
+      JWT_SECRET: ${ONLYOFFICE_JWT_SECRET:-vorgangswerk-oo-secret}
+      JWT_HEADER: Authorization
+    volumes:
+      - onlyoffice_data:/var/www/onlyoffice/Data
+      - onlyoffice_logs:/var/log/onlyoffice
+    ports:
+      - "${ONLYOFFICE_PORT:-8016}:80"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/healthcheck"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+  # ---------------------------------------------------------------------------
+  # Sicherungs-Worker (täglich 02:00 Uhr, wöchentlich Sonntag, monatlich 1.)
+  # ---------------------------------------------------------------------------
+  backup:
+    build: .
+    restart: unless-stopped
+    command: python manage.py backup_worker
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      SECRET_KEY: ${SECRET_KEY:-dev-key-bitte-aendern}
+      DEBUG: ${DEBUG:-False}
+      DB_HOST: db
+      DB_NAME: vorgangswerk
+      DB_USER: vorgangswerk
+      DB_PASSWORD: ${DB_PASSWORD:-vorgangswerk}
+      VERSCHLUESSEL_KEY: ${VERSCHLUESSEL_KEY:-}
+      SICHERUNGS_DIR: /app/sicherungen
+    volumes:
+      - sicherungen:/app/sicherungen
+
 
 volumes:
   pgdata:
   staticfiles:
+  sicherungen:
+  onlyoffice_data:
+  onlyoffice_logs:

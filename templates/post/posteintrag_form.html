@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block title %}{% if neu %}Neuer Posteintrag{% else %}Posteintrag bearbeiten{% endif %} – Vorgangswerk{% endblock %}
+
+{% block content %}
+<div class="container py-4" style="max-width:680px">
+
+  <nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb">
+      <li class="breadcrumb-item"><a href="{% url 'post:liste' %}">Postbuch</a></li>
+      <li class="breadcrumb-item active">{% if neu %}Neuer Eintrag{% else %}Bearbeiten{% endif %}</li>
+    </ol>
+  </nav>
+
+  <div class="card">
+    <div class="card-header">
+      <strong>{% if neu %}Neuer Posteintrag{% else %}Posteintrag {{ eintrag.lfd_nr }} bearbeiten{% endif %}</strong>
+    </div>
+    <div class="card-body">
+      <form method="post">
+        {% csrf_token %}
+
+        <div class="row g-3 mb-3">
+          <div class="col-sm-4">
+            <label class="form-label">Datum</label>
+            {{ form.datum }}
+          </div>
+          <div class="col-sm-4">
+            <label class="form-label">Richtung</label>
+            {{ form.richtung }}
+          </div>
+          <div class="col-sm-4">
+            <label class="form-label">Typ</label>
+            {{ form.typ }}
+          </div>
+        </div>
+
+        <div class="mb-3">
+          <label class="form-label">Absender / Empfaenger</label>
+          {{ form.absender_empfaenger }}
+        </div>
+
+        <div class="mb-3">
+          <label class="form-label">Betreff</label>
+          {{ form.betreff }}
+        </div>
+
+        <div class="mb-3">
+          <label class="form-label">Vorgangsbezug / Aktenzeichen <small class="text-muted">(optional)</small></label>
+          {{ form.vorgang_bezug }}
+        </div>
+
+        <div class="mb-3">
+          <label class="form-label">Dokument verknuepfen <small class="text-muted">(optional)</small></label>
+          {{ form.dokument }}
+        </div>
+
+        <div class="mb-3">
+          <label class="form-label">Interne Notiz <small class="text-muted">(optional)</small></label>
+          {{ form.notiz }}
+        </div>
+
+        {% if form.errors %}
+        <div class="alert alert-danger">{{ form.errors }}</div>
+        {% endif %}
+
+        <div class="d-flex gap-2">
+          <button type="submit" class="btn btn-primary">Speichern</button>
+          <a href="{% url 'post:liste' %}" class="btn btn-outline-secondary">Abbrechen</a>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

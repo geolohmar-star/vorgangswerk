@@ -1,0 +1,19 @@
+{% extends "portal/base.html" %}
+{% block title %}Zahlung erfolgreich – Vorgangswerk Portal{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-6 text-center py-5">
+        <div style="font-size:4rem; color:#198754;">&#10003;</div>
+        <h4 class="mb-2">Zahlung erfolgreich!</h4>
+        <p class="text-muted mb-4">
+            Deine Credits werden in Kürze gutgeschrieben (üblicherweise innerhalb weniger Sekunden).
+        </p>
+        {% if paket %}
+        <p><strong>{{ credits }} Credits</strong> (Paket: {{ paket.name }})</p>
+        {% endif %}
+        <a href="{% url 'portal:upload' %}" class="btn btn-primary me-2">Formular analysieren</a>
+        <a href="{% url 'portal:dashboard' %}" class="btn btn-outline-secondary">Dashboard</a>
+    </div>
+</div>
+{% endblock %}

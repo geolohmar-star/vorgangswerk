@@ -1,0 +1,1263 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Pfad-Editor – Vorgangswerk{% endblock %}
+
+{% block extra_css %}
+<style>
+/* Editor braucht feste Hoehe – kein Seitenscroll */
+html, body { overflow: hidden; height: 100%; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-column" style="height:calc(100vh - 60px); overflow:hidden;">
+
+    <!-- Toolbar -->
+    <div class="bg-white border-bottom px-3 py-2 d-flex align-items-center gap-2 flex-shrink-0">
+        <a href="{% url 'formulare:liste' %}" class="btn btn-sm btn-outline-secondary">&#8592; Zurück</a>
+        <input type="text" id="pfad-name" class="form-control form-control-sm" style="max-width:260px;"
+               placeholder="Pfad-Name *" value="{% if pfad %}{{ pfad.name }}{% endif %}">
+        <input type="text" id="pfad-beschreibung" class="form-control form-control-sm" style="max-width:280px;"
+               placeholder="Beschreibung (optional)" value="{% if pfad %}{{ pfad.beschreibung }}{% endif %}">
+        <div class="input-group input-group-sm" style="max-width:130px;" title="Kürzel für Vorgangsnummern, z.B. HUN">
+            <span class="input-group-text">Kürzel</span>
+            <input type="text" id="pfad-kuerzel" class="form-control"
+                   style="text-transform:uppercase;" maxlength="6"
+                   placeholder="ANT" value="{% if pfad %}{{ pfad.kuerzel }}{% endif %}">
+        </div>
+        <div class="form-check form-switch ms-1 mb-0">
+            <input class="form-check-input" type="checkbox" id="pfad-aktiv"
+                   {% if not pfad or pfad.aktiv %}checked{% endif %}>
+            <label class="form-check-label small" for="pfad-aktiv">Aktiv</label>
+        </div>
+        <div class="form-check form-switch ms-1 mb-0">
+            <input class="form-check-input" type="checkbox" id="pfad-oeffentlich"
+                   {% if pfad and pfad.oeffentlich %}checked{% endif %}>
+            <label class="form-check-label small" for="pfad-oeffentlich">Öffentlich</label>
+        </div>
+        {% if workflow_templates %}
+        <div class="input-group input-group-sm" style="max-width:220px;" title="Workflow der automatisch startet wenn dieser Antrag abgeschlossen wird">
+            <span class="input-group-text" style="white-space:nowrap;">&#9654; Workflow</span>
+            <select id="pfad-workflow-template" class="form-select form-select-sm">
+                <option value="">— kein Workflow —</option>
+                {% for wt in workflow_templates %}
+                <option value="{{ wt.pk }}" {% if pfad and pfad.workflow_template_id == wt.pk %}selected{% endif %}>{{ wt.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        {% endif %}
+        <div class="input-group input-group-sm" style="max-width:230px;"
+             title="E-Mail-Adresse die bei jedem neuen Antrag benachrichtigt wird, z.B. hundesteuer@gemeinde.de">
+            <span class="input-group-text" style="white-space:nowrap;">&#9993; Postfach</span>
+            <input type="email" id="pfad-benachrichtigung-email" class="form-control form-control-sm"
+                   placeholder="sachgebiet@gemeinde.de"
+                   value="{% if pfad %}{{ pfad.benachrichtigung_email }}{% endif %}">
+        </div>
+        <div class="input-group input-group-sm position-relative" style="max-width:260px;"
+             title="LeiKa-Leistungsschlüssel (14-stellig) – Leistungsname tippen für Vorschläge">
+            <a href="https://fimportal.de/search" target="_blank" rel="noopener"
+               class="input-group-text text-decoration-none" style="white-space:nowrap;"
+               title="FIM-Portal – LeiKa-Leistungen suchen">LeiKa &#8599;</a>
+            <input type="text" id="pfad-leika-schluessel" class="form-control form-control-sm font-monospace"
+                   placeholder="Name oder Schlüssel…" maxlength="100"
+                   autocomplete="off"
+                   value="{% if pfad %}{{ pfad.leika_schluessel }}{% endif %}">
+            <ul id="leika-dropdown" class="list-group shadow position-absolute w-100"
+                style="top:100%;z-index:1060;display:none;max-height:260px;overflow-y:auto;min-width:320px;left:0;"></ul>
+        </div>
+        {% if pfad and pfad.kuerzel %}
+        <button id="btn-qrcode" class="btn btn-sm btn-outline-success" title="Öffentliche URL anzeigen">
+            &#9641; URL
+        </button>
+        {% endif %}
+        <div class="ms-auto d-flex gap-2">
+            {% if user.is_staff %}
+            <button id="btn-pdf-scanner" class="btn btn-sm btn-outline-secondary"
+                    title="AcroForm-Felder aus einer PDF-Datei als Pfad importieren">
+                &#128196; PDF scannen
+            </button>
+            <button id="btn-quiz-import" class="btn btn-sm btn-outline-primary"
+                    title="Quizfragen importieren (KI, CSV, Demo)">
+                &#129504; Quiz importieren
+            </button>
+            {% endif %}
+            {% if pfad %}
+            <a id="btn-blockansicht" href="{% url 'formulare:pfad_blockansicht' pfad.pk %}"
+               class="btn btn-sm btn-outline-primary" target="_blank">&#9707; Blockansicht</a>
+            {% endif %}
+            {% if pfad %}
+            <button id="btn-versionen" class="btn btn-sm btn-outline-secondary"
+                    title="Versionshistorie">&#128336; Versionen</button>
+            {% endif %}
+            <button id="btn-variablen" class="btn btn-sm btn-outline-warning"
+                    data-bs-toggle="modal" data-bs-target="#variablen-modal"
+                    title="Pfad-weite Variablen / Berechnungsgrundlagen">
+                &#402; Variablen
+            </button>
+            <button id="btn-speichern" class="btn btn-sm btn-success">Speichern</button>
+            <span id="speicher-status" class="text-muted small align-self-center"></span>
+        </div>
+    </div>
+
+    <!-- Modus-Leiste -->
+    <div class="bg-light border-bottom px-3 py-1 d-flex align-items-center gap-3 flex-shrink-0">
+        <small class="text-muted fw-semibold">Modus:</small>
+        <div class="btn-group btn-group-sm">
+            <button class="btn btn-outline-secondary active" id="btn-modus-normal" data-modus="normal">
+                &#128161; Normal
+            </button>
+            <button class="btn btn-outline-primary" id="btn-modus-schritt" data-modus="schritt">
+                + Schritt
+            </button>
+            <button class="btn btn-outline-success" id="btn-modus-verbinden" data-modus="verbinden">
+                &#8594; Verbinden
+            </button>
+            <button class="btn btn-outline-danger" id="btn-modus-loeschen" data-modus="loeschen">
+                &#10005; Löschen
+            </button>
+        </div>
+        <small class="text-muted" id="modus-hinweis">Klicke auf einen Knoten zum Bearbeiten</small>
+        <div class="ms-auto d-flex align-items-center gap-2">
+            <small class="text-muted">Pfeile:</small>
+            <div class="btn-group btn-group-sm">
+                <button class="btn btn-outline-secondary" id="btn-pfeil-kurve"
+                        data-pfeil="kurve" title="Gebogen">&#8767;</button>
+                <button class="btn btn-outline-secondary active" id="btn-pfeil-gerade"
+                        data-pfeil="gerade" title="Gerade">&#8212;</button>
+                <button class="btn btn-outline-secondary" id="btn-pfeil-winkel"
+                        data-pfeil="winkel" title="Winkelig">&#8735;</button>
+            </div>
+        </div>
+        <small class="text-muted">
+            <span class="badge bg-success">S</span> Start &nbsp;
+            <span class="badge bg-danger">E</span> Ende &nbsp;
+            <span class="badge bg-primary">&#9679;</span> Schritt &nbsp;
+            Kante = Bedingung
+        </small>
+    </div>
+
+    <!-- Canvas -->
+    <div class="flex-grow-1 position-relative">
+        <div id="antraege-canvas" style="width:100%;height:100%;background:#f8f9fa;"></div>
+        <div id="canvas-hinweis"
+             class="position-absolute top-50 start-50 translate-middle text-center text-muted"
+             style="pointer-events:none;">
+            <div style="font-size:3rem;">&#9741;</div>
+            <div>Modus <strong>+ Schritt</strong> wählen, dann auf die Fläche klicken</div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Schritt bearbeiten -->
+<div class="modal fade" id="schritt-modal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="schritt-modal-titel">Schritt bearbeiten</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row g-3 mb-3">
+                    <div class="col-8">
+                        <label class="form-label fw-semibold">Titel <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="schritt-titel"
+                               placeholder="z.B. Persönliche Daten">
+                    </div>
+                    <div class="col-4">
+                        <label class="form-label fw-semibold">Typ</label>
+                        <div class="d-flex flex-column gap-1 mt-1">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="schritt-ist-start">
+                                <label class="form-check-label" for="schritt-ist-start">Start-Knoten</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="schritt-ist-ende">
+                                <label class="form-check-label" for="schritt-ist-ende">End-Knoten</label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <hr>
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <div class="btn-group btn-group-sm" id="schritt-tab-gruppe">
+                        <button type="button" class="btn btn-outline-secondary active" id="tab-btn-felder">
+                            Felder
+                        </button>
+                        <button type="button" class="btn btn-outline-secondary" id="tab-btn-test">
+                            &#9654; Eingabe testen
+                        </button>
+                    </div>
+                    <div class="d-flex gap-2" id="felder-toolbar">
+                        <div class="dropdown">
+                            <button type="button" class="btn btn-sm btn-outline-success dropdown-toggle"
+                                    data-bs-toggle="dropdown"
+                                    title="Vorgefertigte Feldgruppen einfügen">
+                                &#9670; Bausteine
+                            </button>
+                            <ul class="dropdown-menu dropdown-menu-end">
+                                <li><h6 class="dropdown-header">Häufige Blöcke</h6></li>
+                                <li><button class="dropdown-item" data-baustein="personalien">Personalien (Name, Geb.-Datum, Ort)</button></li>
+                                <li><button class="dropdown-item" data-baustein="adresse">Anschrift (Straße, PLZ, Ort)</button></li>
+                                <li><button class="dropdown-item" data-baustein="kontakt">Kontaktdaten (Telefon, E-Mail)</button></li>
+                                <li><hr class="dropdown-divider"></li>
+                                <li><button class="dropdown-item fw-semibold" data-baustein="antragsteller">Antragsteller komplett</button></li>
+                            </ul>
+                        </div>
+                        <button type="button" class="btn btn-sm btn-outline-primary"
+                                id="btn-feld-hinzufuegen-schritt">
+                            + Feld hinzufügen
+                        </button>
+                    </div>
+                </div>
+
+                <div id="schritt-felder-liste" class="mb-3">
+                    <p class="text-muted small" id="felder-leer-hinweis">
+                        Noch keine Felder. Klicke "+ Feld hinzufügen".
+                    </p>
+                </div>
+
+                <div id="schritt-test-panel" class="mb-3 border rounded p-3 bg-white"
+                     style="display:none;"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Abbrechen</button>
+                <button type="button" class="btn btn-outline-secondary" id="btn-schritt-duplizieren"
+                        style="display:none;" title="Erstellt eine Kopie dieses Schritts">
+                    &#10065; Duplizieren
+                </button>
+                <button type="button" class="btn btn-outline-warning" id="btn-schritt-teilen"
+                        style="display:none;" title="Ausgewählte Felder in neuen Schritt auslagern">
+                    &#9993; Schritt teilen
+                </button>
+                <button type="button" class="btn btn-primary" id="btn-schritt-speichern">Speichern</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Feld hinzufügen / bearbeiten -->
+<div class="modal fade" id="feld-modal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="feld-modal-titel">Feld bearbeiten</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <!-- FIM-Schnellsuche -->
+                <div class="mb-3 pb-3 border-bottom">
+                    <label class="form-label fw-semibold d-flex align-items-center gap-2">
+                        <span>FIM-Standardfeld</span>
+                        <span class="badge bg-primary" style="font-weight:400;font-size:.7rem;">fimportal.de</span>
+                    </label>
+                    <div class="position-relative">
+                        <input type="text" class="form-control form-control-sm" id="fim-suche"
+                               placeholder="Suchen… z.B. Vorname, Adresse, IBAN"
+                               autocomplete="off">
+                        <div id="fim-vorschlaege"
+                             class="position-absolute w-100 bg-white border rounded shadow-sm"
+                             style="z-index:9999;display:none;max-height:220px;overflow-y:auto;top:100%;left:0;">
+                        </div>
+                    </div>
+                    <small class="text-muted">
+                        Feld aus Standard-Katalog wählen → Label, Typ und FIM-ID werden automatisch gesetzt.
+                    </small>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label fw-semibold">Typ</label>
+                    <select class="form-select" id="feld-typ">
+                        <optgroup label="Texteingabe">
+                            <option value="text">Text (einzeilig)</option>
+                            <option value="mehrzeil">Text (mehrzeilig)</option>
+                            <option value="email">E-Mail (validiert)</option>
+                            <option value="iban">IBAN (validiert)</option>
+                            <option value="bic">BIC / SWIFT (validiert)</option>
+                            <option value="telefon">Telefonnummer (validiert)</option>
+                            <option value="plz">Postleitzahl (5 Ziffern)</option>
+                            <option value="kfz">KFZ-Kennzeichen</option>
+                            <option value="steuernummer">Steuernummer</option>
+                        </optgroup>
+                        <optgroup label="Zahlen &amp; Datum">
+                            <option value="zahl">Zahl</option>
+                            <option value="datum">Datum</option>
+                            <option value="uhrzeit">Uhrzeit</option>
+                        </optgroup>
+                        <optgroup label="Auswahl">
+                            <option value="bool">Ja/Nein (Checkbox)</option>
+                            <option value="auswahl">Auswahl (Dropdown)</option>
+                            <option value="radio">Multiple Choice</option>
+                            <option value="checkboxen">Kontrollkästchen (Mehrfach)</option>
+                            <option value="bankverbindung">Bankverbindung (aus Firmendaten)</option>
+                        </optgroup>
+                        <optgroup label="Datei &amp; Signatur">
+                            <option value="datei">Datei-Upload</option>
+                            <option value="signatur">Unterschrift (Signatur-Pad)</option>
+                        </optgroup>
+                        <optgroup label="Wiederholung">
+                            <option value="gruppe">Wiederholungsgruppe (1+n Einträge)</option>
+                        </optgroup>
+                        <optgroup label="Berechnung &amp; Anzeige">
+                            <option value="berechnung">Berechnungsfeld (Formel)</option>
+                            <option value="systemfeld">Systemfeld (Loop-Zähler, Datum …)</option>
+                            <option value="zusammenfassung">Zusammenfassung aller Angaben</option>
+                        </optgroup>
+                        <optgroup label="Aktionen">
+                            <option value="pdf_email">PDF per E-Mail versenden</option>
+                        </optgroup>
+                        <optgroup label="Struktur &amp; Navigation">
+                            <option value="textblock">Fließtext / Hinweis</option>
+                            <option value="link">Link / Dokument-Verweis</option>
+                            <option value="abschnitt">Abschnitts-Überschrift</option>
+                            <option value="trennlinie">Trennlinie</option>
+                            <option value="leerblock">Leerblock (Abstand)</option>
+                            <option value="einwilligung">Einwilligungs-Checkbox (DSGVO)</option>
+                        </optgroup>
+                        <optgroup label="&#128203; Quiz &amp; Prüfbögen">
+                            <option value="quizfrage">Quizfrage (Single / Multiple / Wahr–Falsch)</option>
+                            <option value="quizhinweis">Quiz-Hinweis (Infotext zwischen Fragen)</option>
+                            <option value="quizergebnis">Quizergebnis (Auswertung, letzter Schritt)</option>
+                        </optgroup>
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label fw-semibold">Bezeichnung <span class="text-danger">*</span></label>
+                    <input type="text" class="form-control" id="feld-label" placeholder="z.B. Vorname">
+                    <small class="text-muted d-flex align-items-center gap-2 flex-wrap">
+                        <span>Feld-ID: <code id="feld-id-vorschau"></code></span>
+                        <span id="fim-id-anzeige" style="display:none;">
+                            &nbsp;|&nbsp; FIM: <code id="fim-id-vorschau" class="text-primary"></code>
+                            <a id="fim-id-link" href="https://fimportal.de/" target="_blank"
+                               class="ms-1 text-muted" style="font-size:.75rem;" title="Im FIM-Portal prüfen">↗</a>
+                        </span>
+                    </small>
+                    <input type="hidden" id="feld-fim-id">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label fw-semibold">Hilfetext</label>
+                    <input type="text" class="form-control" id="feld-hilfetext"
+                           placeholder="Optionaler Platzhaltertext">
+                </div>
+
+                <!-- Regex-Validierung -->
+                <div class="mb-3" id="regex-row" style="display:none;">
+                    <label class="form-label fw-semibold">Validierung (Regex)</label>
+                    <div class="input-group">
+                        <input type="text" class="form-control font-monospace" id="feld-regex"
+                               placeholder="z.B. [A-Z]{2}[0-9]{4}">
+                        <button type="button" class="btn btn-outline-secondary" id="btn-regex-testen">
+                            Testen
+                        </button>
+                    </div>
+                    <div class="form-text">Leer = keine Prüfung.</div>
+                    <div class="card bg-light border-0 mt-2 p-3" id="regex-tester-box" style="display:none;">
+                        <div class="fw-semibold small mb-2" style="color:#1a4d2e;">Live-Test</div>
+                        <input type="text" class="form-control form-control-sm font-monospace mb-2"
+                               id="regex-testtext" placeholder="Beispielwert hier eingeben…">
+                        <div id="regex-test-ergebnis" class="small" style="min-height:1.2rem;"></div>
+                    </div>
+                    <div class="card bg-light border-0 mt-2 p-3">
+                        <div class="fw-semibold small mb-2" style="color:#1a4d2e;">Muster aus Beispielen ableiten</div>
+                        <textarea id="regex-beispiele" class="form-control form-control-sm font-monospace mb-2"
+                                  rows="3"
+                                  placeholder="Gültige Beispielwerte eingeben, einer pro Zeile:&#10;HH-AB 1234&#10;B-XY 999"></textarea>
+                        <button type="button" class="btn btn-sm btn-outline-secondary" id="btn-regex-ableiten">
+                            Muster ableiten
+                        </button>
+                        <div id="regex-ableiten-ergebnis" class="mt-2 small font-monospace"
+                             style="display:none;"></div>
+                    </div>
+                </div>
+
+                <div class="mb-3" id="bankverbindung-row" style="display:none;">
+                    <div class="alert alert-info py-2 small mb-0">
+                        <strong>Bankverbindung:</strong> Das Dropdown wird automatisch mit den konfigurierten
+                        Bankverbindungen aus den Firmendaten befüllt. Nach Auswahl sind die Variablen
+                        <code>{{FELD_ID}}_iban</code>, <code>{{FELD_ID}}_bic</code>,
+                        <code>{{FELD_ID}}_bank</code>, <code>{{FELD_ID}}_kontoinhaber</code>
+                        in Fließtextfeldern verfügbar.
+                    </div>
+                </div>
+
+                <div class="mb-3" id="optionen-row" style="display:none;">
+                    <label class="form-label fw-semibold">Optionen</label>
+                    <div id="optionen-liste" class="mb-2" style="min-height:36px;"></div>
+                    <button type="button" class="btn btn-sm btn-outline-primary" id="btn-option-hinzu">
+                        + Option hinzufügen
+                    </button>
+                </div>
+
+                <div class="mb-3" id="link-row" style="display:none;">
+                    <div class="mb-2">
+                        <label class="form-label fw-semibold">URL / Pfad <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="feld-link-url"
+                               placeholder="z.B. /static/docs/merkblatt.pdf oder https://...">
+                    </div>
+                    <div>
+                        <label class="form-label fw-semibold">Öffnen in</label>
+                        <select class="form-select form-select-sm" id="feld-link-ziel" style="max-width:220px;">
+                            <option value="_blank">Neuem Tab</option>
+                            <option value="_self">Gleichem Fenster</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="mb-3" id="formel-row" style="display:none;">
+                    <label class="form-label fw-semibold">Formel *</label>
+                    <div class="mb-2 p-2 bg-light border rounded" id="formel-variablen-bereich">
+                        <small class="text-muted fw-semibold d-block mb-1">Variablen (klicken zum Einfügen):</small>
+                        <span id="formel-variablen-buttons">
+                            <em class="text-muted small">Noch keine Variablen definiert.</em>
+                        </span>
+                    </div>
+                    <input type="text" class="form-control font-monospace" id="feld-formel"
+                           placeholder="z.B. {{anzahl}} * {{preis}}">
+                    <small class="text-muted">Referenziert Feld-IDs mit <code>{{name}}</code>. Operatoren: + - * /</small>
+                </div>
+
+                <div class="mb-3" id="einheit-row" style="display:none;">
+                    <label class="form-label fw-semibold">Einheit (optional)</label>
+                    <input type="text" class="form-control" id="feld-einheit" placeholder="z.B. Euro, kg">
+                </div>
+
+                <div class="mb-3" id="systemfeld-row" style="display:none;">
+                    <label class="form-label fw-semibold">Systemwert</label>
+                    <select class="form-select" id="feld-systemwert">
+                        <optgroup label="Loop">
+                            <option value="loop_zaehler">Loop-Zähler (1, 2, 3 …)</option>
+                            <option value="loop_durchlauf">Loop-Durchläufe abgeschlossen</option>
+                        </optgroup>
+                        <optgroup label="Datum &amp; Zeit">
+                            <option value="heute">Heutiges Datum</option>
+                        </optgroup>
+                    </select>
+                </div>
+
+                <div class="mb-3" id="systemfeld-einheit-row" style="display:none;">
+                    <label class="form-label fw-semibold">Einheit (optional)</label>
+                    <input type="text" class="form-control" id="feld-systemfeld-einheit" placeholder="z.B. Tage">
+                </div>
+
+                <div class="mb-3" id="akzeptieren-row" style="display:none;">
+                    <label class="form-label fw-semibold">Erlaubte Dateitypen (optional)</label>
+                    <input type="text" class="form-control" id="feld-akzeptieren"
+                           placeholder=".pdf,.docx oder image/* oder leer = alle">
+                    <small class="text-muted">HTML-<code>accept</code>-Attribut</small>
+                </div>
+
+                <!-- PDF-E-Mail-Konfiguration -->
+                <div id="pdf-email-row" style="display:none;">
+                    <div class="alert alert-info p-2 mb-3" style="font-size:0.82rem;">
+                        Der Antragsteller sieht diesen Schritt als Bestätigungsabfrage.
+                        Bei <strong>Ja</strong> wird das fertige PDF nach Abschluss per E-Mail versandt.
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Feste Empfänger (kommagetrennt)</label>
+                        <input type="text" class="form-control" id="feld-email-empfaenger-fest"
+                               placeholder="sachbearbeiter@behoerde.de">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Empfänger aus Formularfeld (optional)</label>
+                        <input type="text" class="form-control font-monospace" id="feld-email-empfaenger-feld"
+                               placeholder="{{email}}">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Betreff</label>
+                        <input type="text" class="form-control" id="feld-email-betreff"
+                               placeholder="Ihr Antrag – {{kuerzel}}">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Nachrichtentext</label>
+                        <textarea class="form-control" id="feld-email-nachricht" rows="3"
+                                  placeholder="Anbei finden Sie Ihren Antrag als PDF."></textarea>
+                    </div>
+                </div>
+
+                <div class="mb-3" id="textblock-row" style="display:none;">
+                    <label class="form-label fw-semibold">Text / Hinweis *</label>
+                    <div class="mb-2 p-2 bg-light border rounded">
+                        <small class="text-muted fw-semibold d-block mb-1">System-Variablen:</small>
+                        <button type="button" class="btn btn-sm btn-outline-success me-1 mb-1"
+                                data-action="insert-textblock-system" data-var="kuerzel">
+                            Kürzel <code class="small">&#123;&#123;kuerzel&#125;&#125;</code>
+                        </button>
+                        <span id="textblock-variablen-buttons"></span>
+                        <span id="textblock-bank-variablen-buttons"></span>
+                    </div>
+                    <textarea class="form-control" id="feld-textblock-inhalt" rows="4"
+                              placeholder="Text mit optionalen Variablen: {{feld_id}}"></textarea>
+                </div>
+
+                <!-- Einwilligungs-Checkbox (DSGVO) -->
+                <div id="einwilligung-row" style="display:none;">
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Einwilligungstext <span class="text-danger">*</span></label>
+                        <textarea class="form-control" id="feld-einwilligung-text" rows="3"
+                                  placeholder="Ich stimme der Verarbeitung meiner Daten gemäß Art. 6 Abs. 1 lit. a DSGVO zu."></textarea>
+                    </div>
+                    <div class="row g-2 mb-2">
+                        <div class="col-6">
+                            <label class="form-label fw-semibold small">Link-Text (optional)</label>
+                            <input type="text" class="form-control form-control-sm"
+                                   id="feld-einwilligung-link-text" placeholder="Datenschutzhinweise">
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label fw-semibold small">Link-URL (optional)</label>
+                            <input type="text" class="form-control form-control-sm"
+                                   id="feld-einwilligung-link-url" placeholder="/datenschutz/">
+                        </div>
+                    </div>
+                </div>
+
+                <div id="abschnitt-row" style="display:none;">
+                    <div class="row mb-2">
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold">Grösse</label>
+                            <select class="form-select form-select-sm" id="feld-abschnitt-groesse">
+                                <option value="klein">Klein</option>
+                                <option value="mittel" selected>Mittel</option>
+                                <option value="gross">Groß</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold">Ausrichtung</label>
+                            <select class="form-select form-select-sm" id="feld-abschnitt-ausrichtung">
+                                <option value="links" selected>Links</option>
+                                <option value="mitte">Mitte</option>
+                                <option value="rechts">Rechts</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold">Stil</label>
+                            <select class="form-select form-select-sm" id="feld-abschnitt-stil">
+                                <option value="normal" selected>Normal</option>
+                                <option value="fett">Fett</option>
+                                <option value="kursiv">Kursiv</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Quiz-Feldtypen -->
+                <div class="mb-3" id="quizhinweis-row" style="display:none;">
+                    <label class="form-label fw-semibold">Hinweistext <span class="text-danger">*</span></label>
+                    <textarea class="form-control" id="feld-quizhinweis-text" rows="2"
+                              placeholder="z.B.: Im nächsten Abschnitt werden Fragen zum Brandschutz gestellt."></textarea>
+                </div>
+
+                <div id="quizfrage-row" style="display:none;">
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Antworttyp</label>
+                        <select class="form-select form-select-sm" id="quiz-antwort-typ" style="max-width:280px;">
+                            <option value="single">Einfachauswahl (Radio)</option>
+                            <option value="multiple">Mehrfachauswahl (Checkboxen)</option>
+                            <option value="wahr_falsch">Wahr / Falsch</option>
+                        </select>
+                    </div>
+                    <div class="row g-2 mb-3">
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold">Punkte</label>
+                            <input type="number" class="form-control form-control-sm" id="quiz-punkte" min="0" step="0.5" value="1">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold">Fehlerpunkte <small class="text-muted">(Führerschein)</small></label>
+                            <input type="number" class="form-control form-control-sm" id="quiz-fehlerpunkte" min="0" step="0.5" placeholder="= Punkte">
+                        </div>
+                        <div class="col-md-4 d-flex align-items-end pb-1">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="quiz-pflicht-korrekt">
+                                <label class="form-check-label small" for="quiz-pflicht-korrekt">Pflicht korrekt<br><span class="text-muted" style="font-size:0.72rem;">(sofort nicht bestanden)</span></label>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="quiz-teilpunkte">
+                            <label class="form-check-label small" for="quiz-teilpunkte">Teilpunkte bei Mehrfachauswahl</label>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Erklärung (optional)</label>
+                        <input type="text" class="form-control" id="quiz-erklaerung" placeholder="z.B.: Gemäß DGUV Regel 113-001 gilt…">
+                    </div>
+                    <div class="mb-2 d-flex justify-content-between align-items-center">
+                        <label class="form-label fw-semibold mb-0">Antworten</label>
+                        <button type="button" class="btn btn-sm btn-outline-primary" id="btn-quiz-antwort-hinzu">+ Antwort</button>
+                    </div>
+                    <div id="quiz-antworten-liste" class="border rounded p-2 bg-light mb-2" style="min-height:50px; max-height:260px; overflow-y:auto;">
+                        <p class="text-muted small mb-0" id="quiz-antworten-leer">Noch keine Antworten.</p>
+                    </div>
+                    <small class="text-muted">Haken = Richtige Antwort. Bei Wahr/Falsch werden Antworten automatisch gesetzt.</small>
+                </div>
+
+                <div id="quizergebnis-row" style="display:none;">
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Bewertungsmodell</label>
+                        <select class="form-select" id="quiz-bewertungsmodell">
+                            <option value="prozent">Prozent (Schwellenwert)</option>
+                            <option value="noten">Schulnoten 1–6</option>
+                            <option value="punkte">Absolute Punktzahl</option>
+                            <option value="fuehrerschein">Führerschein (max. Fehlerpunkte)</option>
+                        </select>
+                    </div>
+                    <div class="mb-3" id="qe-bestanden-ab-row">
+                        <label class="form-label fw-semibold" id="qe-bestanden-ab-label">Bestanden ab (%)</label>
+                        <input type="number" class="form-control" id="quiz-bestanden-ab" min="0" step="1" value="50">
+                    </div>
+                    <div class="mb-3" id="qe-max-fehlerpunkte-row" style="display:none;">
+                        <label class="form-label fw-semibold">Max. Fehlerpunkte</label>
+                        <input type="number" class="form-control" id="quiz-max-fehlerpunkte" min="0" step="0.5" value="10">
+                    </div>
+                    <div class="mb-3" id="qe-noten-row" style="display:none;">
+                        <label class="form-label fw-semibold">Notengrenzen (%)</label>
+                        <div class="row g-2">
+                            <div class="col"><label class="form-label small">Note 1</label><input type="number" class="form-control form-control-sm" id="qe-note-1" value="90"></div>
+                            <div class="col"><label class="form-label small">Note 2</label><input type="number" class="form-control form-control-sm" id="qe-note-2" value="76"></div>
+                            <div class="col"><label class="form-label small">Note 3</label><input type="number" class="form-control form-control-sm" id="qe-note-3" value="63"></div>
+                            <div class="col"><label class="form-label small">Note 4</label><input type="number" class="form-control form-control-sm" id="qe-note-4" value="50"></div>
+                            <div class="col"><label class="form-label small">Note 5</label><input type="number" class="form-control form-control-sm" id="qe-note-5" value="30"></div>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="quiz-ergebnis-teilpunkte">
+                            <label class="form-check-label small" for="quiz-ergebnis-teilpunkte">Teilpunkte bei Mehrfachauswahl (global)</label>
+                        </div>
+                    </div>
+                    <hr class="my-2">
+                    <div class="mb-3">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="quiz-zertifikat">
+                            <label class="form-check-label fw-semibold" for="quiz-zertifikat">Zertifikat bei Bestehen erzeugen (PDF)</label>
+                        </div>
+                    </div>
+                    <div id="qe-zertifikat-details" style="display:none;">
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">Zertifikatstitel (optional)</label>
+                            <input type="text" class="form-control" id="quiz-zertifikat-titel" placeholder="z.B. Sicherheitseinweisung Chemielager 2026">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">Gültigkeit (Monate, 0 = unbegrenzt)</label>
+                            <input type="number" class="form-control" id="quiz-zertifikat-monate" min="0" step="1" value="12">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Gruppe: Unterfelder -->
+                <div id="gruppe-row" style="display:none;">
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Bezeichnung eines Eintrags <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="feld-singular"
+                               placeholder="z.B. Person, Kind">
+                        <small class="text-muted">Erscheint als Button-Text: „+ Person hinzufügen"</small>
+                    </div>
+                    <div class="mb-2 d-flex justify-content-between align-items-center">
+                        <label class="form-label fw-semibold mb-0">Unterfelder</label>
+                        <button type="button" class="btn btn-sm btn-outline-primary" id="btn-unterfeld-hinzu">
+                            + Unterfeld
+                        </button>
+                    </div>
+                    <div id="gruppe-unterfelder-liste" class="border rounded p-2 bg-light mb-2"
+                         style="min-height:60px;">
+                        <p class="text-muted small mb-0" id="gruppe-unterfelder-leer">Noch keine Unterfelder.</p>
+                    </div>
+                </div>
+
+                <!-- Breite-Auswahl -->
+                <div class="mb-3" id="breite-row">
+                    <label class="form-label fw-semibold">Breite</label>
+                    <div class="btn-group w-100" role="group">
+                        <input type="radio" class="btn-check" name="feld-breite" id="breite-25" value="25">
+                        <label class="btn btn-sm btn-outline-secondary" for="breite-25">
+                            <span style="display:block;height:5px;background:currentColor;border-radius:2px;width:25%;margin-bottom:3px;"></span>¼
+                        </label>
+                        <input type="radio" class="btn-check" name="feld-breite" id="breite-50" value="50">
+                        <label class="btn btn-sm btn-outline-secondary" for="breite-50">
+                            <span style="display:block;height:5px;background:currentColor;border-radius:2px;width:50%;margin-bottom:3px;"></span>½
+                        </label>
+                        <input type="radio" class="btn-check" name="feld-breite" id="breite-75" value="75">
+                        <label class="btn btn-sm btn-outline-secondary" for="breite-75">
+                            <span style="display:block;height:5px;background:currentColor;border-radius:2px;width:75%;margin-bottom:3px;"></span>¾
+                        </label>
+                        <input type="radio" class="btn-check" name="feld-breite" id="breite-100" value="100" checked>
+                        <label class="btn btn-sm btn-outline-secondary" for="breite-100">
+                            <span style="display:block;height:5px;background:currentColor;border-radius:2px;width:100%;margin-bottom:3px;"></span>Voll
+                        </label>
+                    </div>
+                </div>
+
+                <div class="form-check" id="pflicht-row">
+                    <input class="form-check-input" type="checkbox" id="feld-pflicht">
+                    <label class="form-check-label" for="feld-pflicht">Pflichtfeld</label>
+                </div>
+                <div class="form-check mt-1" id="versteckt-row">
+                    <input class="form-check-input" type="checkbox" id="feld-versteckt">
+                    <label class="form-check-label" for="feld-versteckt">Feld verstecken (Wert wird trotzdem gespeichert)</label>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Abbrechen</button>
+                <button type="button" class="btn btn-primary" id="btn-feld-ok">OK</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Transition bearbeiten -->
+<div class="modal fade" id="transition-modal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Verbindung bearbeiten</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label fw-semibold">Wann soll dieser Pfeil genommen werden?</label>
+                    <div class="d-flex gap-2">
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="bedingung-modus"
+                                   id="modus-immer" value="immer">
+                            <label class="form-check-label" for="modus-immer">
+                                <strong>Immer</strong> <small class="text-muted">(kein Filter)</small>
+                            </label>
+                        </div>
+                        <div class="form-check ms-3">
+                            <input class="form-check-input" type="radio" name="bedingung-modus"
+                                   id="modus-visuell" value="visuell" checked>
+                            <label class="form-check-label" for="modus-visuell">
+                                <strong>Bedingung aufbauen</strong>
+                            </label>
+                        </div>
+                        <div class="form-check ms-3">
+                            <input class="form-check-input" type="radio" name="bedingung-modus"
+                                   id="modus-experte" value="experte">
+                            <label class="form-check-label" for="modus-experte">
+                                <strong>Formel</strong> <small class="text-muted">(Experte)</small>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="builder-visuell" style="display:none;">
+                    <div id="builder-regeln"></div>
+                    <div class="d-flex align-items-center gap-3 mt-2">
+                        <button type="button" id="btn-regel-hinzu" class="btn btn-outline-primary btn-sm">
+                            + Bedingung hinzufügen
+                        </button>
+                        <div id="verbinder-auswahl" style="display:none;">
+                            <label class="form-label mb-0 me-1 small fw-semibold">Verknüpfung:</label>
+                            <select class="form-select form-select-sm d-inline-block"
+                                    id="regel-verbinder" style="width:100px;">
+                                <option value="and">UND (alle)</option>
+                                <option value="or">ODER (mind. 1)</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="builder-experte" style="display:none;">
+                    <div class="mb-2">
+                        <label class="form-label fw-semibold">Formel</label>
+                        <textarea class="form-control font-monospace" id="transition-bedingung" rows="3"
+                                  placeholder="Leer = immer wahr&#10;Beispiele:&#10;{{tierart}} == &quot;Hund&quot;&#10;{{alter}} >= 18"></textarea>
+                        <small class="text-muted">
+                            Operatoren: <code>== != &gt; &lt; &gt;= &lt;=</code> &nbsp;|&nbsp;
+                            Verknüpfung: <code>and</code> <code>or</code>
+                        </small>
+                    </div>
+                    <div id="verfuegbare-felder-box" class="p-2 bg-light border rounded">
+                        <small class="text-muted fw-semibold d-block mb-1">Felder (klicken zum Einfügen):</small>
+                        <div id="verfuegbare-felder-inhalt"></div>
+                    </div>
+                </div>
+
+                <hr class="my-3">
+
+                <div class="row">
+                    <div class="col-md-8 mb-2">
+                        <label class="form-label fw-semibold">
+                            Beschriftung des Pfeils <small class="text-muted">(optional)</small>
+                        </label>
+                        <input type="text" class="form-control" id="transition-label"
+                               placeholder="z.B. Ja / Nein">
+                    </div>
+                    <div class="col-md-4 mb-2">
+                        <label class="form-label fw-semibold">Priorität</label>
+                        <input type="number" class="form-control" id="transition-reihenfolge"
+                               value="0" min="0">
+                        <small class="text-muted">0 = zuerst geprüft</small>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Abbrechen</button>
+                <button type="button" class="btn btn-primary" id="btn-transition-speichern">Speichern</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{# Verstecktes Select – wird von formulare_editor.js benoetigt (workflow_template_id) #}
+<select id="pfad-workflow-template" style="display:none;"></select>
+
+{% if pfad %}
+{{ pfad.pk|json_script:"pfad-pk" }}
+{% else %}
+<script type="application/json" id="pfad-pk">null</script>
+{% endif %}
+
+<!-- Auto-Entwurf Restore-Banner -->
+<div id="entwurf-banner" class="alert alert-warning d-none py-2 px-3"
+     style="position:fixed; bottom:70px; right:20px; z-index:1055; max-width:420px; box-shadow:0 4px 12px rgba(0,0,0,0.2);">
+    <div class="d-flex align-items-center gap-2 flex-wrap">
+        <span id="entwurf-banner-text" class="small flex-grow-1">Ungespeicherter Entwurf gefunden.</span>
+        <button type="button" class="btn btn-sm btn-warning" id="btn-entwurf-wiederherstellen">Wiederherstellen</button>
+        <button type="button" class="btn btn-sm btn-outline-secondary" id="btn-entwurf-verwerfen">Verwerfen</button>
+    </div>
+</div>
+
+{% if pfad %}
+<!-- Modal: Versionen -->
+<div class="modal fade" id="versionen-modal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title fw-bold">&#128336; Versionshistorie</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-muted small mb-3">
+                    Beim Speichern wird automatisch ein Versions-Snapshot angelegt (max. 20 Versionen).
+                </p>
+                <div id="versionen-liste-container">
+                    <div class="text-center text-muted py-3">Lade Versionen…</div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Schließen</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+{% if user.is_staff %}
+<!-- Modal: PDF-Scanner (nur Staff) -->
+<div class="modal fade" id="scanner-modal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title fw-bold">&#128196; PDF scannen</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-muted small mb-3">
+                    Erkennt ausfüllbare Felder aus einem PDF (AcroForm) – per Datei-Upload oder direkt
+                    per URL (z.B. von FormSolutions, Bayern-Online, etc.). FIM-IDs werden automatisch vorgeschlagen.
+                </p>
+                <div class="alert alert-light border small py-2 mb-3">
+                    <strong>Urheberrechtshinweis:</strong>
+                    Der Import liest ausschließlich technische Feldstruktur (AcroForm-Metadaten),
+                    keine geschützten Inhalte. Feldnamen werden auf FIM-Standardfelder normalisiert.
+                    Bitte prüfen Sie, ob das Originalformular amtlichen Ursprungs ist –
+                    amtliche Verwaltungsformulare sind nach § 5 UrhG nicht urheberrechtlich geschützt.
+                    Das importierte Ergebnis ist ein eigenständiger Neuentwurf auf Basis offener Standards.
+                </div>
+
+                <!-- Tabs: Datei | URL -->
+                <ul class="nav nav-tabs mb-3" id="scanner-tabs">
+                    <li class="nav-item">
+                        <button class="nav-link active" id="scanner-tab-datei" data-bs-toggle="tab"
+                                data-bs-target="#scanner-panel-datei" type="button">
+                            &#128196; PDF hochladen
+                        </button>
+                    </li>
+                    <li class="nav-item">
+                        <button class="nav-link" id="scanner-tab-url" data-bs-toggle="tab"
+                                data-bs-target="#scanner-panel-url" type="button">
+                            &#128279; URL importieren
+                        </button>
+                    </li>
+                </ul>
+
+                <div class="tab-content">
+                    <div class="tab-pane fade show active" id="scanner-panel-datei">
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold" for="scanner-pdf-input">PDF-Datei auswählen</label>
+                            <input type="file" class="form-control" id="scanner-pdf-input" accept=".pdf">
+                        </div>
+                    </div>
+                    <div class="tab-pane fade" id="scanner-panel-url">
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold" for="scanner-pdf-url">PDF-URL</label>
+                            <input type="url" class="form-control font-monospace" id="scanner-pdf-url"
+                                   placeholder="https://formular.beispiel.de/servlet/...">
+                            <small class="text-muted">
+                                Direkte PDF-URL oder FormSolutions/Formular-Servlet-URL. Der Server lädt das PDF.
+                            </small>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label fw-semibold" for="scanner-split-schwelle">Automatisch in Abschnitte teilen</label>
+                    <select class="form-select" id="scanner-split-schwelle">
+                        <option value="0">Nicht teilen – alles in einen Schritt</option>
+                        <option value="15">Fein – ab ~5 mm Abstand</option>
+                        <option value="25" selected>Mittel – ab ~9 mm Abstand (Standard)</option>
+                        <option value="45">Grob – ab ~16 mm Abstand</option>
+                        <option value="80">Sehr grob – nur bei großen Lücken</option>
+                    </select>
+                </div>
+
+                <div id="scanner-fim-ergebnis" class="alert alert-success d-none py-2 small"></div>
+                <div id="scanner-hinweis" class="alert alert-warning d-none py-2 small">
+                    <strong>Achtung:</strong> Der aktuelle Pfad-Inhalt wird überschrieben.
+                </div>
+                <div id="scanner-fehler" class="alert alert-danger d-none py-2 small"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Abbrechen</button>
+                <button type="button" class="btn btn-primary" id="btn-scanner-starten" disabled>
+                    Scannen &amp; laden
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+{% if user.is_staff %}
+<!-- Modal: Quiz-Import -->
+<div class="modal fade" id="quiz-import-modal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title fw-bold">&#129504; Quizfragen importieren</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-muted small mb-3">
+                    Fragen werden in den <strong>aktuell geöffneten Schritt</strong> eingefügt.
+                    Öffne zuerst den gewünschten Schritt, dann starte den Import.
+                </p>
+
+                <!-- Tabs -->
+                <ul class="nav nav-tabs mb-3" id="quiz-import-tabs">
+                    <li class="nav-item">
+                        <button class="nav-link active" data-bs-toggle="tab"
+                                data-bs-target="#qi-panel-ki" type="button">
+                            &#129504; KI aus PDF
+                        </button>
+                    </li>
+                    <li class="nav-item">
+                        <button class="nav-link" data-bs-toggle="tab"
+                                data-bs-target="#qi-panel-csv" type="button">
+                            &#128196; CSV
+                        </button>
+                    </li>
+                    <li class="nav-item">
+                        <button class="nav-link" data-bs-toggle="tab"
+                                data-bs-target="#qi-panel-demo" type="button">
+                            &#127891; Demo-Decks
+                        </button>
+                    </li>
+                </ul>
+
+                <div class="tab-content">
+                    <!-- Tab: KI aus PDF -->
+                    <div class="tab-pane fade show active" id="qi-panel-ki">
+                        <p class="text-muted small">
+                            Lade ein beliebiges Lehrdokument, eine Betriebsanweisung oder ein Fachpapier hoch.
+                            Claude analysiert den Text und erstellt automatisch Multiple-Choice-Fragen.
+                        </p>
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold" for="qi-ki-pdf">PDF-Dokument</label>
+                            <input type="file" class="form-control" id="qi-ki-pdf" accept=".pdf">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold" for="qi-ki-anzahl">Anzahl Fragen</label>
+                            <select class="form-select" id="qi-ki-anzahl">
+                                <option value="5">5 Fragen</option>
+                                <option value="10" selected>10 Fragen</option>
+                                <option value="15">15 Fragen</option>
+                                <option value="20">20 Fragen</option>
+                                <option value="30">30 Fragen</option>
+                            </select>
+                        </div>
+                        <div class="alert alert-info small py-2">
+                            <strong>Hinweis:</strong> Erfordert einen konfigurierten Anthropic-API-Key.
+                            Verarbeitung dauert ca. 10–30 Sekunden.
+                        </div>
+                        <button type="button" class="btn btn-primary" id="btn-qi-ki-starten" disabled>
+                            &#129504; Fragen generieren
+                        </button>
+                    </div>
+
+                    <!-- Tab: CSV -->
+                    <div class="tab-pane fade" id="qi-panel-csv">
+                        <p class="text-muted small">
+                            Importiere Fragen aus einer CSV-Datei. Unterstütztes Format (Semikolon oder Komma):
+                        </p>
+                        <pre class="bg-light rounded p-2 small" style="font-size:0.75rem;">Frage;RichtigeAntwort;FalscheAntwort1;FalscheAntwort2;FalscheAntwort3;Erklaerung
+Was ist die Hauptstadt von Deutschland?;Berlin;München;Hamburg;Köln;Berlin ist seit 1990 Hauptstadt.</pre>
+                        <p class="text-muted small">Die erste Zeile wird als Kopfzeile übersprungen, wenn sie mit „Frage" beginnt.</p>
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold" for="qi-csv-datei">CSV-Datei</label>
+                            <input type="file" class="form-control" id="qi-csv-datei" accept=".csv,.txt">
+                        </div>
+                        <button type="button" class="btn btn-primary" id="btn-qi-csv-starten" disabled>
+                            &#128196; CSV importieren
+                        </button>
+                    </div>
+
+                    <!-- Tab: Demo-Decks -->
+                    <div class="tab-pane fade" id="qi-panel-demo">
+                        <p class="text-muted small mb-3">
+                            Fertige Fragenpakete – ideal zum Testen und als Vorlage.
+                        </p>
+                        <div class="card mb-3">
+                            <div class="card-body py-2">
+                                <div class="d-flex align-items-start justify-content-between gap-3">
+                                    <div>
+                                        <strong>&#127482;&#127466; Einbürgerungstest (BAMF)</strong>
+                                        <p class="text-muted small mb-1">
+                                            Offizielle Multiple-Choice-Fragen aus dem BAMF-Fragenkatalog
+                                            (Grundgesetz, Demokratie, Geschichte). Öffentlich zugänglich nach § 5 UrhG.
+                                        </p>
+                                        <div class="d-flex align-items-center gap-2">
+                                            <label class="small fw-semibold mb-0" for="qi-demo-einb-anzahl">Anzahl:</label>
+                                            <select class="form-select form-select-sm" id="qi-demo-einb-anzahl" style="max-width:120px;">
+                                                <option value="10">10 Fragen</option>
+                                                <option value="15">15 Fragen</option>
+                                                <option value="20" selected>20 Fragen</option>
+                                                <option value="30">Alle 30</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <button type="button" class="btn btn-success btn-sm flex-shrink-0"
+                                            id="btn-qi-demo-einbuergerung">
+                                        Laden
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Fortschritt + Ergebnis -->
+                <div id="qi-spinner" class="d-none text-center py-3">
+                    <div class="spinner-border text-primary" role="status"></div>
+                    <p class="small text-muted mt-2">Bitte warten…</p>
+                </div>
+                <div id="qi-ergebnis" class="alert alert-success d-none py-2 small"></div>
+                <div id="qi-fehler" class="alert alert-danger d-none py-2 small"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Schließen</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Modal: Öffentliche URL -->
+<div class="modal fade" id="qrcode-modal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">&#9641; Öffentlicher Zugang</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-warning small mb-3" id="qrcode-warnung-oeffentlich" style="display:none;">
+                    <strong>Hinweis:</strong> Der Pfad ist aktuell <em>nicht öffentlich</em>.
+                </div>
+                <div class="mb-3">
+                    <label class="form-label fw-semibold small">Öffentliche URL</label>
+                    <div class="input-group">
+                        <input type="text" class="form-control form-control-sm font-monospace"
+                               id="qrcode-url" readonly>
+                        <button class="btn btn-outline-secondary btn-sm" id="btn-url-kopieren"
+                                type="button" title="URL kopieren">&#128203;</button>
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label fw-semibold small">Einbettungs-Code (iframe)</label>
+                    <textarea class="form-control form-control-sm font-monospace"
+                              id="qrcode-iframe" rows="3" readonly></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Schließen</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Variablen -->
+<div class="modal fade" id="variablen-modal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">&#402; Pfad-Variablen / Berechnungsgrundlagen</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-muted small mb-3">
+                    Variablen gelten für den gesamten Pfad.
+                    Verwende <code>&#123;&#123;variablenname&#125;&#125;</code> in Berechnungsfeldern
+                    und Textblöcken.
+                </p>
+                <table class="table table-sm" id="variablen-tabelle">
+                    <thead class="table-light">
+                        <tr>
+                            <th style="width:30%">Name</th>
+                            <th style="width:15%">Typ</th>
+                            <th style="width:35%">Wert</th>
+                            <th style="width:15%">Beschreibung</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody id="variablen-liste"></tbody>
+                </table>
+                <button type="button" class="btn btn-sm btn-outline-primary"
+                        id="btn-variable-hinzufuegen">
+                    + Variable hinzufügen
+                </button>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Abbrechen</button>
+                <button type="button" class="btn btn-warning" id="btn-variablen-speichern">Übernehmen</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+{% if pfad %}
+{{ pfad.kuerzel|json_script:"pfad-kuerzel" }}
+{{ pfad.oeffentlich|yesno:"true,false"|json_script:"pfad-oeffentlich-init" }}
+{{ pfad.variablen_json|json_script:"pfad-variablen-init" }}
+{% endif %}
+<script src="{% static 'js/vis-network.min.js' %}"></script>
+<script src="{% static 'js/sortable.min.js' %}"></script>
+<script src="{% static 'js/fim_felder.js' %}"></script>
+<script src="{% static 'js/formulare_editor.js' %}"></script>
+{% if bank_variablen_json %}
+{{ bank_variablen_json|json_script:"bank-variablen-data" }}
+<script>
+(function () {
+    var data = JSON.parse(document.getElementById("bank-variablen-data").textContent || "[]");
+    var span = document.getElementById("textblock-bank-variablen-buttons");
+    if (!span || !data.length) return;
+    data.forEach(function (gruppe) {
+        var lbl = document.createElement("small");
+        lbl.className = "text-muted fw-semibold d-block mt-2 mb-1";
+        lbl.textContent = "Bank: " + gruppe.bezeichnung;
+        span.appendChild(lbl);
+        gruppe.variablen.forEach(function (varname) {
+            var btn = document.createElement("button");
+            btn.type = "button";
+            btn.className = "btn btn-sm btn-outline-info me-1 mb-1";
+            btn.dataset.action = "insert-textblock-var";
+            btn.dataset.varName = varname;
+            btn.innerHTML = varname.replace(/_/g, "_") + " <code class='small'>&#123;&#123;" + varname + "&#125;&#125;</code>";
+            span.appendChild(btn);
+        });
+    });
+})();
+</script>
+{% endif %}
+
+<script>
+// LeiKa-Autocomplete
+(function () {
+    var input   = document.getElementById("pfad-leika-schluessel");
+    var dropdown = document.getElementById("leika-dropdown");
+    if (!input || !dropdown) return;
+
+    var timer = null;
+    var LEIKA_URL = "{% url 'core:leika_autocomplete' %}";
+
+    input.addEventListener("input", function () {
+        clearTimeout(timer);
+        var q = input.value.trim();
+        // Wenn schon ein 14-stelliger Schlüssel eingetragen → kein Autocomplete
+        if (/^\d{14}$/.test(q)) { dropdown.style.display = "none"; return; }
+        if (q.length < 2) { dropdown.style.display = "none"; return; }
+        timer = setTimeout(function () { ladeVorschlaege(q); }, 280);
+    });
+
+    function ladeVorschlaege(q) {
+        fetch(LEIKA_URL + "?q=" + encodeURIComponent(q))
+            .then(function (r) { return r.json(); })
+            .then(function (daten) { zeigeDropdown(daten); })
+            .catch(function () { dropdown.style.display = "none"; });
+    }
+
+    function zeigeDropdown(daten) {
+        dropdown.innerHTML = "";
+        if (!daten.length) { dropdown.style.display = "none"; return; }
+
+        daten.forEach(function (eintrag) {
+            var li = document.createElement("li");
+            li.className = "list-group-item list-group-item-action py-1 px-2 small";
+            li.style.cursor = "pointer";
+
+            if (eintrag.schluessel) {
+                // Lokaler Treffer – Schlüssel vorhanden
+                li.innerHTML =
+                    "<span class='fw-semibold'>" + _esc(eintrag.name) + "</span>" +
+                    "<br><code class='text-success'>" + _esc(eintrag.schluessel) + "</code>" +
+                    " <span class='text-muted' style='font-size:.7rem;'>lokal</span>";
+                li.addEventListener("mousedown", function (e) {
+                    e.preventDefault();
+                    input.value = eintrag.schluessel;
+                    dropdown.style.display = "none";
+                    input.dispatchEvent(new Event("change"));
+                });
+            } else {
+                // PVOG-Vorschlag – kein Schlüssel, Link auf FIMPortal
+                li.innerHTML =
+                    "<span class='text-muted'>" + _esc(eintrag.name) + "</span>" +
+                    " <a href='https://fimportal.de/search' target='_blank' rel='noopener'" +
+                    " class='text-primary ms-1' style='font-size:.7rem;'>FIMPortal &#8599;</a>" +
+                    " <span class='text-muted' style='font-size:.7rem;'>– kein Schlüssel hinterlegt</span>";
+            }
+            dropdown.appendChild(li);
+        });
+
+        // Trennzeile + Hinweis
+        if (daten.some(function(e){ return !e.schluessel; })) {
+            var hint = document.createElement("li");
+            hint.className = "list-group-item py-1 px-2 text-muted";
+            hint.style.fontSize = ".7rem";
+            hint.innerHTML = "Quelle: lokale Daten + PVOG Suchdienst (pvog.fitko.net) &mdash; " +
+                "<a href='https://fimportal.de/search' target='_blank' rel='noopener'>FIMPortal</a>";
+            dropdown.appendChild(hint);
+        }
+
+        dropdown.style.display = "block";
+    }
+
+    function _esc(s) {
+        return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+    }
+
+    // Dropdown schließen bei Klick außerhalb
+    document.addEventListener("mousedown", function (e) {
+        if (!input.contains(e.target) && !dropdown.contains(e.target)) {
+            dropdown.style.display = "none";
+        }
+    });
+    input.addEventListener("focus", function () {
+        if (input.value.trim().length >= 2) input.dispatchEvent(new Event("input"));
+    });
+})();
+</script>
+{% endblock %}

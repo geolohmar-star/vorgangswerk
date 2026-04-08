@@ -84,6 +84,15 @@
             });
         });
 
+        // Quiz-Import-Bridge: Target leeren wenn Schritt-Modal geschlossen wird
+        var schrittModalEl = document.getElementById("schritt-modal");
+        if (schrittModalEl) {
+            schrittModalEl.addEventListener("hidden.bs.modal", function () {
+                window._quizImportTarget = null;
+                window._quizImportRenderCallback = null;
+            });
+        }
+
         // Bestehenden Pfad laden
         if (pfadPk) {
             ladePfad(pfadPk);
@@ -417,7 +426,8 @@
             var div = document.createElement("div");
             div.className = "d-flex gap-1 mb-1 optionen-item";
             div.innerHTML = '<span class="drag-handle text-muted px-1" style="cursor:grab; line-height:2;">&#8942;&#8942;</span>'
-                + '<input type="text" class="form-control form-control-sm optionen-wert" placeholder="Option">'
+                + '<input type="text" class="form-control form-control-sm optionen-label" placeholder="Bezeichnung" style="flex:2">'
+                + '<input type="text" class="form-control form-control-sm optionen-zahlwert" placeholder="Wert (optional)" style="flex:1" title="Numerischer Wert f\u00fcr Berechnungen">'
                 + '<button type="button" class="btn btn-sm btn-outline-danger px-2 optionen-loeschen" title="Entfernen">&times;</button>';
             container.appendChild(div);
             div.querySelector("input").focus();
@@ -435,6 +445,54 @@
 
         // Feld-Modal: OK
         document.getElementById("btn-feld-ok").addEventListener("click", feldSpeichern);
+
+        // FIM-Suche
+        document.getElementById("fim-suche").addEventListener("input", function () {
+            var q = this.value.trim();
+            var box = document.getElementById("fim-vorschlaege");
+            if (!q || q.length < 2) { box.style.display = "none"; return; }
+            var treffer = (typeof fimSuche === "function") ? fimSuche(q, 12) : [];
+            if (!treffer.length) { box.innerHTML = '<div class="p-2 text-muted small">Keine Treffer</div>'; box.style.display = "block"; return; }
+            // Nach Gruppe sortieren und gruppiert ausgeben
+            var gruppen = {};
+            treffer.forEach(function (f) {
+                if (!gruppen[f.gruppe]) gruppen[f.gruppe] = [];
+                gruppen[f.gruppe].push(f);
+            });
+            var html = "";
+            Object.keys(gruppen).forEach(function (g) {
+                html += '<div class="px-2 pt-1 pb-0" style="font-size:.7rem;color:#6c757d;text-transform:uppercase;letter-spacing:.04em;">' + g + '</div>';
+                gruppen[g].forEach(function (f) {
+                    html += '<button type="button" class="d-block w-100 text-start px-3 py-1 border-0 bg-transparent fim-vorschlag" ' +
+                        'style="font-size:.875rem;cursor:pointer;" ' +
+                        'data-fim-id="' + f.id + '" ' +
+                        'data-fim-name="' + f.name.replace(/"/g, "&quot;") + '" ' +
+                        'data-fim-typ="' + f.typ + '" ' +
+                        (f.optionen ? 'data-fim-optionen="' + JSON.stringify(f.optionen).replace(/"/g, "&quot;") + '" ' : '') +
+                        'onmouseover="this.style.background=\'#f0f4ff\'" onmouseout="this.style.background=\'transparent\'">' +
+                        '<strong>' + f.name + '</strong> ' +
+                        '<small class="text-muted">' + f.typ + '</small> ' +
+                        '<small class="text-primary ms-1">' + f.id + '</small>' +
+                        '</button>';
+                });
+            });
+            box.innerHTML = html;
+            box.style.display = "block";
+        });
+
+        document.getElementById("fim-vorschlaege").addEventListener("click", function (e) {
+            var btn = e.target.closest(".fim-vorschlag");
+            if (!btn) return;
+            _fimFeldAnwenden(btn.dataset.fimId, btn.dataset.fimName, btn.dataset.fimTyp, btn.dataset.fimOptionen);
+            document.getElementById("fim-vorschlaege").style.display = "none";
+            document.getElementById("fim-suche").value = "";
+        });
+
+        document.addEventListener("click", function (e) {
+            if (!e.target.closest("#fim-suche") && !e.target.closest("#fim-vorschlaege")) {
+                document.getElementById("fim-vorschlaege").style.display = "none";
+            }
+        });
 
         // Transition-Modal: Speichern
         document.getElementById("btn-transition-speichern").addEventListener("click", transitionSpeichern);
@@ -581,43 +639,71 @@
         if (scannerModalEl) {
             var scannerModal = new bootstrap.Modal(scannerModalEl);
             var scannerInput = document.getElementById("scanner-pdf-input");
+            var scannerUrlInput = document.getElementById("scanner-pdf-url");
             var scannerBtn = document.getElementById("btn-scanner-starten");
             var scannerFehler = document.getElementById("scanner-fehler");
             var scannerHinweis = document.getElementById("scanner-hinweis");
+            var scannerFimErgebnis = document.getElementById("scanner-fim-ergebnis");
 
-            document.getElementById("btn-pdf-scanner").addEventListener("click", function () {
+            function _scannerReset() {
                 scannerInput.value = "";
+                if (scannerUrlInput) scannerUrlInput.value = "";
                 scannerBtn.disabled = true;
                 scannerFehler.classList.add("d-none");
                 scannerHinweis.classList.add("d-none");
-                scannerModal.show();
-            });
+                scannerFimErgebnis.classList.add("d-none");
+            }
 
-            scannerInput.addEventListener("change", function () {
+            function _scannerAktivPruefen() {
                 var hatDatei = scannerInput.files && scannerInput.files.length > 0;
-                scannerBtn.disabled = !hatDatei;
-                scannerFehler.classList.add("d-none");
-                if (hatDatei) {
+                var hatUrl = scannerUrlInput && scannerUrlInput.value.trim().length > 8;
+                scannerBtn.disabled = !(hatDatei || hatUrl);
+                if (hatDatei || hatUrl) {
                     scannerHinweis.classList.remove("d-none");
                 } else {
                     scannerHinweis.classList.add("d-none");
                 }
+            }
+
+            document.getElementById("btn-pdf-scanner").addEventListener("click", function () {
+                _scannerReset();
+                scannerModal.show();
             });
 
+            scannerInput.addEventListener("change", function () {
+                scannerFehler.classList.add("d-none");
+                _scannerAktivPruefen();
+            });
+            if (scannerUrlInput) {
+                scannerUrlInput.addEventListener("input", function () {
+                    scannerFehler.classList.add("d-none");
+                    _scannerAktivPruefen();
+                });
+            }
+
             scannerBtn.addEventListener("click", function () {
-                var datei = scannerInput.files[0];
-                if (!datei) return;
+                var hatDatei = scannerInput.files && scannerInput.files.length > 0;
+                var url = scannerUrlInput ? scannerUrlInput.value.trim() : "";
+                var istUrl = !hatDatei && url.length > 0;
 
                 scannerBtn.disabled = true;
-                scannerBtn.textContent = "Scannt...";
+                scannerBtn.textContent = istUrl ? "Lädt PDF…" : "Scannt...";
                 scannerFehler.classList.add("d-none");
+                scannerFimErgebnis.classList.add("d-none");
 
                 var splitSchwelle = document.getElementById("scanner-split-schwelle").value || "30";
                 var formData = new FormData();
-                formData.append("pdf", datei);
                 formData.append("split_schwelle", splitSchwelle);
+                var endpoint;
+                if (istUrl) {
+                    formData.append("url", url);
+                    endpoint = "/formulare/editor/scanner-url/";
+                } else {
+                    formData.append("pdf", scannerInput.files[0]);
+                    endpoint = "/formulare/editor/scanner/";
+                }
 
-                fetch("/formulare/editor/scanner/", {
+                fetch(endpoint, {
                     method: "POST",
                     headers: { "X-CSRFToken": csrfToken() },
                     body: formData,
@@ -631,8 +717,22 @@
                         scannerFehler.classList.remove("d-none");
                         return;
                     }
-                    scannerModal.hide();
-                    ladeScannerDaten(daten);
+                    // FIM-Ergebnis kurz anzeigen, dann laden
+                    var fim = daten.fim_treffer || 0;
+                    var ges = daten.gesamt_felder || 0;
+                    if (fim > 0) {
+                        scannerFimErgebnis.innerHTML =
+                            "<strong>FIM-Matching:</strong> " + fim + " von " + ges +
+                            " Feldern automatisch FIM-IDs zugeordnet.";
+                        scannerFimErgebnis.classList.remove("d-none");
+                        setTimeout(function () {
+                            scannerModal.hide();
+                            ladeScannerDaten(daten);
+                        }, 1500);
+                    } else {
+                        scannerModal.hide();
+                        ladeScannerDaten(daten);
+                    }
                 })
                 .catch(function () {
                     scannerBtn.disabled = false;
@@ -767,6 +867,9 @@
 
         // Temporaere Felder-Liste aufbauen
         schritteFelder = schritt ? JSON.parse(JSON.stringify(schritt.felder_json || [])) : [];
+        // Quiz-Import-Bridge: Import-IIFE kann Felder in diese Liste schreiben
+        window._quizImportTarget = schritteFelder;
+        window._quizImportRenderCallback = renderFelderListe;
         renderFelderListe();
 
         // Canvas-Position merken (wird beim Speichern gebraucht)
@@ -888,6 +991,7 @@
             datei: "Datei-Upload", signatur: "Signatur", uhrzeit: "Uhrzeit",
             email: "E-Mail", bool: "Ja/Nein", iban: "IBAN",
             auswahl: "Auswahl", radio: "Multiple Choice", checkboxen: "Checkboxen",
+            bankverbindung: "Bankverbindung",
             berechnung: "Berechnung", textblock: "Fliesstext", abschnitt: "Abschnitt",
             link: "Link", trennlinie: "—", leerblock: "Leerblock",
             zusammenfassung: "Zusammenfassung", gruppe: "Wiederholungsgruppe",
@@ -902,7 +1006,8 @@
             html += '<span class="drag-handle text-muted" style="cursor:grab; padding:0 4px; font-size:1rem;" title="Ziehen zum Sortieren">&#8942;&#8942;</span>';
             html += '<span class="badge bg-secondary small">' + (TYP_LABEL[feld.typ] || feld.typ) + '</span> ';
             html += esc(feld.label || "");
-            if (feld.pflicht) html += ' <span class="text-danger small">*</span>';
+            if (feld.pflicht)   html += ' <span class="text-danger small">*</span>';
+            if (feld.versteckt) html += ' <span class="text-muted small" title="Versteckt">&#128065;&#xFE0E;</span>';
             html += '</span>';
             html += '<span class="d-flex gap-1">';
             // Pfeil-Buttons hoch/runter
@@ -1003,6 +1108,19 @@
             if (t === "kfz")              return '<input type="text" class="' + cls + '" placeholder="HH-AB 1234" maxlength="12">';
             if (t === "steuernummer")     return '<input type="text" class="' + cls + '" placeholder="123/456/78901" maxlength="20">';
             if (t === "mitarbeiternummer") return '<input type="text" class="' + cls + '" placeholder="12345" maxlength="20" inputmode="numeric">';
+            if (t === "zahlung") {
+                var zBetrag = feld.betrag_fest ? feld.betrag_fest.toFixed(2) + "\u00a0EUR" : "–";
+                var zMeth = (feld.methoden || ["stripe_karte"]);
+                var zBadges = zMeth.map(function(m) {
+                    var labels = { stripe_karte: "&#x1F4B3;\u00a0Karte", stripe_sepa: "&#x1F3E6;\u00a0SEPA", wero: "&#x26A1;\u00a0Wero" };
+                    return '<span class="badge bg-secondary me-1">' + (labels[m] || m) + '</span>';
+                }).join("");
+                return '<div class="border rounded p-2 bg-light text-center small">'
+                     + '<div class="fw-semibold mb-1">&#x1F4B0;\u00a0Zahlungsfeld\u00a0\u2013\u00a0' + zBetrag + '</div>'
+                     + '<div class="mb-1">' + zBadges + '</div>'
+                     + '<button class="btn btn-sm btn-success disabled" tabindex="-1">Jetzt bezahlen</button>'
+                     + '</div>';
+            }
             if (t === "datei") return '<input type="file" class="form-control form-control-sm w-100">';
             if (t === "signatur") return '<div class="border rounded bg-light text-muted small text-center py-3">Signatur-Pad</div>';
             if (t === "berechnung") return '<input type="text" class="' + cls + ' bg-light font-monospace" placeholder="wird berechnet…" readonly>';
@@ -1084,10 +1202,20 @@
         var typ = feld ? feld.typ : "text";
         document.getElementById("feld-typ").value = typ;
         document.getElementById("feld-label").value = feld ? (feld.label || feld.text || "") : "";
+        // FIM-ID
+        var fimId = feld ? (feld.fim_id || "") : "";
+        document.getElementById("feld-fim-id").value = fimId;
+        document.getElementById("fim-suche").value = "";
+        document.getElementById("fim-vorschlaege").style.display = "none";
+        _fimIdAnzeigen(fimId);
         document.getElementById("feld-hilfetext").value = feld ? (feld.hilfetext || "") : "";
         document.getElementById("feld-regex").value = feld ? (feld.validierung_regex || "") : "";
-        document.getElementById("feld-pflicht").checked = feld ? !!feld.pflicht : false;
+        document.getElementById("feld-pflicht").checked   = feld ? !!feld.pflicht   : false;
+        document.getElementById("feld-versteckt").checked = feld ? !!feld.versteckt : false;
         document.getElementById("feld-id-vorschau").textContent = feld ? (feld.id || "") : "";
+        // bool: Feld-ID explizit vorbelegen
+        var elBoolFeldId = document.getElementById("feld-bool-feld-id");
+        if (elBoolFeldId) elBoolFeldId.value = (feld && typ === "bool") ? (feld.id || "") : "";
         document.getElementById("feld-formel").value = feld ? (feld.formel || "") : "";
         document.getElementById("feld-einheit").value = feld ? (feld.einheit || "") : "";
         var elSysw = document.getElementById("feld-systemwert");
@@ -1126,6 +1254,59 @@
         if (elEinwLinkText) elEinwLinkText.value = (feld && feld.link_text) ? feld.link_text : "";
         var elEinwLinkUrl = document.getElementById("feld-einwilligung-link-url");
         if (elEinwLinkUrl) elEinwLinkUrl.value = (feld && feld.link_url) ? feld.link_url : "";
+        // Zahlung: Felder vorbelegen
+        var elZahlBq = document.getElementById("zahlung-betrag-quelle");
+        if (elZahlBq) {
+            elZahlBq.value = (feld && feld.betrag_quelle) ? feld.betrag_quelle : "fest";
+            elZahlBq.dispatchEvent(new Event("change"));
+        }
+        var elZahlBf = document.getElementById("zahlung-betrag-fest");
+        if (elZahlBf) elZahlBf.value = (feld && feld.betrag_fest != null) ? feld.betrag_fest : "";
+        var elZahlBi = document.getElementById("zahlung-betrag-feld-id");
+        if (elZahlBi) elZahlBi.value = (feld && feld.betrag_feld_id) ? feld.betrag_feld_id : "";
+        var elZahlVz = document.getElementById("zahlung-verwendungszweck");
+        if (elZahlVz) elZahlVz.value = (feld && feld.verwendungszweck) ? feld.verwendungszweck : "";
+        var zahlMethoden = (feld && feld.methoden) ? feld.methoden : ["stripe_karte"];
+        ["stripe_karte", "stripe_sepa", "wero"].forEach(function(m) {
+            var el = document.getElementById("zahlung-methode-" + m);
+            if (el) el.checked = zahlMethoden.indexOf(m) >= 0;
+        });
+        // Quiz-Felder vorbelegen
+        var elQhText = document.getElementById("feld-quizhinweis-text");
+        if (elQhText) elQhText.value = (feld && feld.typ === "quizhinweis") ? (feld.text || "") : "";
+        var elQATyp = document.getElementById("quiz-antwort-typ");
+        if (elQATyp) elQATyp.value = (feld && feld.antwort_typ) ? feld.antwort_typ : "single";
+        var elQP = document.getElementById("quiz-punkte");
+        if (elQP) elQP.value = (feld && feld.punkte != null) ? feld.punkte : 1;
+        var elQFP = document.getElementById("quiz-fehlerpunkte");
+        if (elQFP) elQFP.value = (feld && feld.fehlerpunkte != null) ? feld.fehlerpunkte : "";
+        var elQPK = document.getElementById("quiz-pflicht-korrekt");
+        if (elQPK) elQPK.checked = !!(feld && feld.pflicht_korrekt);
+        var elQTP = document.getElementById("quiz-teilpunkte");
+        if (elQTP) elQTP.checked = !!(feld && feld.teilpunkte);
+        var elQErkl = document.getElementById("quiz-erklaerung");
+        if (elQErkl) elQErkl.value = (feld && feld.erklaerung) ? feld.erklaerung : "";
+        _renderQuizAntworten((feld && feld.antworten) ? feld.antworten : []);
+        // Quizergebnis
+        var elQBM = document.getElementById("quiz-bewertungsmodell");
+        if (elQBM) { elQBM.value = (feld && feld.bewertungsmodell) ? feld.bewertungsmodell : "prozent"; }
+        var elQBA = document.getElementById("quiz-bestanden-ab");
+        if (elQBA) elQBA.value = (feld && feld.bestanden_ab != null) ? feld.bestanden_ab : 50;
+        var elQMF = document.getElementById("quiz-max-fehlerpunkte");
+        if (elQMF) elQMF.value = (feld && feld.max_fehlerpunkte != null) ? feld.max_fehlerpunkte : 10;
+        var ng = (feld && feld.noten_grenzen) ? feld.noten_grenzen : {};
+        ["1","2","3","4","5"].forEach(function(n) {
+            var el = document.getElementById("qe-note-" + n);
+            if (el) el.value = ng[n] != null ? ng[n] : ({"1":90,"2":76,"3":63,"4":50,"5":30}[n]);
+        });
+        var elQETP = document.getElementById("quiz-ergebnis-teilpunkte");
+        if (elQETP) elQETP.checked = !!(feld && feld.teilpunkte);
+        var elQZ = document.getElementById("quiz-zertifikat");
+        if (elQZ) { elQZ.checked = !!(feld && feld.zertifikat); elQZ.dispatchEvent(new Event("change")); }
+        var elQZT = document.getElementById("quiz-zertifikat-titel");
+        if (elQZT) elQZT.value = (feld && feld.zertifikat_titel) ? feld.zertifikat_titel : "";
+        var elQZM = document.getElementById("quiz-zertifikat-monate");
+        if (elQZM) elQZM.value = (feld && feld.zertifikat_gueltig_monate != null) ? feld.zertifikat_gueltig_monate : 12;
         // Optionen: visuelle Liste aufbauen
         renderOptionenListe((feld && feld.optionen) ? feld.optionen : []);
         // Gruppe: Unterfelder laden
@@ -1153,9 +1334,13 @@
         }
         var html = "";
         optionen.forEach(function (opt) {
+            var teile  = String(opt).split("|", 2);
+            var label  = teile[0].trim();
+            var zwert  = teile.length > 1 ? teile[1].trim() : "";
             html += '<div class="d-flex gap-1 mb-1 optionen-item">'
                 + '<span class="drag-handle text-muted px-1" style="cursor:grab; line-height:2;">&#8942;&#8942;</span>'
-                + '<input type="text" class="form-control form-control-sm optionen-wert" value="' + esc(opt) + '" placeholder="Option">'
+                + '<input type="text" class="form-control form-control-sm optionen-label" value="' + esc(label) + '" placeholder="Bezeichnung" style="flex:2">'
+                + '<input type="text" class="form-control form-control-sm optionen-zahlwert" value="' + esc(zwert) + '" placeholder="Wert (optional)" style="flex:1" title="Numerischer Wert f\u00fcr Berechnungen">'
                 + '<button type="button" class="btn btn-sm btn-outline-danger px-2 optionen-loeschen" title="Entfernen">&times;</button>'
                 + '</div>';
         });
@@ -1179,12 +1364,17 @@
     }
 
     function leseOptionen() {
-        return Array.from(document.querySelectorAll("#optionen-liste .optionen-wert"))
-            .map(function (inp) { return inp.value.trim(); })
+        return Array.from(document.querySelectorAll("#optionen-liste .optionen-item"))
+            .map(function (item) {
+                var label = (item.querySelector(".optionen-label")  || {value: ""}).value.trim();
+                var zwert = (item.querySelector(".optionen-zahlwert") || {value: ""}).value.trim();
+                if (!label) return null;
+                return zwert ? label + "|" + zwert : label;
+            })
             .filter(Boolean);
     }
 
-    var STRUKTUR_TYPEN = ["textblock", "abschnitt", "trennlinie", "leerblock", "zusammenfassung", "link", "pdf_email", "einwilligung", "systemfeld"];
+    var STRUKTUR_TYPEN = ["textblock", "abschnitt", "trennlinie", "leerblock", "zusammenfassung", "link", "pdf_email", "einwilligung", "systemfeld", "quizhinweis", "quizergebnis"];
 
     function toggleOptionenRow(typ) {
         var mitOptionen = ["auswahl", "radio", "checkboxen"];
@@ -1197,9 +1387,10 @@
         var mitPdfEmail = ["pdf_email"];
         var mitEinwilligung = ["einwilligung"];
         var mitSystemfeld = ["systemfeld"];
-        var ohneLabel = ["trennlinie", "leerblock", "zusammenfassung", "einwilligung"];
+        var ohneLabel = ["trennlinie", "leerblock", "zusammenfassung", "einwilligung", "quizhinweis", "quizergebnis"];
         var ohneHilfe = ["trennlinie", "leerblock", "bool", "abschnitt", "textblock", "berechnung",
-                         "zusammenfassung", "signatur", "gruppe", "link", "pdf_email", "einwilligung", "systemfeld"];
+                         "zusammenfassung", "signatur", "gruppe", "link", "pdf_email", "einwilligung", "systemfeld",
+                         "quizfrage", "quizhinweis", "quizergebnis"];
         // Regex-Validierung nur bei freien Texteingaben sinnvoll
         var mitRegex = ["text", "mehrzeil", "telefon", "steuernummer", "kfz", "mitarbeiternummer",
                         "iban", "bic", "plz", "email", "zahl", "uhrzeit", "iban"];
@@ -1208,6 +1399,8 @@
         var ohnePflicht = STRUKTUR_TYPEN.concat(["berechnung", "signatur"]);
 
         document.getElementById("optionen-row").style.display = mitOptionen.indexOf(typ) >= 0 ? "" : "none";
+        var bvRow = document.getElementById("bankverbindung-row");
+        if (bvRow) bvRow.style.display = typ === "bankverbindung" ? "" : "none";
         document.getElementById("formel-row").style.display = mitFormel.indexOf(typ) >= 0 ? "" : "none";
         document.getElementById("einheit-row").style.display = mitFormel.indexOf(typ) >= 0 ? "" : "none";
         document.getElementById("systemfeld-row").style.display = mitSystemfeld.indexOf(typ) >= 0 ? "" : "none";
@@ -1219,6 +1412,24 @@
         document.getElementById("link-row").style.display = mitLink.indexOf(typ) >= 0 ? "" : "none";
         document.getElementById("pdf-email-row").style.display = mitPdfEmail.indexOf(typ) >= 0 ? "" : "none";
         document.getElementById("einwilligung-row").style.display = mitEinwilligung.indexOf(typ) >= 0 ? "" : "none";
+        var zahlungRow = document.getElementById("zahlung-row");
+        if (zahlungRow) zahlungRow.style.display = typ === "zahlung" ? "" : "none";
+        var quizhinweisRow = document.getElementById("quizhinweis-row");
+        if (quizhinweisRow) quizhinweisRow.style.display = typ === "quizhinweis" ? "" : "none";
+        var quizfrageRow = document.getElementById("quizfrage-row");
+        if (quizfrageRow) quizfrageRow.style.display = typ === "quizfrage" ? "" : "none";
+        var quizergebnisRow = document.getElementById("quizergebnis-row");
+        if (quizergebnisRow) quizergebnisRow.style.display = typ === "quizergebnis" ? "" : "none";
+        // Quizergebnis: Bewertungsmodell-Wechsel sofort auslösen
+        if (typ === "quizergebnis") {
+            var bm = document.getElementById("quiz-bewertungsmodell");
+            if (bm) bm.dispatchEvent(new Event("change"));
+        }
+        // quizfrage: pflicht immer anzeigen, aber breite ausblenden
+        var ohneBreiteQuiz = ["quizergebnis", "quizhinweis"];
+        if (ohneBreiteQuiz.indexOf(typ) >= 0) {
+            document.getElementById("breite-row").style.display = "none";
+        }
         // Standardtext vorausfullen wenn das Feld leer ist (neues Feld)
         if (mitEinwilligung.indexOf(typ) >= 0) {
             var elEinwVorausfuellen = document.getElementById("feld-einwilligung-text");
@@ -1234,14 +1445,86 @@
         }
         document.getElementById("pflicht-row").style.display = ohnePflicht.indexOf(typ) >= 0 ? "none" : "";
         // Breite nur bei Trennlinie/Zusammenfassung verstecken (kein Sinn ohne Inhalt)
-        var ohneBreite = ["trennlinie", "zusammenfassung", "pdf_email"];
+        var ohneBreite = ["trennlinie", "zusammenfassung", "pdf_email", "zahlung"];
         document.getElementById("breite-row").style.display = ohneBreite.indexOf(typ) >= 0 ? "none" : "";
+        // Zahlung: Betrag-Quelle umschalten
+        var bqSel = document.getElementById("zahlung-betrag-quelle");
+        if (bqSel) {
+            bqSel.onchange = function() {
+                var fest = document.getElementById("zahlung-betrag-fest-wrap");
+                var feld = document.getElementById("zahlung-betrag-feld-wrap");
+                if (this.value === "feld") {
+                    fest.classList.add("d-none"); feld.classList.remove("d-none");
+                } else {
+                    fest.classList.remove("d-none"); feld.classList.add("d-none");
+                }
+            };
+        }
 
-        var labelRow = document.getElementById("feld-label").closest(".mb-3");
+        var labelRow = document.getElementById("bezeichnung-row");
         if (labelRow) labelRow.style.display = ohneLabel.indexOf(typ) >= 0 ? "none" : "";
         var hilfeRow = document.getElementById("feld-hilfetext").closest(".mb-3");
         if (hilfeRow) hilfeRow.style.display = ohneHilfe.indexOf(typ) >= 0 ? "none" : "";
+
+        // bool: Anzeigetext (label) + separate Feld-ID
+        var boolIdRow = document.getElementById("bool-id-row");
+        var idVorschauWrap = document.getElementById("feld-id-vorschau-wrap");
+        var bezeichnungLabel = document.getElementById("bezeichnung-label");
+        if (typ === "bool") {
+            if (boolIdRow) boolIdRow.style.display = "";
+            if (idVorschauWrap) idVorschauWrap.style.display = "none";
+            if (bezeichnungLabel) bezeichnungLabel.innerHTML = 'Anzeigetext <span class="text-danger">*</span>';
+        } else {
+            if (boolIdRow) boolIdRow.style.display = "none";
+            if (idVorschauWrap) idVorschauWrap.style.display = "";
+            if (bezeichnungLabel) bezeichnungLabel.innerHTML = 'Bezeichnung <span class="text-danger">*</span>';
+        }
     }
+
+    // -----------------------------------------------------------------------
+    // FIM-Feld anwenden
+    // -----------------------------------------------------------------------
+
+    function _fimIdAnzeigen(fimId) {
+        var anzeige = document.getElementById("fim-id-anzeige");
+        var vorschau = document.getElementById("fim-id-vorschau");
+        if (fimId) {
+            vorschau.textContent = fimId;
+            anzeige.style.display = "";
+        } else {
+            anzeige.style.display = "none";
+        }
+    }
+
+    function _fimFeldAnwenden(fimId, fimName, fimTyp, fimOptionenJson) {
+        // Typ setzen
+        var typEl = document.getElementById("feld-typ");
+        if (typEl.querySelector('option[value="' + fimTyp + '"]')) {
+            typEl.value = fimTyp;
+            typEl.dispatchEvent(new Event("change"));
+        }
+        // Label setzen
+        var labelEl = document.getElementById("feld-label");
+        labelEl.value = fimName;
+        labelEl.dispatchEvent(new Event("input"));
+        // FIM-ID setzen
+        document.getElementById("feld-fim-id").value = fimId;
+        _fimIdAnzeigen(fimId);
+        // Optionen befüllen wenn vorhanden (Auswahl-Felder)
+        if (fimOptionenJson) {
+            try {
+                var opts = JSON.parse(fimOptionenJson);
+                if (Array.isArray(opts) && opts.length) {
+                    // Kurz warten bis renderOptionenListe durch change-Event fertig
+                    setTimeout(function () {
+                        renderOptionenListe(opts.map(function (o) { return { wert: o, label: o }; }));
+                    }, 50);
+                }
+            } catch (e) { /* ignore */ }
+        }
+    }
+
+    // -----------------------------------------------------------------------
 
     function feldSpeichern() {
         var typ = document.getElementById("feld-typ").value;
@@ -1256,8 +1539,11 @@
         var feld = {
             typ: typ,
             label: label,
-            pflicht: document.getElementById("feld-pflicht").checked,
+            pflicht:   document.getElementById("feld-pflicht").checked,
+            versteckt: document.getElementById("feld-versteckt").checked,
         };
+        var fimIdVal = document.getElementById("feld-fim-id").value.trim();
+        if (fimIdVal) feld.fim_id = fimIdVal;
         var hilfetext = document.getElementById("feld-hilfetext").value.trim();
         if (hilfetext) feld.hilfetext = hilfetext;
         var validierungRegex = document.getElementById("feld-regex").value.trim();
@@ -1302,6 +1588,21 @@
         if (typ === "trennlinie" || typ === "leerblock" || typ === "zusammenfassung") {
             feld.label = "";
         }
+        if (typ === "zahlung") {
+            var bqVal = document.getElementById("zahlung-betrag-quelle").value;
+            feld.betrag_quelle = bqVal;
+            if (bqVal === "fest") {
+                feld.betrag_fest = parseFloat(document.getElementById("zahlung-betrag-fest").value) || 0;
+            } else {
+                feld.betrag_feld_id = document.getElementById("zahlung-betrag-feld-id").value.trim();
+            }
+            feld.verwendungszweck = document.getElementById("zahlung-verwendungszweck").value.trim();
+            var methoden = [];
+            ["stripe_karte", "stripe_sepa", "wero"].forEach(function(m) {
+                if (document.getElementById("zahlung-methode-" + m).checked) methoden.push(m);
+            });
+            feld.methoden = methoden.length ? methoden : ["stripe_karte"];
+        }
         if (typ === "einwilligung") {
             var elEinwTextSave = document.getElementById("feld-einwilligung-text");
             var einwText = elEinwTextSave ? elEinwTextSave.value.trim() : "";
@@ -1320,6 +1621,46 @@
             var einwLinkUrl = document.getElementById("feld-einwilligung-link-url").value.trim();
             if (einwLinkText) feld.link_text = einwLinkText;
             if (einwLinkUrl) feld.link_url = einwLinkUrl;
+        }
+        if (typ === "quizhinweis") {
+            feld.text = document.getElementById("feld-quizhinweis-text").value.trim();
+            feld.label = "";
+        }
+        if (typ === "quizfrage") {
+            feld.antwort_typ = document.getElementById("quiz-antwort-typ").value;
+            var qPunkte = parseFloat(document.getElementById("quiz-punkte").value) || 1;
+            feld.punkte = qPunkte;
+            var qFP = document.getElementById("quiz-fehlerpunkte").value.trim();
+            if (qFP !== "") feld.fehlerpunkte = parseFloat(qFP) || qPunkte;
+            feld.pflicht_korrekt = document.getElementById("quiz-pflicht-korrekt").checked;
+            feld.teilpunkte = document.getElementById("quiz-teilpunkte").checked;
+            var erkl = document.getElementById("quiz-erklaerung").value.trim();
+            if (erkl) feld.erklaerung = erkl;
+            feld.antworten = _leseQuizAntworten();
+        }
+        if (typ === "quizergebnis") {
+            feld.bewertungsmodell = document.getElementById("quiz-bewertungsmodell").value;
+            feld.bestanden_ab = parseFloat(document.getElementById("quiz-bestanden-ab").value) || 50;
+            if (feld.bewertungsmodell === "fuehrerschein") {
+                feld.max_fehlerpunkte = parseFloat(document.getElementById("quiz-max-fehlerpunkte").value) || 10;
+            }
+            if (feld.bewertungsmodell === "noten") {
+                feld.noten_grenzen = {
+                    "1": parseInt(document.getElementById("qe-note-1").value, 10) || 90,
+                    "2": parseInt(document.getElementById("qe-note-2").value, 10) || 76,
+                    "3": parseInt(document.getElementById("qe-note-3").value, 10) || 63,
+                    "4": parseInt(document.getElementById("qe-note-4").value, 10) || 50,
+                    "5": parseInt(document.getElementById("qe-note-5").value, 10) || 30,
+                };
+            }
+            feld.teilpunkte = document.getElementById("quiz-ergebnis-teilpunkte").checked;
+            feld.zertifikat = document.getElementById("quiz-zertifikat").checked;
+            if (feld.zertifikat) {
+                var ztitel = document.getElementById("quiz-zertifikat-titel").value.trim();
+                if (ztitel) feld.zertifikat_titel = ztitel;
+                feld.zertifikat_gueltig_monate = parseInt(document.getElementById("quiz-zertifikat-monate").value, 10) || 0;
+            }
+            feld.label = feld.label || "Testergebnis";
         }
         if (typ === "gruppe") {
             feld.singular = document.getElementById("feld-singular").value.trim() || "Eintrag";
@@ -1341,6 +1682,27 @@
         // Breite auslesen
         var breiteInput = document.querySelector("input[name='feld-breite']:checked");
         feld.breite = breiteInput ? parseInt(breiteInput.value, 10) : 100;
+
+        // bool: explizite Feld-ID pflicht
+        if (typ === "bool") {
+            var elBoolFeldIdSave = document.getElementById("feld-bool-feld-id");
+            var boolFeldId = elBoolFeldIdSave ? elBoolFeldIdSave.value.trim().replace(/\s+/g, "_").replace(/[^\w]/g, "_").replace(/_+/g, "_").replace(/^_|_$/, "") : "";
+            if (!boolFeldId) {
+                if (elBoolFeldIdSave) { elBoolFeldIdSave.classList.add("is-invalid"); elBoolFeldIdSave.focus(); }
+                return;
+            }
+            if (elBoolFeldIdSave) elBoolFeldIdSave.classList.remove("is-invalid");
+            feld.id = boolFeldId;
+            if (editFeldIndex !== null) {
+                schritteFelder[editFeldIndex] = feld;
+            } else {
+                schritteFelder.push(feld);
+            }
+            feldModal.hide();
+            schrittModal.show();
+            renderFelderListe();
+            return;
+        }
 
         if (editFeldIndex !== null) {
             feld.id = schritteFelder[editFeldIndex].id || labelZuId(label, typ);
@@ -1470,6 +1832,112 @@
     });
 
     // -----------------------------------------------------------------------
+    // Quiz-Antworten-Editor
+    // -----------------------------------------------------------------------
+
+    var quizAntworten = []; // [{text, korrekt}]
+
+    function _renderQuizAntworten(liste) {
+        quizAntworten = liste ? JSON.parse(JSON.stringify(liste)) : [];
+        _renderQuizAntwortenListe();
+    }
+
+    function _renderQuizAntwortenListe() {
+        var container = document.getElementById("quiz-antworten-liste");
+        if (!container) return;
+        if (quizAntworten.length === 0) {
+            container.innerHTML = '<p class="text-muted small mb-0" id="quiz-antworten-leer">Noch keine Antworten.</p>';
+            return;
+        }
+        var html = "";
+        quizAntworten.forEach(function (a, i) {
+            html += '<div class="d-flex gap-2 mb-1 align-items-center quiz-antwort-item">'
+                + '<input type="checkbox" class="form-check-input flex-shrink-0" data-qa-idx="' + i + '" data-qa-action="korrekt"'
+                + (a.korrekt ? " checked" : "") + ' title="Richtige Antwort">'
+                + '<input type="text" class="form-control form-control-sm" placeholder="Antworttext"'
+                + ' data-qa-idx="' + i + '" data-qa-action="text" value="' + esc(a.text || "") + '">'
+                + '<button type="button" class="btn btn-sm btn-outline-danger px-2 flex-shrink-0"'
+                + ' data-qa-idx="' + i + '" data-qa-action="loeschen" title="Entfernen">&times;</button>'
+                + '</div>';
+        });
+        container.innerHTML = html;
+    }
+
+    function _leseQuizAntworten() {
+        return quizAntworten.filter(function (a) { return a.text && a.text.trim(); });
+    }
+
+    document.addEventListener("DOMContentLoaded", function () {
+        // Antwort hinzufügen
+        var btnQA = document.getElementById("btn-quiz-antwort-hinzu");
+        if (btnQA) {
+            btnQA.addEventListener("click", function () {
+                quizAntworten.push({ text: "", korrekt: false });
+                _renderQuizAntwortenListe();
+            });
+        }
+
+        // Antwort-Liste: Delegation
+        var qaContainer = document.getElementById("quiz-antworten-liste");
+        if (qaContainer) {
+            qaContainer.addEventListener("input", function (e) {
+                var el = e.target;
+                var idx = parseInt(el.dataset.qaIdx);
+                if (isNaN(idx)) return;
+                if (el.dataset.qaAction === "text") quizAntworten[idx].text = el.value;
+            });
+            qaContainer.addEventListener("change", function (e) {
+                var el = e.target;
+                var idx = parseInt(el.dataset.qaIdx);
+                if (isNaN(idx)) return;
+                if (el.dataset.qaAction === "korrekt") quizAntworten[idx].korrekt = el.checked;
+            });
+            qaContainer.addEventListener("click", function (e) {
+                var btn = e.target.closest("[data-qa-action='loeschen']");
+                if (!btn) return;
+                var idx = parseInt(btn.dataset.qaIdx);
+                if (!isNaN(idx)) { quizAntworten.splice(idx, 1); _renderQuizAntwortenListe(); }
+            });
+        }
+
+        // Antworttyp Wahr/Falsch → automatisch befüllen
+        var elQATyp = document.getElementById("quiz-antwort-typ");
+        if (elQATyp) {
+            elQATyp.addEventListener("change", function () {
+                if (this.value === "wahr_falsch") {
+                    quizAntworten = [{ text: "Wahr", korrekt: true }, { text: "Falsch", korrekt: false }];
+                    _renderQuizAntwortenListe();
+                }
+            });
+        }
+
+        // Bewertungsmodell-Wechsel: bedingte Felder ein-/ausblenden
+        var elBM = document.getElementById("quiz-bewertungsmodell");
+        if (elBM) {
+            elBM.addEventListener("change", function () {
+                var m = this.value;
+                var elBaRow = document.getElementById("qe-bestanden-ab-row");
+                var elBaLabel = document.getElementById("qe-bestanden-ab-label");
+                var elMFRow = document.getElementById("qe-max-fehlerpunkte-row");
+                var elNRow = document.getElementById("qe-noten-row");
+                if (elBaRow) elBaRow.style.display = (m === "fuehrerschein") ? "none" : "";
+                if (elBaLabel) elBaLabel.textContent = (m === "punkte") ? "Bestanden ab (Punkte)" : "Bestanden ab (%)";
+                if (elMFRow) elMFRow.style.display = (m === "fuehrerschein") ? "" : "none";
+                if (elNRow) elNRow.style.display = (m === "noten") ? "" : "none";
+            });
+        }
+
+        // Zertifikat-Checkbox → Details ein-/ausblenden
+        var elQZ = document.getElementById("quiz-zertifikat");
+        if (elQZ) {
+            elQZ.addEventListener("change", function () {
+                var det = document.getElementById("qe-zertifikat-details");
+                if (det) det.style.display = this.checked ? "" : "none";
+            });
+        }
+    });
+
+    // -----------------------------------------------------------------------
     // Kante hinzufuegen
     // -----------------------------------------------------------------------
 
@@ -1507,32 +1975,32 @@
 
     var FELD_BAUSTEINE = {
         personalien: [
-            { typ: "text",  label: "Familienname",  pflicht: true  },
-            { typ: "text",  label: "Geburtsname",   pflicht: false },
-            { typ: "text",  label: "Vorname",        pflicht: true  },
-            { typ: "datum", label: "Geburtsdatum",   pflicht: true  },
-            { typ: "text",  label: "Geburtsort",     pflicht: false },
+            { typ: "text",  label: "Familienname",  pflicht: true,  fim_id: "F60000004" },
+            { typ: "text",  label: "Geburtsname",   pflicht: false, fim_id: "F60000005" },
+            { typ: "text",  label: "Vorname",       pflicht: true,  fim_id: "F60000003" },
+            { typ: "datum", label: "Geburtsdatum",  pflicht: true,  fim_id: "F60000006" },
+            { typ: "text",  label: "Geburtsort",    pflicht: false, fim_id: "F60000007" },
         ],
         adresse: [
-            { typ: "text", label: "Straße und Hausnummer", pflicht: true  },
-            { typ: "text", label: "PLZ",                   pflicht: true  },
-            { typ: "text", label: "Wohnort",               pflicht: true  },
+            { typ: "text", label: "Straße und Hausnummer", pflicht: true,  fim_id: "F60000022" },
+            { typ: "plz",  label: "Postleitzahl",          pflicht: true,  fim_id: "F60000024" },
+            { typ: "text", label: "Wohnort",               pflicht: true,  fim_id: "F60000025" },
         ],
         kontakt: [
-            { typ: "text",  label: "Telefonnummer",  pflicht: false },
-            { typ: "email", label: "E-Mail-Adresse", pflicht: false },
+            { typ: "telefon", label: "Telefonnummer",  pflicht: false, fim_id: "F60000031" },
+            { typ: "email",   label: "E-Mail-Adresse", pflicht: false, fim_id: "F60000030" },
         ],
         antragsteller: [
-            { typ: "text",  label: "Familienname",          pflicht: true  },
-            { typ: "text",  label: "Geburtsname",           pflicht: false },
-            { typ: "text",  label: "Vorname",               pflicht: true  },
-            { typ: "datum", label: "Geburtsdatum",          pflicht: true  },
-            { typ: "text",  label: "Geburtsort",            pflicht: false },
-            { typ: "text",  label: "Straße und Hausnummer", pflicht: true  },
-            { typ: "text",  label: "PLZ",                   pflicht: true  },
-            { typ: "text",  label: "Wohnort",               pflicht: true  },
-            { typ: "text",  label: "Telefonnummer",         pflicht: false },
-            { typ: "email", label: "E-Mail-Adresse",        pflicht: false },
+            { typ: "text",    label: "Familienname",          pflicht: true,  fim_id: "F60000004" },
+            { typ: "text",    label: "Geburtsname",           pflicht: false, fim_id: "F60000005" },
+            { typ: "text",    label: "Vorname",               pflicht: true,  fim_id: "F60000003" },
+            { typ: "datum",   label: "Geburtsdatum",          pflicht: true,  fim_id: "F60000006" },
+            { typ: "text",    label: "Geburtsort",            pflicht: false, fim_id: "F60000007" },
+            { typ: "text",    label: "Straße und Hausnummer", pflicht: true,  fim_id: "F60000022" },
+            { typ: "plz",     label: "Postleitzahl",          pflicht: true,  fim_id: "F60000024" },
+            { typ: "text",    label: "Wohnort",               pflicht: true,  fim_id: "F60000025" },
+            { typ: "telefon", label: "Telefonnummer",         pflicht: false, fim_id: "F60000031" },
+            { typ: "email",   label: "E-Mail-Adresse",        pflicht: false, fim_id: "F60000030" },
         ],
     };
 
@@ -1861,7 +2329,12 @@
             document.getElementById("pfad-aktiv").checked = !!daten.aktiv;
             var oeffEl = document.getElementById("pfad-oeffentlich");
             if (oeffEl) oeffEl.checked = !!daten.oeffentlich;
-            document.getElementById("pfad-workflow-template").value = daten.workflow_template_id || "";
+            var wtEl = document.getElementById("pfad-workflow-template");
+            if (wtEl) wtEl.value = daten.workflow_template_id || "";
+            var emailEl = document.getElementById("pfad-benachrichtigung-email");
+            if (emailEl) emailEl.value = daten.benachrichtigung_email || "";
+            var leikaEl = document.getElementById("pfad-leika-schluessel");
+            if (leikaEl) leikaEl.value = daten.leika_schluessel || "";
             pfadVariablen = daten.variablen || {};
 
             // Schritte aufbauen
@@ -1978,6 +2451,9 @@
         });
 
         var oeffEl = document.getElementById("pfad-oeffentlich");
+        var wtEl = document.getElementById("pfad-workflow-template");
+        var emailEl = document.getElementById("pfad-benachrichtigung-email");
+        var leikaEl = document.getElementById("pfad-leika-schluessel");
         var payload = {
             pk: pfadPk,
             name: name,
@@ -1985,6 +2461,9 @@
             aktiv: document.getElementById("pfad-aktiv").checked,
             oeffentlich: oeffEl ? oeffEl.checked : false,
             kuerzel: (document.getElementById("pfad-kuerzel").value || "").trim().toUpperCase(),
+            workflow_template_id: wtEl ? (wtEl.value || null) : null,
+            benachrichtigung_email: emailEl ? emailEl.value.trim() : "",
+            leika_schluessel: leikaEl ? leikaEl.value.trim() : "",
             schritte: Object.values(schritte),
             transitionen: transitionen,
             variablen: pfadVariablen,
@@ -2008,7 +2487,7 @@
                 pfadPk = data.pk;
                 document.getElementById("speicher-status").textContent = "Gespeichert (" + data.name + ")";
                 // URL aktualisieren ohne Reload
-                history.replaceState(null, "", "/antraege/editor/" + pfadPk + "/");
+                history.replaceState(null, "", "/formulare/editor/" + pfadPk + "/");
                 // Entwurf nach erfolgreichem Speichern loeschen
                 try { localStorage.removeItem(entwurfSchluessel()); } catch (e2) {}
                 var entwurfBanner = document.getElementById("entwurf-banner");
@@ -2123,6 +2602,14 @@
             document.getElementById("pfad-kuerzel").value = entwurf.kuerzel || "";
             if (entwurf.workflow_template_id) {
                 document.getElementById("pfad-workflow-template").value = entwurf.workflow_template_id;
+            }
+            var emailEntwEl = document.getElementById("pfad-benachrichtigung-email");
+            if (emailEntwEl && entwurf.benachrichtigung_email) {
+                emailEntwEl.value = entwurf.benachrichtigung_email;
+            }
+            var leikaEntwEl = document.getElementById("pfad-leika-schluessel");
+            if (leikaEntwEl && entwurf.leika_schluessel) {
+                leikaEntwEl.value = entwurf.leika_schluessel;
             }
             document.getElementById("entwurf-banner").classList.add("d-none");
             document.getElementById("speicher-status").textContent =
@@ -2499,5 +2986,168 @@
             return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
         }
     }());
+
+}());
+
+// ============================================================================
+// Quiz-Import-Modal
+// ============================================================================
+(function () {
+    "use strict";
+
+    var quizImportModal = null;
+
+    function _getCsrf() {
+        var el = document.querySelector("[name=csrfmiddlewaretoken]");
+        if (el) return el.value;
+        var cookie = document.cookie.split(";").find(function (c) { return c.trim().startsWith("csrftoken="); });
+        return cookie ? cookie.trim().split("=")[1] : "";
+    }
+
+    function _zeigeFehler(msg) {
+        var el = document.getElementById("qi-fehler");
+        var er = document.getElementById("qi-ergebnis");
+        if (el) { el.textContent = msg; el.classList.remove("d-none"); }
+        if (er) er.classList.add("d-none");
+    }
+
+    function _zeigeErfolg(msg) {
+        var el = document.getElementById("qi-ergebnis");
+        var ef = document.getElementById("qi-fehler");
+        if (el) { el.textContent = msg; el.classList.remove("d-none"); }
+        if (ef) ef.classList.add("d-none");
+    }
+
+    function _setSpinner(an) {
+        var s = document.getElementById("qi-spinner");
+        if (s) s.classList.toggle("d-none", !an);
+    }
+
+    function _resetMeldungen() {
+        var ef = document.getElementById("qi-fehler");
+        var er = document.getElementById("qi-ergebnis");
+        if (ef) ef.classList.add("d-none");
+        if (er) er.classList.add("d-none");
+    }
+
+    function _fragenEinfuegen(fragen) {
+        if (!Array.isArray(fragen) || fragen.length === 0) {
+            _zeigeFehler("Keine Fragen zum Einfügen vorhanden.");
+            return;
+        }
+
+        var felder = window._quizImportTarget;
+        if (!felder) {
+            _zeigeFehler("Kein Schritt geöffnet. Bitte öffne zuerst einen Schritt zum Bearbeiten, dann importiere erneut.");
+            return;
+        }
+
+        fragen.forEach(function (f) { felder.push(f); });
+
+        if (typeof window._quizImportRenderCallback === "function") {
+            window._quizImportRenderCallback();
+        }
+
+        if (quizImportModal) quizImportModal.hide();
+        // kurze Erfolgsmeldung – Modal ist weg, kein Ort mehr zum Zeigen
+        alert(fragen.length + " Quizfragen wurden in den Schritt eingefügt. Speichere den Pfad danach.");
+    }
+
+    function _importKI() {
+        var pdf = document.getElementById("qi-ki-pdf");
+        if (!pdf || !pdf.files || !pdf.files[0]) { _zeigeFehler("Bitte wähle eine PDF-Datei aus."); return; }
+        var anzahl = document.getElementById("qi-ki-anzahl").value || "10";
+
+        _resetMeldungen();
+        _setSpinner(true);
+
+        var fd = new FormData();
+        fd.append("pdf", pdf.files[0]);
+        fd.append("anzahl", anzahl);
+        fd.append("csrfmiddlewaretoken", _getCsrf());
+
+        fetch("/quiz/import/ki/", { method: "POST", body: fd, credentials: "same-origin" })
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                _setSpinner(false);
+                if (data.error) { _zeigeFehler(data.error); return; }
+                _fragenEinfuegen(data.fragen);
+            })
+            .catch(function (e) { _setSpinner(false); _zeigeFehler("Netzwerkfehler: " + e); });
+    }
+
+    function _importCSV() {
+        var csv = document.getElementById("qi-csv-datei");
+        if (!csv || !csv.files || !csv.files[0]) { _zeigeFehler("Bitte wähle eine CSV-Datei aus."); return; }
+
+        _resetMeldungen();
+        _setSpinner(true);
+
+        var fd = new FormData();
+        fd.append("csv", csv.files[0]);
+        fd.append("csrfmiddlewaretoken", _getCsrf());
+
+        fetch("/quiz/import/csv/", { method: "POST", body: fd, credentials: "same-origin" })
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                _setSpinner(false);
+                if (data.error) { _zeigeFehler(data.error); return; }
+                _fragenEinfuegen(data.fragen);
+            })
+            .catch(function (e) { _setSpinner(false); _zeigeFehler("Netzwerkfehler: " + e); });
+    }
+
+    function _importDemo(deckName) {
+        _resetMeldungen();
+        _setSpinner(true);
+
+        var qs = "";
+        if (deckName === "einbuergerungstest") {
+            var el = document.getElementById("qi-demo-einb-anzahl");
+            qs = "?anzahl=" + (el ? el.value : "20");
+        }
+
+        fetch("/quiz/import/demo/" + deckName + "/" + qs, { credentials: "same-origin" })
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                _setSpinner(false);
+                if (data.error) { _zeigeFehler(data.error); return; }
+                _fragenEinfuegen(data.fragen);
+            })
+            .catch(function (e) { _setSpinner(false); _zeigeFehler("Netzwerkfehler: " + e); });
+    }
+
+    document.addEventListener("DOMContentLoaded", function () {
+        var modalEl = document.getElementById("quiz-import-modal");
+        if (!modalEl) return;
+        quizImportModal = new bootstrap.Modal(modalEl);
+
+        var btnOpen = document.getElementById("btn-quiz-import");
+        if (btnOpen) {
+            btnOpen.addEventListener("click", function () {
+                _resetMeldungen();
+                quizImportModal.show();
+            });
+        }
+
+        var kiPdf = document.getElementById("qi-ki-pdf");
+        var btnKI = document.getElementById("btn-qi-ki-starten");
+        if (kiPdf && btnKI) {
+            kiPdf.addEventListener("change", function () { btnKI.disabled = !this.files || !this.files[0]; });
+            btnKI.addEventListener("click", _importKI);
+        }
+
+        var csvDatei = document.getElementById("qi-csv-datei");
+        var btnCSV = document.getElementById("btn-qi-csv-starten");
+        if (csvDatei && btnCSV) {
+            csvDatei.addEventListener("change", function () { btnCSV.disabled = !this.files || !this.files[0]; });
+            btnCSV.addEventListener("click", _importCSV);
+        }
+
+        var btnDemoEinb = document.getElementById("btn-qi-demo-einbuergerung");
+        if (btnDemoEinb) {
+            btnDemoEinb.addEventListener("click", function () { _importDemo("einbuergerungstest"); });
+        }
+    });
 
 }());

@@ -52,6 +52,28 @@ class AntrPfad(models.Model):
         verbose_name="Variablen",
         help_text="Pfad-weite Berechnungsgrundlagen",
     )
+    benachrichtigung_email = models.EmailField(
+        blank=True,
+        default="",
+        verbose_name="Benachrichtigungs-E-Mail",
+        help_text="Bei neuem Antrag wird eine formatierte E-Mail an diese Adresse gesendet, z.B. hundesteuer@gemeinde.de",
+    )
+    leika_schluessel = models.CharField(
+        max_length=20,
+        blank=True,
+        default="",
+        verbose_name="LeiKa-Schlüssel",
+        help_text="14-stellige LeiKa-Leistungsnummer, z.B. 99108018026000 (Hundesteuer-Anmeldung)",
+    )
+    workflow_template = models.ForeignKey(
+        "workflow.WorkflowTemplate",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="verknuepfte_pfade",
+        verbose_name="Workflow nach Abschluss",
+        help_text="Dieser Workflow startet automatisch wenn der Antrag abgeschlossen wird.",
+    )
 
     class Meta:
         ordering = ["name"]
@@ -199,6 +221,13 @@ class AntrSitzung(models.Model):
         verbose_name="Vorgangsnummer",
         help_text="Automatisch generiert beim Abschluss, z.B. HUN-00001-20260328-1423",
     )
+    tracking_token = models.CharField(
+        max_length=64,
+        blank=True,
+        default="",
+        verbose_name="Tracking-Token",
+        help_text="Token fuer oeffentliche Vorgangs-Verfolgung ohne Login",
+    )
 
     class Meta:
         ordering = ["-gestartet_am"]
@@ -228,11 +257,118 @@ class AntrSitzung(models.Model):
 
     def abschliessen(self):
         """Markiert die Sitzung als abgeschlossen und generiert die Vorgangsnummer."""
+        import secrets
         self.status = self.STATUS_ABGESCHLOSSEN
         self.abgeschlossen_am = timezone.now()
         if not self.vorgangsnummer:
             self.vorgangsnummer = AntrSitzung.generiere_vorgangsnummer(self.pfad)
-        self.save(update_fields=["status", "abgeschlossen_am", "vorgangsnummer"])
+        if not self.tracking_token:
+            self.tracking_token = secrets.token_hex(32)
+        self.save(update_fields=["status", "abgeschlossen_am", "vorgangsnummer", "tracking_token"])
+        self._sende_tracking_email()
+        self._sende_sachbearbeiter_email()
+        self._trigger_webhook()
+
+    def _trigger_webhook(self):
+        try:
+            from .webhook_service import trigger_antrag_eingereicht
+            trigger_antrag_eingereicht(self)
+        except Exception:
+            pass
+
+    def _sende_sachbearbeiter_email(self):
+        """Sendet formatierte Eingangs-E-Mail ans konfigurierte Sachgebiets-Postfach."""
+        empfaenger = self.pfad.benachrichtigung_email
+        if not empfaenger:
+            return
+        try:
+            from django.conf import settings as conf
+            from django.core.mail import EmailMessage
+            base_url = getattr(conf, "VORGANGSWERK_BASE_URL", "").rstrip("/")
+            task_url = f"{base_url}/formulare/sitzung/{self.pk}/pdf/"
+            vorgang_url = f"{base_url}/workflow/"
+
+            # Felddaten aufbereiten
+            felder_text = ""
+            label_map = {}
+            for schritt in self.pfad.schritte.all():
+                for f in (schritt.felder_json or []):
+                    if f.get("id") and f.get("label"):
+                        label_map[f["id"]] = f["label"]
+            for key, wert in (self.gesammelte_daten or {}).items():
+                if key.startswith("__"):
+                    continue
+                label = label_map.get(key, key)
+                if isinstance(wert, bool):
+                    wert = "Ja" if wert else "Nein"
+                felder_text += f"  {label:<30} {wert}\n"
+
+            antragsteller = ""
+            if self.user:
+                antragsteller = self.user.get_full_name() or self.user.username
+                if self.user.email:
+                    antragsteller += f" <{self.user.email}>"
+            elif self.email_anonym:
+                antragsteller = self.email_anonym
+
+            betreff = f"Neuer Antrag {self.vorgangsnummer} – {self.pfad.name}"
+            text = (
+                f"Neuer Antrag eingegangen\n"
+                f"{'='*50}\n\n"
+                f"Vorgangsnummer:  {self.vorgangsnummer}\n"
+                f"Formular:        {self.pfad.name}\n"
+                f"Eingereicht am:  {self.abgeschlossen_am.strftime('%d.%m.%Y um %H:%M')} Uhr\n"
+                f"Antragsteller:   {antragsteller or '(anonym)'}\n\n"
+                f"Angaben\n"
+                f"{'-'*50}\n"
+                f"{felder_text or '  (keine Angaben)'}\n"
+                f"Links\n"
+                f"{'-'*50}\n"
+                f"  Arbeitsstapel:  {vorgang_url}\n"
+                f"  Antrag als PDF: {task_url}\n"
+            )
+            if self.tracking_token:
+                tracking_url = f"{base_url}/vorgang/{self.vorgangsnummer}/?token={self.tracking_token}"
+                text += f"  Tracking-Link:  {tracking_url}\n"
+
+            msg = EmailMessage(
+                subject=betreff,
+                body=text,
+                to=[empfaenger],
+            )
+            # Hochgeladene Dateien anhängen
+            for datei in self.dateien.all():
+                msg.attach(datei.dateiname, bytes(datei.inhalt), datei.mime_type)
+            msg.send(fail_silently=True)
+        except Exception:
+            pass
+
+    def _sende_tracking_email(self):
+        """Sendet Tracking-Link per E-Mail an den Antragsteller."""
+        empfaenger = self.email_anonym
+        if not empfaenger and self.user:
+            empfaenger = self.user.email
+        if not empfaenger:
+            return
+        try:
+            from django.conf import settings as conf
+            from django.core.mail import send_mail
+            base_url = getattr(conf, "VORGANGSWERK_BASE_URL", "").rstrip("/")
+            link = f"{base_url}/vorgang/{self.vorgangsnummer}/?token={self.tracking_token}"
+            betreff = f"Ihr Antrag wurde eingereicht – {self.vorgangsnummer}"
+            text = (
+                f"Guten Tag,\n\n"
+                f"Ihr Antrag \"{self.pfad.name}\" wurde erfolgreich eingereicht.\n\n"
+                f"Vorgangsnummer: {self.vorgangsnummer}\n"
+                f"Eingereicht am: {self.abgeschlossen_am.strftime('%d.%m.%Y %H:%M')} Uhr\n\n"
+                f"Den aktuellen Bearbeitungsstand können Sie jederzeit hier einsehen:\n"
+                f"{link}\n\n"
+                f"Bitte bewahren Sie diesen Link sicher auf.\n\n"
+                f"Mit freundlichen Grüßen\nIhr Vorgangswerk-Team"
+            )
+            send_mail(betreff, text, None, [empfaenger], fail_silently=True)
+        except Exception:
+            pass
 
 
 class AntrDatei(models.Model):
@@ -284,3 +420,83 @@ class AntrVersion(models.Model):
 
     def __str__(self):
         return f"{self.pfad.name} v{self.version_nr}"
+
+
+class WebhookKonfiguration(models.Model):
+    """Webhook-Endpunkt fuer die bezahlte Formularschnittstelle."""
+
+    EREIGNIS_CHOICES = [
+        ("antrag.eingereicht",     "Antrag eingereicht"),
+        ("workflow.abgeschlossen", "Workflow abgeschlossen"),
+        ("task.abgeschlossen",     "Task abgeschlossen"),
+    ]
+
+    name = models.CharField(max_length=200, verbose_name="Bezeichnung",
+                            help_text="z.B. 'MACH-Anbindung Hundesteuer'")
+    url = models.URLField(verbose_name="Ziel-URL",
+                          help_text="HTTPS-Endpunkt der empfangenden Anwendung")
+    secret = models.CharField(
+        max_length=128,
+        verbose_name="Signing-Secret",
+        help_text="Wird für HMAC-SHA256-Signatur verwendet (X-Webhook-Signature)"
+    )
+    pfad = models.ForeignKey(
+        AntrPfad,
+        on_delete=models.CASCADE,
+        null=True, blank=True,
+        related_name="webhooks",
+        verbose_name="Antragspfad",
+        help_text="Leer = gilt für alle Pfade",
+    )
+    ereignisse = models.JSONField(
+        default=list,
+        verbose_name="Ereignisse",
+        help_text="Liste der Ereignisse, z.B. ['antrag.eingereicht']",
+    )
+    aktiv = models.BooleanField(default=True, verbose_name="Aktiv")
+    erstellt_am = models.DateTimeField(auto_now_add=True)
+    erstellt_von = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name="webhook_konfigurationen",
+    )
+
+    class Meta:
+        ordering = ["name"]
+        verbose_name = "Webhook-Konfiguration"
+        verbose_name_plural = "Webhook-Konfigurationen"
+
+    def __str__(self):
+        pfad_str = f" [{self.pfad.name}]" if self.pfad else " [global]"
+        return f"{self.name}{pfad_str}"
+
+    def ereignisse_display(self):
+        labels = dict(self.EREIGNIS_CHOICES)
+        return ", ".join(labels.get(e, e) for e in (self.ereignisse or []))
+
+
+class WebhookZustellung(models.Model):
+    """Protokoll jedes Zustellversuchs."""
+
+    konfiguration = models.ForeignKey(
+        WebhookKonfiguration,
+        on_delete=models.CASCADE,
+        related_name="zustellungen",
+    )
+    ereignis = models.CharField(max_length=50)
+    payload_json = models.JSONField()
+    versuche = models.IntegerField(default=0)
+    letzter_status_code = models.IntegerField(null=True, blank=True)
+    zugestellt_am = models.DateTimeField(null=True, blank=True)
+    fehler = models.TextField(blank=True)
+    erstellt_am = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-erstellt_am"]
+        verbose_name = "Webhook-Zustellung"
+        verbose_name_plural = "Webhook-Zustellungen"
+
+    def __str__(self):
+        status = "OK" if self.zugestellt_am else f"Fehler ({self.fehler[:40]})"
+        return f"{self.ereignis} → {self.konfiguration.url[:40]} [{status}]"

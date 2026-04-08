@@ -62,9 +62,16 @@ document.addEventListener("DOMContentLoaded", function () {
                 anzeige.value = ergebnis;
                 var hidden = document.getElementById("berechnung-hidden-" + id);
                 if (hidden) hidden.value = ergebnis;
+                werte[id] = String(ergebnis); // damit Textbloecke den berechneten Wert sehen
             } else {
                 anzeige.value = "";
             }
+        });
+        // Textbloecke mit Platzhaltern aktualisieren
+        document.querySelectorAll("[data-template]").forEach(function (el) {
+            el.textContent = el.dataset.template.replace(/\{\{(\w+)\}\}/g, function (_, id) {
+                return werte[id] !== undefined && werte[id] !== "" ? werte[id] : "…";
+            });
         });
     }
 
@@ -256,6 +263,38 @@ document.addEventListener("DOMContentLoaded", function () {
                 reindexGruppe(gruppeId2, container2, singular2, unterfelder2);
             }
         }
+    });
+
+    // ---------------------------------------------------------------------------
+    // Bankverbindung-Felder: Sub-Variablen bei Auswahl ableiten
+    // ---------------------------------------------------------------------------
+
+    var bankverbindungenDaten = [];
+    var bankverbindungenEl = document.getElementById("bankverbindungen-daten");
+    if (bankverbindungenEl) {
+        try { bankverbindungenDaten = JSON.parse(bankverbindungenEl.textContent); } catch (e) {}
+    }
+
+    function bankverbindungAktualisieren(feldId, kuerzel) {
+        var bank = null;
+        for (var i = 0; i < bankverbindungenDaten.length; i++) {
+            if (bankverbindungenDaten[i].kuerzel === kuerzel) { bank = bankverbindungenDaten[i]; break; }
+        }
+        var felder = ["iban", "bic", "bank", "kontoinhaber", "bezeichnung"];
+        felder.forEach(function (f) {
+            var varName = feldId + "_" + f;
+            gesammelteDaten[varName] = bank ? (f === "bank" ? bank.bank_name : bank[f]) || "" : "";
+        });
+        aktualisiereBerechnung();
+    }
+
+    document.querySelectorAll("[data-bankverbindung]").forEach(function (sel) {
+        var feldId = sel.dataset.bankverbindung;
+        // Initialwert auswerten
+        if (sel.value) bankverbindungAktualisieren(feldId, sel.value);
+        sel.addEventListener("change", function () {
+            bankverbindungAktualisieren(feldId, sel.value);
+        });
     });
 
     // ---------------------------------------------------------------------------
