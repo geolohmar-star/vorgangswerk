@@ -12,3 +12,4 @@ media/
 venv/
 node_modules/
 .claude/
+email_vorschlag*.md

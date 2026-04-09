@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block title %}DSGVO Auskunft-Suche – Vorgangswerk{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{% url 'datenschutz:dashboard' %}">Datenschutz</a></li>
+            <li class="breadcrumb-item active">Auskunft-Suche</li>
+        </ol>
+    </nav>
+
+    <h3 class="mb-4">Auskunft für Betroffene (Art. 15 DSGVO)</h3>
+
+    <div class="card mb-4">
+        <div class="card-body">
+            <form method="get" class="row g-3">
+                <div class="col-md-5">
+                    <label class="form-label fw-semibold">Name, E-Mail oder Vorgangsnummer</label>
+                    <input type="text" name="q" value="{{ suche }}" class="form-control" placeholder="Suche...">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label fw-semibold">Geburtsdatum (optional)</label>
+                    <input type="text" name="geburtsdatum" value="{{ geburtsdatum }}" class="form-control" placeholder="TT.MM.JJJJ">
+                </div>
+                <div class="col-md-2 d-flex align-items-end">
+                    <button type="submit" class="btn btn-primary w-100">Suchen</button>
+                </div>
+                {% if suche and gesamt %}
+                <div class="col-md-2 d-flex align-items-end">
+                    <a href="{% url 'datenschutz:auskunft_suche_pdf' %}?q={{ suche }}&geburtsdatum={{ geburtsdatum }}"
+                       class="btn btn-outline-secondary w-100">PDF-Export</a>
+                </div>
+                {% endif %}
+            </form>
+        </div>
+    </div>
+
+    {% if suche %}
+    <p class="text-muted small mb-3">{{ gesamt }} Treffer für „{{ suche }}"</p>
+
+    {% for treffer in sitzungen %}
+    {% with s=treffer.sitzung %}
+    <div class="card mb-3">
+        <div class="card-header d-flex justify-content-between">
+            <strong>{{ s.pfad.name }}</strong>
+            <span class="text-muted small">{{ s.erstellt_am|date:"d.m.Y H:i" }}</span>
+        </div>
+        <div class="card-body small">
+            <dl class="row mb-0">
+                <dt class="col-sm-3">Vorgangsnummer</dt>
+                <dd class="col-sm-9">{{ s.vorgangsnummer|default:"–" }}</dd>
+                <dt class="col-sm-3">E-Mail</dt>
+                <dd class="col-sm-9">{{ s.email_anonym|default:"–" }}</dd>
+                <dt class="col-sm-3">Status</dt>
+                <dd class="col-sm-9">{{ s.get_status_display }}</dd>
+                <dt class="col-sm-3">Erfasste Felder</dt>
+                <dd class="col-sm-9">{{ s.gesammelte_daten|length }}</dd>
+            </dl>
+        </div>
+    </div>
+    {% endwith %}
+    {% empty %}
+    {% if suche %}<p class="text-muted">Keine Antragssitzungen gefunden.</p>{% endif %}
+    {% endfor %}
+    {% endif %}
+</div>
+{% endblock %}

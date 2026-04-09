@@ -38,4 +38,5 @@ urlpatterns = [
     path("sicherung/", include(("sicherung.urls", "sicherung"))),
     path("postbuch/", include(("post.urls", "post"))),
     path("quiz/", include(("quiz.urls", "quiz"))),
+    path("datenschutz/", include(("datenschutz.urls", "datenschutz"))),
 ]

@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}Löschprotokoll #{{ protokoll.pk }} – Vorgangswerk{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{% url 'datenschutz:dashboard' %}">Datenschutz</a></li>
+            <li class="breadcrumb-item active">Löschprotokoll #{{ protokoll.pk }}</li>
+        </ol>
+    </nav>
+
+    <div class="card">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <strong>Löschprotokoll #{{ protokoll.pk }}</strong>
+            {% if protokoll.protokoll_pdf %}
+            <a href="{% url 'datenschutz:protokoll_pdf' protokoll.pk %}"
+               class="btn btn-sm btn-outline-secondary">PDF herunterladen</a>
+            {% endif %}
+        </div>
+        <div class="card-body">
+            <dl class="row">
+                <dt class="col-sm-3">Benutzer (Kürzel)</dt>
+                <dd class="col-sm-9">{{ protokoll.benutzername_kuerzel }}***</dd>
+                <dt class="col-sm-3">E-Mail (Kürzel)</dt>
+                <dd class="col-sm-9">{{ protokoll.email_kuerzel|default:"–" }}</dd>
+                <dt class="col-sm-3">Gelöscht am</dt>
+                <dd class="col-sm-9">{{ protokoll.loeschung_ausgefuehrt_am|date:"d.m.Y H:i" }} Uhr</dd>
+                <dt class="col-sm-3">Ausgeführt durch</dt>
+                <dd class="col-sm-9">{{ protokoll.loeschung_durch }}</dd>
+            </dl>
+
+            <h6 class="fw-semibold mt-3">Gelöschte Datenkategorien</h6>
+            <table class="table table-sm table-bordered">
+                <thead class="table-light">
+                    <tr><th>Kategorie</th><th>Anzahl Datensätze</th></tr>
+                </thead>
+                <tbody>
+                {% for kategorie, anzahl in protokoll.kategorien.items %}
+                <tr><td>{{ kategorie }}</td><td>{{ anzahl }}</td></tr>
+                {% empty %}
+                <tr><td colspan="2" class="text-muted">Keine Kategorien erfasst.</td></tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

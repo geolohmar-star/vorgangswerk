@@ -109,6 +109,14 @@
                     <td class="text-nowrap">
                         <a href="{% url 'formulare:sitzung_pdf' zeile.pk %}"
                            class="btn btn-outline-secondary btn-sm" title="PDF">&#128462;</a>
+                        {% if request.user.is_staff %}
+                        <form method="post" action="{% url 'formulare:sitzung_loeschen' zeile.pk %}"
+                              class="d-inline"
+                              onsubmit="return confirm('Vorgang {{ zeile.vorgangsnummer|default:zeile.pk }} wirklich löschen?');">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-outline-danger btn-sm" title="Löschen">&#128465;</button>
+                        </form>
+                        {% endif %}
                     </td>
                 </tr>
                 {% endfor %}

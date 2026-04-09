@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% block title %}Datenschutz – Vorgangswerk{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <h2 class="mb-4">Datenschutz (DSGVO)</h2>
+
+    <div class="row g-4">
+        <div class="col-md-6">
+            <div class="card h-100">
+                <div class="card-header"><strong>Selbstauskunft (Art. 15 DSGVO)</strong></div>
+                <div class="card-body">
+                    <p class="text-muted small">
+                        Sie haben das Recht, eine Auskunft über alle zu Ihrer Person
+                        gespeicherten Daten zu erhalten. Klicken Sie auf den Button
+                        um Ihre persönliche Auskunft als PDF herunterzuladen.
+                    </p>
+                    <a href="{% url 'datenschutz:auskunft_pdf' %}" class="btn btn-primary">
+                        Meine Daten als PDF herunterladen
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        {% if user.is_staff %}
+        <div class="col-md-6">
+            <div class="card h-100">
+                <div class="card-header"><strong>Auskunft für Betroffene (Art. 15 DSGVO)</strong></div>
+                <div class="card-body">
+                    <p class="text-muted small">
+                        Suche nach Antragsdaten einer Person anhand von Name,
+                        E-Mail-Adresse oder Vorgangsnummer. Optional mit Geburtsdatum
+                        zur Eingrenzung.
+                    </p>
+                    <a href="{% url 'datenschutz:auskunft_suche' %}" class="btn btn-outline-primary">
+                        Personensuche öffnen
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header"><strong>Löschprotokolle (Art. 5 Abs. 2 DSGVO)</strong></div>
+                <div class="card-body p-0">
+                    {% if protokolle %}
+                    <table class="table table-sm mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Benutzer</th>
+                                <th>Gelöscht am</th>
+                                <th>Durch</th>
+                                <th>Kategorien</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                        {% for p in protokolle %}
+                        <tr>
+                            <td>{{ p.benutzername_kuerzel }}***</td>
+                            <td>{{ p.loeschung_ausgefuehrt_am|date:"d.m.Y H:i" }}</td>
+                            <td>{{ p.loeschung_durch }}</td>
+                            <td>{{ p.kategorien|length }} Kategorie(n)</td>
+                            <td>
+                                <a href="{% url 'datenschutz:protokoll_detail' p.pk %}"
+                                   class="btn btn-sm btn-outline-secondary">Details</a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                    {% else %}
+                    <p class="text-muted small p-3 mb-0">Noch keine Löschprotokolle vorhanden.</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

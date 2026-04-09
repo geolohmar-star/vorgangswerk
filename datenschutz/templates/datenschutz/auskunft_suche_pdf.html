@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<title>DSGVO-Auskunft – Suchergebnis</title>
+<style>
+  @page {
+    size: A4; margin: 2cm 2cm 2.5cm 2cm;
+    @top-center { content: "DSGVO-Auskunft – Vertraulich"; font-size: 9pt; color: #666; }
+    @bottom-center { content: "Seite " counter(page) " von " counter(pages); font-size: 8pt; color: #999; }
+  }
+  body { font-family: Arial, sans-serif; font-size: 10pt; color: #222; line-height: 1.5; }
+  h1 { font-size: 16pt; color: #1a4d2e; border-bottom: 2px solid #1a4d2e; padding-bottom: 6px; }
+  h2 { font-size: 11pt; color: #1a4d2e; margin-top: 16px; }
+  .meta-box { background: #f0f7f4; border: 1px solid #b2d8c5; padding: 8px 12px; margin-bottom: 16px; border-radius: 4px; }
+  table { width: 100%; border-collapse: collapse; margin-bottom: 12px; }
+  th { background: #1a4d2e; color: #fff; padding: 4px 8px; font-size: 9pt; text-align: left; }
+  td { padding: 3px 8px; border-bottom: 1px solid #e0e0e0; font-size: 9pt; }
+  .footer-box { margin-top: 20px; border-top: 1px solid #ccc; padding-top: 8px; font-size: 8pt; color: #555; }
+</style>
+</head>
+<body>
+<h1>DSGVO-Auskunft nach Art. 15 – Suchergebnis</h1>
+<div class="meta-box">
+  <p><strong>Suchanfrage:</strong> {{ suche }}</p>
+  {% if geburtsdatum %}<p><strong>Geburtsdatum:</strong> {{ geburtsdatum }}</p>{% endif %}
+  <p><strong>Treffer gesamt:</strong> {{ gesamt }}</p>
+  <p><strong>Erstellt am:</strong> {{ auskunft_datum|date:"d.m.Y H:i" }} Uhr durch {{ erstellt_von }}</p>
+</div>
+
+{% for treffer in sitzungen %}
+{% with s=treffer.sitzung %}
+<h2>{{ s.pfad.name }} – {{ s.vorgangsnummer|default:"ohne Nummer" }}</h2>
+<table>
+  <tr><th style="width:30%">Feld</th><th>Wert</th></tr>
+  <tr><td>Vorgangsnummer</td><td>{{ s.vorgangsnummer|default:"–" }}</td></tr>
+  <tr><td>E-Mail</td><td>{{ s.email_anonym|default:"–" }}</td></tr>
+  <tr><td>Status</td><td>{{ s.get_status_display }}</td></tr>
+  <tr><td>Erstellt am</td><td>{{ s.erstellt_am|date:"d.m.Y H:i" }}</td></tr>
+  <tr><td>Abgeschlossen am</td><td>{{ s.abgeschlossen_am|date:"d.m.Y H:i"|default:"–" }}</td></tr>
+  <tr><td>Anzahl Felder</td><td>{{ s.gesammelte_daten|length }}</td></tr>
+</table>
+{% endwith %}
+{% empty %}
+<p>Keine Treffer gefunden.</p>
+{% endfor %}
+
+<div class="footer-box">
+  Vertraulich – nur für interne Verwendung im Rahmen von DSGVO-Auskunftsanfragen.
+</div>
+</body>
+</html>

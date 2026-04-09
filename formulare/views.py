@@ -1754,10 +1754,17 @@ def meine_antraege(request):
 
 @login_required
 def sitzung_loeschen(request, pk):
-    """Loescht eine eigene Sitzung nach Bestaetigung (POST)."""
-    sitzung = get_object_or_404(AntrSitzung, pk=pk, user=request.user)
+    """Löscht eine Sitzung. Admins können alle Sitzungen löschen,
+    normale Nutzer nur ihre eigenen."""
+    if request.user.is_staff:
+        sitzung = get_object_or_404(AntrSitzung, pk=pk)
+    else:
+        sitzung = get_object_or_404(AntrSitzung, pk=pk, user=request.user)
+    pfad_pk = sitzung.pfad_id
     if request.method == "POST":
         sitzung.delete()
+        if request.user.is_staff:
+            return redirect("formulare:pfad_auswertung", pk=pfad_pk)
     return redirect("formulare:meine_antraege")
 
 
