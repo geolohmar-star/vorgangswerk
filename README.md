@@ -158,7 +158,7 @@ Beiträge sind willkommen. Bitte:
 3. Änderungen committen
 4. Pull Request öffnen
 
-Für größere Änderungen bitte zuerst ein Issue anlegen.
+Für größere Änderungen, Fragen oder Fehlerberichte bitte ein [GitHub Issue](https://github.com/geolohmar-star/vorgangswerk/issues) anlegen.
 
 ---
 
@@ -172,4 +172,6 @@ Die EUPL-1.2 ist eine von der EU-Kommission entwickelte Open-Source-Lizenz, die 
 
 ## Kontakt
 
-Georg Klein · [georg-klein.com](https://georg-klein.com)
+Georg Klein · [vorgangswerk@georg-klein.com](mailto:vorgangswerk@georg-klein.com)
+
+Für Bugs und Feature-Anfragen bitte [GitHub Issues](https://github.com/geolohmar-star/vorgangswerk/issues) verwenden.
