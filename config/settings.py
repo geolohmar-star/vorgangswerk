@@ -52,6 +52,7 @@ INSTALLED_APPS = [
     "post",
     "quiz",
     "datenschutz",
+    "bundid",
 ]
 
 # ---------------------------------------------------------------------------
@@ -204,6 +205,12 @@ VORGANGSWERK_BASE_URL   = config("VORGANGSWERK_BASE_URL",   default="http://loca
 WOPI_BASE_URL           = config("WOPI_BASE_URL",           default="http://host.docker.internal:8100")
 # PDF-Werkzeug (z.B. Stirling-PDF / BentoPDF – self-hosted)
 BENTOPDF_URL            = config("BENTOPDF_URL",            default="")
+
+# ---------------------------------------------------------------------------
+# BundID SAML-SP
+# ---------------------------------------------------------------------------
+BUNDID_SP_ENTITY_ID = config("BUNDID_SP_ENTITY_ID", default="vorgangswerk")
+BUNDID_IDP_SSO_URL  = config("BUNDID_IDP_SSO_URL",  default="http://localhost:8089/saml")
 
 # ---------------------------------------------------------------------------
 # Verschluesselung (AES-256-GCM fuer sensible Dokumente)

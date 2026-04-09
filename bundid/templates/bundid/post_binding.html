@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <title>Weiterleitung zu BundID …</title>
+</head>
+<body onload="document.forms[0].submit();">
+    <noscript>
+        <p>JavaScript ist deaktiviert. Bitte klicken Sie auf "Weiter", um sich mit BundID anzumelden.</p>
+    </noscript>
+    <form method="POST" action="{{ idp_url }}">
+        <input type="hidden" name="SAMLRequest" value="{{ saml_request }}">
+        {% if relay_state %}
+        <input type="hidden" name="RelayState" value="{{ relay_state }}">
+        {% endif %}
+        <noscript>
+            <button type="submit">Weiter zu BundID</button>
+        </noscript>
+    </form>
+</body>
+</html>

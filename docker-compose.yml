@@ -57,6 +57,8 @@ services:
       STRIPE_PUBLIC_KEY: ${STRIPE_PUBLIC_KEY:-}
       STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
       STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
+      BUNDID_SP_ENTITY_ID: ${BUNDID_SP_ENTITY_ID:-vorgangswerk}
+      BUNDID_IDP_SSO_URL: ${BUNDID_IDP_SSO_URL:-http://localhost:8089/saml}
     ports:
       - "8100:8000"
     volumes:
@@ -89,6 +91,20 @@ services:
   # Hinweis: Wird auf diesem Server vom PRIMA-Compose geteilt (Port 8012).
   # Eigener Container nur bei Bedarf: docker compose --profile onlyoffice up
   # ---------------------------------------------------------------------------
+  # ---------------------------------------------------------------------------
+  # BundID-Simulator (Testumgebung für SAML-SP-Integration)
+  # UI: http://localhost:8089  – Nutzer U01-U07 auswählen
+  # SAML-Endpoint: http://bundid-sim:8080/saml  (intern im Docker-Netz)
+  # Aktivieren: docker compose --profile bundid up
+  # ---------------------------------------------------------------------------
+  bundid-sim:
+    image: ghcr.io/ba-itsys/bundid-simulator:v1.0.8
+    restart: unless-stopped
+    profiles:
+      - bundid
+    ports:
+      - "8089:8080"
+
   onlyoffice:
     image: onlyoffice/documentserver:latest
     restart: unless-stopped
