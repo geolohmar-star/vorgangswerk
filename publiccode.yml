@@ -74,6 +74,11 @@ description:
       Das integrierte Quiz-Modul eignet sich für Schulungen,
       Sicherheitseinweisungen und Prüfungen (z. B. BAMF-Einbürgerungstest) mit
       automatischer Auswertung und Zertifikatsgenerierung.
+
+      BundID-ready: SAML SP-Integration implementiert und mit dem offiziellen
+      BundID-Simulator getestet. Anbindung an id.bund.de nach SP-Registrierung
+      beim ITZBund ohne Codeänderungen möglich. OZG-konformes Bürgerkonto
+      out-of-the-box.
     features:
       - Visueller Pfad-Editor für mehrstufige Antragsstrecken
       - 'Über 20 Feldtypen inkl. Datei-Upload, Unterschrift, IBAN, Adresse'
@@ -87,4 +92,5 @@ description:
       - IMAP-E-Mail-Integration
       - AES-256-GCM-Verschlüsselung für sensible Dokumente
       - 'MFA (TOTP), Brute-Force-Schutz, REST-API'
+      - 'BundID-ready: SAML SP implementiert, OZG-konform'
       - Docker-basiertes Deployment

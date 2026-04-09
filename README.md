@@ -48,6 +48,14 @@ Lizenz: [EUPL-1.2](LICENSE) · Sprache: Deutsch · Stack: Django · PostgreSQL �
 - Stripe-Integration für Credit-Kauf
 - BentoPDF / Stirling-PDF Integration als PDF-Werkzeug
 
+### BundID-Anbindung ✓ BundID-ready
+- **SAML SP-Integration implementiert** – Anbindung an `test.id.bund.de` / `id.bund.de` ohne Codeänderungen möglich
+- HTTP-POST-Binding, ACS-Callback, SP-Metadaten-Endpoint
+- Benutzeranlage und -aktualisierung anhand des bPK2 (Bereichsspezifisches Personenkennzeichen)
+- Getestet mit offiziellem BundID-Simulator (`ghcr.io/ba-itsys/bundid-simulator`)
+- Für Produktivbetrieb: SP-Registrierung beim ITZBund + SP-Zertifikat (kein Codeaufwand)
+- OZG-Anforderung erfüllt: Kommunen benötigen kein eigenes Identity-Management
+
 ### Core & Administration
 - Benutzerverwaltung mit MFA (TOTP), Brute-Force-Schutz (django-axes)
 - REST-API via django-ninja
