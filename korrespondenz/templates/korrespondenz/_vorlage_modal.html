@@ -1,0 +1,54 @@
+<div class="modal fade" id="modal-meta-{{ v.pk }}" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">{{ v.titel }}</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <table class="table table-sm">
+          <tr><th>Pfad-Kuerzel</th><td>{{ v.pfad_kuerzel|default:"—" }}</td></tr>
+          <tr><th>Gruppe</th><td>{{ v.gruppe|default:"—" }}</td></tr>
+          <tr><th>Version</th><td>v{{ v.version }}</td></tr>
+          <tr><th>Erstellt</th><td>{{ v.erstellt_am|date:"d.m.Y" }}</td></tr>
+        </table>
+        <hr>
+        <form method="post" action="{% url 'korrespondenz:vorlage_bearbeiten' v.pk %}" class="mb-3">
+          {% csrf_token %}
+          <div class="row g-2">
+            <div class="col-8">
+              <input type="text" name="titel" class="form-control form-control-sm" value="{{ v.titel }}">
+            </div>
+            <div class="col-4">
+              <input type="text" name="pfad_kuerzel" class="form-control form-control-sm"
+                     value="{{ v.pfad_kuerzel }}" placeholder="Pfad-Kuerzel">
+            </div>
+            <div class="col-12">
+              <input type="text" name="gruppe" class="form-control form-control-sm"
+                     value="{{ v.gruppe }}" placeholder="Gruppe (optional)">
+            </div>
+            <div class="col-12">
+              <textarea name="beschreibung" class="form-control form-control-sm" rows="2"
+                        placeholder="Beschreibung">{{ v.beschreibung }}</textarea>
+            </div>
+          </div>
+          <button type="submit" class="btn btn-sm btn-outline-secondary mt-2">Speichern</button>
+        </form>
+      </div>
+      <div class="modal-footer justify-content-between">
+        <form method="post" action="{% url 'korrespondenz:vorlage_loeschen' v.pk %}"
+              onsubmit="return confirm('Vorlage wirklich loeschen?')">
+          {% csrf_token %}
+          <button type="submit" class="btn btn-sm btn-outline-danger">Loeschen</button>
+        </form>
+        <form method="post" action="{% url 'korrespondenz:vorlage_klonen' v.pk %}">
+          {% csrf_token %}
+          <input type="hidden" name="titel" value="{{ v.titel }} – Kopie">
+          <input type="hidden" name="pfad_kuerzel" value="{{ v.pfad_kuerzel }}">
+          <button type="submit" class="btn btn-sm btn-outline-primary">Klonen</button>
+        </form>
+        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Schliessen</button>
+      </div>
+    </div>
+  </div>
+</div>

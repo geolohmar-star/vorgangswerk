@@ -1,0 +1,93 @@
+<div class="col-md-4">
+  <div class="card shadow-sm h-100">
+    <div class="card-body">
+      <div class="d-flex justify-content-between align-items-start">
+        <h5 class="card-title mb-1">{{ vorlage.titel }}</h5>
+        <div class="d-flex gap-1 flex-wrap">
+          {% if vorlage.gruppe %}
+          <span class="badge bg-info text-dark">{{ vorlage.gruppe }}</span>
+          {% endif %}
+          {% if vorlage.pfad_kuerzel %}
+          <span class="badge bg-success">{{ vorlage.pfad_kuerzel }}</span>
+          {% else %}
+          <span class="badge bg-secondary">Allgemein</span>
+          {% endif %}
+        </div>
+      </div>
+      {% if vorlage.beschreibung %}
+      <p class="card-text text-muted small mb-2">{{ vorlage.beschreibung }}</p>
+      {% endif %}
+
+      <!-- Pfad-Zuordnung inline bearbeitbar -->
+      <form method="post" action="{% url 'korrespondenz:vorlage_bearbeiten' vorlage.pk %}">
+        {% csrf_token %}
+        <input type="hidden" name="titel" value="{{ vorlage.titel }}">
+        <input type="hidden" name="beschreibung" value="{{ vorlage.beschreibung }}">
+        <div class="row g-1">
+          <div class="col-8">
+            <select name="pfad_kuerzel" class="form-select form-select-sm">
+              <option value="">— Allgemein —</option>
+              {% for pfad in pfade %}
+              <option value="{{ pfad.kuerzel }}"
+                {% if pfad.kuerzel == vorlage.pfad_kuerzel %}selected{% endif %}>
+                {{ pfad.name }}{% if pfad.kuerzel %} ({{ pfad.kuerzel }}){% endif %}
+              </option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-4">
+            <input type="text" name="gruppe" class="form-control form-control-sm"
+                   value="{{ vorlage.gruppe }}" placeholder="Gruppe">
+          </div>
+        </div>
+        <button type="submit" class="btn btn-sm btn-outline-secondary mt-1 w-100">Zuordnung speichern</button>
+      </form>
+    </div>
+
+    <div class="card-footer bg-transparent d-flex flex-wrap gap-2">
+      <a href="{% url 'korrespondenz:vorlage_editor' vorlage.pk %}"
+         class="btn btn-sm btn-success">In OnlyOffice bearbeiten</a>
+      <button class="btn btn-sm btn-outline-success" type="button"
+              data-bs-toggle="collapse"
+              data-bs-target="#kopieren-{{ vorlage.pk }}">Kopieren</button>
+      <a href="{% url 'korrespondenz:bescheid_suche' %}"
+         class="btn btn-sm btn-outline-secondary">Bescheid</a>
+      <form method="post" action="{% url 'korrespondenz:vorlage_loeschen' vorlage.pk %}"
+            class="form-loeschen" data-titel="{{ vorlage.titel }}">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-sm btn-outline-danger">Loeschen</button>
+      </form>
+    </div>
+
+    <!-- Kopieren-Formular -->
+    <div class="collapse" id="kopieren-{{ vorlage.pk }}">
+      <div class="card-body border-top bg-light pt-2 pb-3">
+        <p class="small text-muted mb-2">Kopie erstellen:</p>
+        <form method="post" action="{% url 'korrespondenz:vorlage_klonen' vorlage.pk %}">
+          {% csrf_token %}
+          <div class="row g-2">
+            <div class="col-7">
+              <input type="text" name="titel" class="form-control form-control-sm"
+                     value="{{ vorlage.titel }}-Kopie" required placeholder="Neuer Titel">
+            </div>
+            <div class="col-5">
+              <select name="pfad_kuerzel" class="form-select form-select-sm">
+                <option value="">— Allgemeine Vorlage —</option>
+                {% for pfad in pfade %}
+                <option value="{{ pfad.kuerzel }}"
+                  {% if pfad.kuerzel == vorlage.pfad_kuerzel %}selected{% endif %}>
+                  {{ pfad.name }}{% if pfad.kuerzel %} ({{ pfad.kuerzel }}){% endif %}
+                </option>
+                {% endfor %}
+              </select>
+            </div>
+          </div>
+          <div class="mt-1">
+            <button type="submit" class="btn btn-success btn-sm">OK</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+  </div>
+</div>

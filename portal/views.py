@@ -235,17 +235,40 @@ def upload(request):
 
         return redirect(reverse("portal:analyse_detail", args=[analyse.pk]))
 
-    return render(request, "portal/upload.html", {"account": account})
+    return render(request, "portal/upload.html", {
+        "account": account,
+        "bentopdf_url": getattr(settings, "BENTOPDF_URL", ""),
+    })
 
 
 @portal_login_required
 def analyse_detail(request, pk):
     account = request.user.portal_account
     analyse = get_object_or_404(FormularAnalyse, pk=pk, account=account)
+    bentopdf_url = getattr(settings, "BENTOPDF_URL", "")
+    pdf_url = ""
+    if bentopdf_url:
+        pdf_url = request.build_absolute_uri(
+            reverse("portal:analyse_pdf", args=[pk])
+        )
     return render(request, "portal/analyse_detail.html", {
         "account": account,
         "analyse": analyse,
+        "bentopdf_url": bentopdf_url,
+        "pdf_url": pdf_url,
     })
+
+
+@portal_login_required
+@require_GET
+def analyse_pdf(request, pk):
+    """Liefert die gespeicherte PDF-Datei der Analyse."""
+    account = request.user.portal_account
+    analyse = get_object_or_404(FormularAnalyse, pk=pk, account=account)
+    pdf_bytes = bytes(analyse.pdf_inhalt)
+    response = HttpResponse(pdf_bytes, content_type="application/pdf")
+    response["Content-Disposition"] = f'inline; filename="{analyse.dateiname}"'
+    return response
 
 
 @portal_login_required

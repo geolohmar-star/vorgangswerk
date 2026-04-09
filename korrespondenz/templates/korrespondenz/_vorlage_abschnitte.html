@@ -1,0 +1,39 @@
+{% comment %}
+Rendert Abschnitte (Untergruppen + Einzelvorlagen) innerhalb eines Pfad-Accordions.
+Erwartet:
+  abschnitte  – Liste aus vorlage_liste-View (typ: "gruppe" oder "einzeln")
+  pfade       – alle aktiven AntrPfad-Objekte (fuer Dropdown)
+  kuerzel     – Pfad-Kuerzel als CSS-ID-Prefix (Eindeutigkeit)
+{% endcomment %}
+
+{% for abschnitt in abschnitte %}
+
+  {% if abschnitt.typ == "gruppe" %}
+  <div class="border rounded mb-3">
+    <div class="d-flex align-items-center bg-light px-3 py-2 rounded-top">
+      <button class="btn btn-sm btn-link text-decoration-none text-dark fw-semibold p-0 me-2"
+              type="button"
+              data-bs-toggle="collapse"
+              data-bs-target="#ug-{{ kuerzel }}-{{ forloop.counter }}">
+        &#9660; {{ abschnitt.name }}
+      </button>
+      <span class="badge bg-info text-dark ms-1">{{ abschnitt.vorlagen|length }} Vorlage{{ abschnitt.vorlagen|length|pluralize:"n" }}</span>
+    </div>
+    <div class="show" id="ug-{{ kuerzel }}-{{ forloop.counter }}">
+      <div class="p-3">
+        <div class="row g-3">
+          {% for vorlage in abschnitt.vorlagen %}
+          {% include "korrespondenz/_vorlage_karte.html" with vorlage=vorlage pfade=pfade %}
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {% else %}
+  <div class="row g-3 mb-2">
+    {% include "korrespondenz/_vorlage_karte.html" with vorlage=abschnitt.vorlage pfade=pfade %}
+  </div>
+  {% endif %}
+
+{% endfor %}

@@ -1,7 +1,14 @@
 # SPDX-License-Identifier: EUPL-1.2
 # Copyright (C) 2026 Georg Klein
 from django.contrib import admin
-from .models import QuizErgebnis, QuizZertifikat
+from .models import QuizErgebnis, QuizZertifikat, QuizFragenPool
+
+
+@admin.register(QuizFragenPool)
+class QuizFragenPoolAdmin(admin.ModelAdmin):
+    list_display   = ("name", "anzahl", "geaendert_am")
+    search_fields  = ("name", "beschreibung")
+    readonly_fields = ("erstellt_am", "geaendert_am")
 
 
 class QuizZertifikatInline(admin.TabularInline):

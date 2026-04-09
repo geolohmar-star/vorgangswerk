@@ -143,6 +143,16 @@ Verfügbare Feldtypen:
 - textblock: Informationstext (Pflicht: "text": "Hinweistext...")
 - abschnitt: Abschnittsüberschrift (Pflicht: "text": "Überschrift")
 - zusammenfassung: Zusammenfassung aller Angaben (genau einmal im letzten Schritt)
+- quizfrage: Multiple-Choice-Frage (Pflicht: "antwort_typ": "single"|"multiple", "antworten": [{{"text": "...", "korrekt": true|false}}], optional "erklaerung": "...", "punkte": 1)
+- quizergebnis: Auswertungsfeld (Pflicht: "bewertungsmodell": "prozent", "bestanden_ab": 50) – genau einmal im letzten Schritt statt zusammenfassung
+
+Quiz-Erkennung:
+Falls das PDF ein Test, eine Prüfung, ein Fragebogen oder eine Einweisung mit Wissensfragen ist:
+1. Jede Frage mit Antwortoptionen (a/b/c/d, 1/2/3/4 oder Checkboxen) wird als quizfrage erfasst.
+2. Die korrekte Antwort markierst du mit "korrekt": true (bei single-choice genau eine, bei multiple mehrere).
+3. Gruppiere 5-10 Fragen pro Schritt (nicht alle in einen Schritt).
+4. Der letzte Schritt enthält ein quizergebnis-Feld statt zusammenfassung.
+5. Falls keine korrekten Antworten erkennbar sind, setze bei der plausibelsten Option "korrekt": true und füge "erklaerung": "Bitte korrekte Antworten prüfen" hinzu.
 
 Wichtige Regeln:
 - Verwende sprechende, einzigartige IDs (z.B. "vorname", "geburtsdatum", "kfz_kennzeichen")

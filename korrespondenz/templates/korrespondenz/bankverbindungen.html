@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container py-4">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h2 class="h4 fw-bold mb-0" style="color:#1a4d2e;">Bankverbindungen</h2>
+    <div class="d-flex gap-2">
+      <a href="{% url 'korrespondenz:firmendaten' %}" class="btn btn-outline-secondary btn-sm">&larr; Firmendaten</a>
+      <a href="{% url 'korrespondenz:bankverbindung_neu' %}" class="btn btn-success btn-sm">+ Neue Bankverbindung</a>
+    </div>
+  </div>
+
+  {% if messages %}{% for m in messages %}<div class="alert alert-success py-2">{{ m }}</div>{% endfor %}{% endif %}
+
+  {% if banken %}
+  <div class="table-responsive">
+    <table class="table table-hover table-sm">
+      <thead class="table-light">
+        <tr>
+          <th>Bezeichnung</th><th>Kürzel</th><th>Kontoinhaber</th><th>IBAN</th><th>BIC</th><th>Bank</th><th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for bank in banken %}
+        <tr>
+          <td>{{ bank.bezeichnung }}</td>
+          <td><code>{{ bank.kuerzel }}</code></td>
+          <td>{{ bank.kontoinhaber }}</td>
+          <td><code>{{ bank.iban }}</code></td>
+          <td>{{ bank.bic }}</td>
+          <td>{{ bank.bank_name }}</td>
+          <td class="text-end">
+            <a href="{% url 'korrespondenz:bankverbindung_bearbeiten' bank.pk %}" class="btn btn-xs btn-outline-primary btn-sm py-0 px-2">Bearb.</a>
+            <form method="post" action="{% url 'korrespondenz:bankverbindung_loeschen' bank.pk %}" class="d-inline"
+                  onsubmit="return confirm('Bankverbindung löschen?')">
+              {% csrf_token %}
+              <button type="submit" class="btn btn-xs btn-outline-danger btn-sm py-0 px-2">Löschen</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="card mt-4">
+    <div class="card-header fw-semibold" style="background:#f8f9fa;">Verfügbare Variablen</div>
+    <div class="card-body">
+      <p class="small text-muted mb-2">Diese Variablen können in Formularen und Textblöcken verwendet werden:</p>
+      {% for bank in banken %}
+      <div class="mb-2">
+        <strong class="small">{{ bank.bezeichnung }}</strong><br>
+        {% for key, val in bank.als_variablen.items %}
+        <code class="me-3 small">&#123;&#123;{{ key }}&#125;&#125;</code>
+        {% endfor %}
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  {% else %}
+  <p class="text-muted">Noch keine Bankverbindungen angelegt.</p>
+  {% endif %}
+</div>
+{% endblock %}

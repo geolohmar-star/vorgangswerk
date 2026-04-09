@@ -176,6 +176,8 @@ _KEINE_EINGABE = {
     "berechnung", "zusammenfassung", "pdf_email", "systemfeld",
     # Quiz-Anzeigefelder
     "quizhinweis", "quizergebnis",
+    # Quizpool ist ein Platzhalter, der zu quizfrage-Feldern expandiert wird
+    "quizpool",
 }
 _KEINE_ANZEIGE = {
     "textblock", "abschnitt", "trennlinie", "leerblock", "link",
@@ -230,6 +232,88 @@ def _substituiere_system_vars(felder_json, pfad):
                     text = text.replace("{{" + var_name + "}}", str(var_wert))
                 feld["text"] = text
         result.append(feld)
+    return result
+
+
+def _ziehe_quizpool(feld: dict) -> list[dict]:
+    """
+    Zieht zufällig N Fragen aus einem Pool und gibt sie als quizfrage-Dicts zurück.
+    Unterstützte Quellen: 'bamf' (bundesweite BAMF-Fragen) und 'einbuergerungstest' (Demo-30).
+    """
+    import random
+    quelle  = feld.get("quelle", "bamf")
+    anzahl  = int(feld.get("anzahl", 33))
+    bl      = feld.get("bundesland", "")
+    fid     = feld.get("id", "pool")
+
+    try:
+        if quelle == "bamf":
+            from quiz.bamf_fragen import BUNDESWEIT, LAENDER, _zu_quizfelder
+            pool = list(BUNDESWEIT)
+            if bl and bl in LAENDER:
+                pool.extend(LAENDER[bl])
+            gezogen = random.sample(pool, min(anzahl, len(pool)))
+            return _zu_quizfelder(gezogen, fid)
+        elif quelle == "einbuergerungstest":
+            from quiz.einbuergerungstest import FRAGEN
+            gezogen = random.sample(FRAGEN, min(anzahl, len(FRAGEN)))
+            result = []
+            for i, f in enumerate(gezogen):
+                result.append({
+                    "typ":         "quizfrage",
+                    "id":          f"{fid}__{i}",
+                    "label":       f["label"],
+                    "antwort_typ": f.get("antwort_typ", "single"),
+                    "punkte":      f.get("punkte", 1.0),
+                    "erklaerung":  f.get("erklaerung", ""),
+                    "antworten":   f["antworten"],
+                    "pflicht":     True,
+                })
+            return result
+        elif quelle == "db":
+            pool_id = feld.get("pool_id")
+            if not pool_id:
+                return []
+            from quiz.models import QuizFragenPool
+            try:
+                db_pool = QuizFragenPool.objects.get(pk=pool_id)
+            except QuizFragenPool.DoesNotExist:
+                logger.warning("QuizFragenPool pk=%s nicht gefunden", pool_id)
+                return []
+            alle = list(db_pool.fragen_json) if isinstance(db_pool.fragen_json, list) else []
+            gezogen = random.sample(alle, min(anzahl, len(alle)))
+            # IDs für diese Sitzung normalisieren
+            for i, f in enumerate(gezogen):
+                f = dict(f)
+                f["id"] = f"{fid}__{i}"
+                gezogen[i] = f
+            return gezogen
+    except Exception:
+        logger.exception("Quizpool konnte nicht gezogen werden (quelle=%s)", quelle)
+    return []
+
+
+def _expandiere_quizpool(felder: list, sitzung) -> list:
+    """
+    Ersetzt quizpool-Felder durch die gezogenen quizfrage-Felder.
+    Der Pool wird beim ersten Aufruf gezogen und in sitzung.gesammelte_daten gespeichert.
+    """
+    result = []
+    pool_neu = False
+    for feld in felder:
+        if feld.get("typ") != "quizpool":
+            result.append(feld)
+            continue
+        fid      = feld.get("id", "pool")
+        pool_key = f"__pool__{fid}"
+        pool     = sitzung.gesammelte_daten.get(pool_key)
+        if pool is None:
+            pool = _ziehe_quizpool(feld)
+            sitzung.gesammelte_daten[pool_key] = pool
+            pool_neu = True
+        result.extend(pool)
+    if pool_neu:
+        sitzung.save(update_fields=["gesammelte_daten"])
     return result
 
 
@@ -393,7 +477,25 @@ def _validiere_schritt(schritt, post_data, vorige_daten=None, files_data=None, s
     """Prueft Pflichtfelder und gibt (daten_dict, fehler_liste) zurueck."""
     daten = {}
     fehler = []
-    for feld in _eingabefelder(schritt):
+
+    # Quizpool-Felder expandieren, damit die Pool-Fragen validiert werden
+    felder_raw = schritt.felder()
+    felder_expandiert = []
+    for feld in felder_raw:
+        if feld.get("typ") == "quizpool" and sitzung:
+            pool_key = f"__pool__{feld.get('id', 'pool')}"
+            pool = sitzung.gesammelte_daten.get(pool_key, [])
+            felder_expandiert.extend(pool)
+        else:
+            felder_expandiert.append(feld)
+
+    # Temporäres Schritt-Objekt mit erweiterten Feldern imitieren
+    class _SchrittProxy:
+        def felder(self): return felder_expandiert
+        def __getattr__(self, name): return getattr(schritt, name)
+    schritt_proxy = _SchrittProxy()
+
+    for feld in _eingabefelder(schritt_proxy):
         feld_id = feld.get("id", "")
         typ = feld.get("typ", "text")
         pflicht = feld.get("pflicht", False)
@@ -575,7 +677,7 @@ def _validiere_schritt(schritt, post_data, vorige_daten=None, files_data=None, s
 
     # Systemfelder
     loop_durchlauf = (vorige_daten or {}).get("__loop_durchlauf", 0)
-    for feld in schritt.felder():
+    for feld in felder_expandiert:
         if feld.get("typ") != "systemfeld":
             continue
         feld_id = feld.get("id", "")
@@ -593,7 +695,7 @@ def _validiere_schritt(schritt, post_data, vorige_daten=None, files_data=None, s
     alle_werte = _variablen_werte(pfad) if pfad else {}
     alle_werte.update(vorige_daten or {})
     alle_werte.update(daten)
-    for feld in schritt.felder():
+    for feld in felder_expandiert:
         if feld.get("typ") != "berechnung":
             continue
         feld_id = feld.get("id", "")
@@ -1454,6 +1556,7 @@ def pfad_schritt(request, sitzung_pk):
         return redirect("formulare:pfad_liste")
 
     felder_render = _substituiere_system_vars(schritt.felder(), sitzung.pfad)
+    felder_render = _expandiere_quizpool(felder_render, sitzung)
     ctx = _schritt_kontext(sitzung, schritt)
 
     # Bank-Variablen einfügen (überschreiben keine Nutzereingaben)
@@ -1956,6 +2059,7 @@ def antrag_oeffentlich_schritt(request, sitzung_pk):
         return redirect("formulare:antrag_oeffentlich_fehler")
 
     felder_render = _substituiere_system_vars(schritt.felder(), sitzung.pfad)
+    felder_render = _expandiere_quizpool(felder_render, sitzung)
 
     # Bank-Variablen einfügen (überschreiben keine Nutzereingaben)
     _bankverbindungen_pub = []

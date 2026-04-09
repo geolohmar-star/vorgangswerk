@@ -1,0 +1,139 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <title>{{ titel }} – Editor</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { display: flex; flex-direction: column; height: 100vh; overflow: hidden; background: #444; }
+
+    #topbar {
+      display: flex; align-items: center; gap: 12px;
+      padding: 6px 16px;
+      background: #1a4d2e; color: white;
+      font-family: system-ui, sans-serif; font-size: 0.85rem;
+      flex-shrink: 0;
+    }
+    #topbar a { color: #a7f3d0; text-decoration: none; }
+    #topbar a:hover { text-decoration: underline; }
+    .titel { font-weight: 600; color: white; }
+    .badge {
+      background: rgba(255,255,255,0.2); color: #d1fae5;
+      font-size: 0.72rem; padding: 2px 8px; border-radius: 10px;
+    }
+    #btn-speichern {
+      background: #16a34a; color: white; border: none;
+      padding: 4px 14px; border-radius: 4px; font-size: 0.82rem;
+      cursor: pointer; font-weight: 600; margin-left: auto;
+    }
+    #btn-speichern:hover { background: #15803d; }
+    #btn-speichern:disabled { background: #4b5563; cursor: not-allowed; }
+    #btn-sidebar-toggle {
+      background: rgba(255,255,255,0.15); color: white; border: none;
+      padding: 4px 12px; border-radius: 4px; font-size: 0.82rem; cursor: pointer;
+    }
+    #btn-sidebar-toggle:hover { background: rgba(255,255,255,0.25); }
+
+    #main { display: flex; flex: 1; overflow: hidden; }
+    #oo-editor { flex: 1; }
+
+    #sidebar {
+      width: 260px; flex-shrink: 0;
+      background: #f8f9fa; border-left: 1px solid #dee2e6;
+      display: flex; flex-direction: column;
+      font-family: system-ui, sans-serif; font-size: 0.8rem;
+      transition: width 0.2s; overflow: hidden;
+    }
+    #sidebar.versteckt { width: 0; border-left: none; }
+    #sidebar-kopf { background: #1a4d2e; color: white; padding: 8px 12px; font-weight: 600; font-size: 0.82rem; flex-shrink: 0; }
+    #sidebar-inhalt { flex: 1; overflow-y: auto; padding: 8px; }
+    .platzhalter-gruppe { margin-bottom: 10px; }
+    .platzhalter-gruppe-titel {
+      font-weight: 600; color: #495057; font-size: 0.72rem;
+      text-transform: uppercase; letter-spacing: 0.05em;
+      padding: 4px 4px 2px 4px; border-bottom: 1px solid #dee2e6; margin-bottom: 4px;
+    }
+    .platzhalter-item {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 3px 4px; border-radius: 3px; cursor: pointer;
+    }
+    .platzhalter-item:hover { background: #e8f5e9; }
+    .platzhalter-item code {
+      font-size: 0.75rem; color: #1a4d2e;
+      background: #e8f5e9; padding: 1px 4px; border-radius: 3px; word-break: break-all;
+    }
+    .platzhalter-label {
+      color: #6c757d; font-size: 0.72rem; white-space: nowrap;
+      overflow: hidden; text-overflow: ellipsis; max-width: 100px; text-align: right;
+    }
+    #kopiert-hinweis { font-size: 0.7rem; color: #16a34a; padding: 4px 8px; display: none; }
+    #sidebar-hinweis { padding: 6px 8px; font-size: 0.72rem; color: #6c757d; border-top: 1px solid #dee2e6; flex-shrink: 0; }
+  </style>
+</head>
+<body>
+
+<div id="topbar">
+  <a href="{{ zurueck_url }}">&larr; Zurueck</a>
+  <span style="color:#6ee7b7;">|</span>
+  <span class="titel">{{ titel }}</span>
+  {% if ist_vorlage %}
+    <span class="badge">Vorlage</span>
+    {% if vorlage.pfad_kuerzel %}<span class="badge">{{ vorlage.pfad_kuerzel }}</span>{% endif %}
+  {% else %}
+    <span class="badge">v{{ brief.version }}</span>
+  {% endif %}
+  <button id="btn-speichern">Speichern &amp; zurueck</button>
+  <button id="btn-sidebar-toggle">&#123;&#123;&#125;&#125; Platzhalter</button>
+</div>
+
+<div id="main">
+  <div id="oo-editor"></div>
+
+  <div id="sidebar">
+    <div id="sidebar-kopf">Verfuegbare Platzhalter</div>
+    <div id="sidebar-inhalt">
+      <div id="kopiert-hinweis">Kopiert!</div>
+
+      {% if pfad_platzhalter %}
+      <div class="platzhalter-gruppe">
+        <div class="platzhalter-gruppe-titel">
+          {% if ist_vorlage %}{{ vorlage.pfad_kuerzel }}{% else %}{{ brief.vorlage.pfad_kuerzel }}{% endif %} – Antragsdaten
+        </div>
+        {% for pid, plabel in pfad_platzhalter %}
+        <div class="platzhalter-item" data-platzhalter="{{ pid }}">
+          <code>&#123;&#123;{{ pid }}&#125;&#125;</code>
+          <span class="platzhalter-label" title="{{ plabel }}">{{ plabel }}</span>
+        </div>
+        {% endfor %}
+      </div>
+      {% endif %}
+
+      <div class="platzhalter-gruppe">
+        <div class="platzhalter-gruppe-titel">Brief-Standard</div>
+        {% for pid, plabel in standard_platzhalter %}
+        <div class="platzhalter-item" data-platzhalter="{{ pid }}">
+          <code>&#123;&#123;{{ pid }}&#125;&#125;</code>
+          <span class="platzhalter-label" title="{{ plabel }}">{{ plabel }}</span>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    <div id="sidebar-hinweis">Cursor im Dokument setzen, dann Platzhalter anklicken &ndash; wird direkt eingef&uuml;gt.</div>
+  </div>
+</div>
+
+{{ oo_config|json_script:"onlyoffice-config" }}
+{% if oo_jwt %}{{ oo_jwt|json_script:"onlyoffice-token" }}{% endif %}
+{% if ist_vorlage %}
+  {{ vorlage.version|json_script:"oo-version" }}
+  <script type="application/json" id="oo-urls">{"forcesave":"{% url 'korrespondenz:vorlage_oo_forcesave' vorlage.pk %}","version":"{% url 'korrespondenz:vorlage_oo_version' vorlage.pk %}","zurueck":"{% url 'korrespondenz:vorlage_liste' %}","csrf":"{{ csrf_token }}"}</script>
+{% else %}
+  {{ brief.version|json_script:"oo-version" }}
+  <script type="application/json" id="oo-urls">{"forcesave":"{% url 'korrespondenz:brief_oo_forcesave' brief.pk %}","version":"{% url 'korrespondenz:brief_oo_version' brief.pk %}","zurueck":"{% url 'korrespondenz:brief_detail' brief.pk %}","csrf":"{{ csrf_token }}"}</script>
+{% endif %}
+
+<script src="{{ oo_url }}/web-apps/apps/api/documents/api.js"></script>
+<script src="{% static 'js/oo_editor.js' %}"></script>
+</body>
+</html>

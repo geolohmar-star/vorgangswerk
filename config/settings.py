@@ -201,6 +201,8 @@ ONLYOFFICE_JWT_SECRET   = config("ONLYOFFICE_JWT_SECRET",   default="")
 VORGANGSWERK_BASE_URL   = config("VORGANGSWERK_BASE_URL",   default="http://localhost:8000")
 # Interne URL fuer OnlyOffice→Django-Callbacks (vom OO-Container erreichbar)
 WOPI_BASE_URL           = config("WOPI_BASE_URL",           default="http://host.docker.internal:8100")
+# PDF-Werkzeug (z.B. Stirling-PDF / BentoPDF – self-hosted)
+BENTOPDF_URL            = config("BENTOPDF_URL",            default="")
 
 # ---------------------------------------------------------------------------
 # Verschluesselung (AES-256-GCM fuer sensible Dokumente)

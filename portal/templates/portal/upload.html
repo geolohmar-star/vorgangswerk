@@ -126,14 +126,17 @@
                     </ul>
 
                     <div class="alert alert-light border mt-3 mb-0 py-2" style="font-size:.78rem;">
-                        <strong>Hinweis:</strong> Verwende einen PDF-Editor wie
-                        <strong>BentoPDF</strong>, <strong>Adobe Acrobat</strong> oder
-                        <strong>PDF24</strong> um Rahmen und Nummern einzufügen.
+                        <strong>Hinweis:</strong> Verwende einen PDF-Editor um Rahmen und Nummern einzufügen.
                         Nur sichtbarer Text und Formen – keine Kommentar-Popups.
-                        <div class="mt-2">
+                        <div class="mt-2 d-flex gap-2 flex-wrap">
                             <a href="{% static 'docs/muster_gruppenformular.pdf' %}" target="_blank" class="btn btn-sm btn-outline-secondary">
                                 &#128462; Muster-PDF herunterladen
                             </a>
+                            {% if bentopdf_url %}
+                            <a href="{{ bentopdf_url }}" target="_blank" class="btn btn-sm btn-outline-primary">
+                                &#128295; PDF-Werkzeuge öffnen
+                            </a>
+                            {% endif %}
                         </div>
                     </div>
                 </div>

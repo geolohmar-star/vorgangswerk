@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}Wiederherstellung – Vorgangswerk{% endblock %}
+
+{% block content %}
+<div class="container py-5" style="max-width:560px">
+
+  <div class="card border-danger shadow">
+    <div class="card-header bg-danger text-white">
+      <strong>&#9888; Datenbank-Wiederherstellung</strong>
+    </div>
+    <div class="card-body">
+
+      <p class="mb-1"><strong>Sicherung:</strong> {{ protokoll.dateiname }}</p>
+      <p class="mb-1"><strong>Erstellt am:</strong> {{ protokoll.erstellt_am|date:"d.m.Y H:i" }} Uhr</p>
+      <p class="mb-1"><strong>Typ:</strong> {{ protokoll.typ }}</p>
+      <p class="mb-3"><strong>Größe:</strong> {{ protokoll.groesse_lesbar }}</p>
+
+      <div class="alert alert-danger">
+        <strong>Diese Aktion überschreibt die gesamte laufende Datenbank unwiderruflich.</strong><br>
+        Alle Daten die nach dieser Sicherung erstellt wurden gehen verloren.
+      </div>
+
+      {% if messages %}
+      {% for msg in messages %}
+      <div class="alert alert-{{ msg.tags }}">{{ msg }}</div>
+      {% endfor %}
+      {% endif %}
+
+      <form method="post">
+        {% csrf_token %}
+        <div class="mb-3">
+          <label class="form-label">
+            Zur Bestätigung bitte <strong>WIEDERHERSTELLEN</strong> eintippen:
+          </label>
+          <input type="text" name="bestaetigung" class="form-control"
+                 placeholder="WIEDERHERSTELLEN" autocomplete="off" required>
+        </div>
+        <div class="d-flex gap-2">
+          <button type="submit" class="btn btn-danger">
+            &#9888; Jetzt wiederherstellen
+          </button>
+          <a href="{% url 'sicherung:uebersicht' %}" class="btn btn-outline-secondary">Abbrechen</a>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

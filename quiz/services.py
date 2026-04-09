@@ -43,6 +43,7 @@ def _sammle_quizfragen(sitzung):
     """
     Gibt eine geordnete Liste aller quizfrage-Felder zurück,
     die in besuchten Schritten vorkommen.
+    Quizpool-Felder werden automatisch aus gesammelte_daten expandiert.
     """
     from formulare.models import AntrSchritt
     fragen = []
@@ -54,6 +55,11 @@ def _sammle_quizfragen(sitzung):
         for feld in schritt.felder():
             if feld.get("typ") == "quizfrage":
                 fragen.append(feld)
+            elif feld.get("typ") == "quizpool":
+                # Pool wurde beim Schritt-Rendern in gesammelte_daten gespeichert
+                pool_key = f"__pool__{feld.get('id', '')}"
+                pool = sitzung.gesammelte_daten.get(pool_key, [])
+                fragen.extend(pool)
     return fragen
 
 

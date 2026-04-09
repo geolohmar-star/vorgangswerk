@@ -458,7 +458,7 @@
 
                 {% elif typ == "textblock" %}
                 <div class="col-12">
-                    <div class="alert alert-light border" id="textblock-{{ id }}" data-template="{{ feld.text }}">{{ feld.text }}</div>
+                    <div class="alert alert-light border" id="textblock-{{ id }}" data-template="{{ feld.text }}">{{ feld.text|safe }}</div>
                 </div>
 
                 {% elif typ == "pdf_email" %}

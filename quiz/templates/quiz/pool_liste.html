@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% block title %}Fragenpools{% endblock %}
+
+{% block content %}
+<div class="container py-4" style="max-width:900px;">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="h3 fw-bold mb-0" style="color:#1a4d2e;">Fragenpools</h1>
+        <button class="btn btn-vw btn-sm" data-bs-toggle="modal" data-bs-target="#neuerPoolModal">
+            + Neuer Pool
+        </button>
+    </div>
+
+    {% if messages %}
+        {% for msg in messages %}
+        <div class="alert alert-{{ msg.tags }} alert-dismissible fade show">{{ msg }}<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>
+        {% endfor %}
+    {% endif %}
+
+    {% if pools %}
+    <div class="list-group">
+        {% for pool in pools %}
+        <div class="list-group-item d-flex justify-content-between align-items-center">
+            <div>
+                <a href="{% url 'quiz:pool_detail' pool.pk %}" class="fw-semibold text-decoration-none">{{ pool.name }}</a>
+                {% if pool.beschreibung %}
+                <small class="text-muted d-block">{{ pool.beschreibung }}</small>
+                {% endif %}
+            </div>
+            <div class="d-flex align-items-center gap-3">
+                <span class="badge bg-secondary">{{ pool.anzahl }} Fragen</span>
+                <small class="text-muted">{{ pool.geaendert_am|date:"d.m.Y" }}</small>
+                <a href="{% url 'quiz:pool_detail' pool.pk %}" class="btn btn-outline-secondary btn-sm">Bearbeiten</a>
+                <form method="post" action="{% url 'quiz:pool_loeschen' pool.pk %}"
+                      onsubmit="return confirm('Pool „{{ pool.name }}" wirklich löschen?')">
+                    {% csrf_token %}
+                    <button class="btn btn-outline-danger btn-sm">Löschen</button>
+                </form>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="alert alert-light border text-center py-5">
+        <p class="mb-2 text-muted">Noch keine Fragenpools angelegt.</p>
+        <button class="btn btn-vw btn-sm" data-bs-toggle="modal" data-bs-target="#neuerPoolModal">
+            Ersten Pool erstellen
+        </button>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Modal: Neuer Pool -->
+<div class="modal fade" id="neuerPoolModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Neuer Fragenpool</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="post" action="{% url 'quiz:pool_neu' %}">
+                {% csrf_token %}
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Name <span class="text-danger">*</span></label>
+                        <input type="text" name="name" class="form-control" required placeholder="z.B. BAMF Einbürgerungstest 2024">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Beschreibung</label>
+                        <textarea name="beschreibung" class="form-control" rows="2" placeholder="Optional"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Abbrechen</button>
+                    <button type="submit" class="btn btn-vw">Pool anlegen</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

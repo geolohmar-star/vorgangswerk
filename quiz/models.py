@@ -12,6 +12,34 @@ import uuid as _uuid
 from django.db import models
 
 
+class QuizFragenPool(models.Model):
+    """
+    Wiederverwendbarer Fragenpool.
+    Fragen werden als Liste von quizfrage-kompatiblen Dicts gespeichert.
+    Ein quizpool-Feld im Pfad-Editor kann per pool_id darauf verweisen.
+    """
+    name        = models.CharField(max_length=200, verbose_name="Name")
+    beschreibung = models.TextField(blank=True, verbose_name="Beschreibung")
+    fragen_json = models.JSONField(
+        default=list,
+        verbose_name="Fragen",
+        help_text="Liste von quizfrage-kompatiblen Dicts: {label, antworten, erklaerung, ...}",
+    )
+    erstellt_am  = models.DateTimeField(auto_now_add=True)
+    geaendert_am = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name        = "Quiz-Fragenpool"
+        verbose_name_plural = "Quiz-Fragenpools"
+        ordering            = ["name"]
+
+    def __str__(self):
+        return f"{self.name} ({len(self.fragen_json)} Fragen)"
+
+    def anzahl(self):
+        return len(self.fragen_json) if isinstance(self.fragen_json, list) else 0
+
+
 class QuizErgebnis(models.Model):
     MODELL_PROZENT       = "prozent"
     MODELL_NOTEN         = "noten"

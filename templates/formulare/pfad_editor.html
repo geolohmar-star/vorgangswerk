@@ -318,6 +318,7 @@ html, body { overflow: hidden; height: 100%; }
                             <option value="quizfrage">Quizfrage (Single / Multiple / Wahr–Falsch)</option>
                             <option value="quizhinweis">Quiz-Hinweis (Infotext zwischen Fragen)</option>
                             <option value="quizergebnis">Quizergebnis (Auswertung, letzter Schritt)</option>
+                            <option value="quizpool">Quizpool (zufällige Fragen aus Katalog)</option>
                         </optgroup>
                     </select>
                 </div>
@@ -641,6 +642,59 @@ html, body { overflow: hidden; height: 100%; }
                             <label class="form-label fw-semibold">Gültigkeit (Monate, 0 = unbegrenzt)</label>
                             <input type="number" class="form-control" id="quiz-zertifikat-monate" min="0" step="1" value="12">
                         </div>
+                    </div>
+                </div>
+
+                <!-- Quizpool -->
+                <div id="quizpool-row" style="display:none;">
+                    <div class="alert alert-info small mb-3 py-2">
+                        <strong>Quizpool:</strong> Beim ersten Aufruf des Schritts werden zufällig N Fragen aus dem Pool gezogen.
+                        Die Auswahl bleibt für die gesamte Sitzung stabil (kein Neu-Würfeln bei Reload).
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Quelle</label>
+                        <select class="form-select" id="quizpool-quelle" onchange="toggleQuizpoolDb(this.value)">
+                            <option value="bamf">BAMF Einbürgerungstest (bundesweite Fragen)</option>
+                            <option value="einbuergerungstest">Demo-Deck (30 Fragen)</option>
+                            <option value="db">Eigener Fragenpool (Datenbank)</option>
+                        </select>
+                    </div>
+                    <div class="mb-3" id="quizpool-db-row" style="display:none;">
+                        <label class="form-label fw-semibold">Fragenpool auswählen</label>
+                        <select class="form-select" id="quizpool-pool-id">
+                            <option value="">— wird geladen —</option>
+                        </select>
+                        <small class="text-muted">
+                            <a href="/quiz/pools/" target="_blank">Pools verwalten ↗</a>
+                        </small>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Anzahl Fragen</label>
+                        <input type="number" class="form-control" id="quizpool-anzahl" min="1" max="300" value="33">
+                        <small class="text-muted">Einbürgerungstest: 33 Fragen (30 bundesweit + 3 länderspezifisch)</small>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Bundesland (optional)</label>
+                        <select class="form-select" id="quizpool-bundesland">
+                            <option value="">— ohne länderspezifische Fragen —</option>
+                            <option value="BW">Baden-Württemberg</option>
+                            <option value="BY">Bayern</option>
+                            <option value="BE">Berlin</option>
+                            <option value="BB">Brandenburg</option>
+                            <option value="HB">Bremen</option>
+                            <option value="HH">Hamburg</option>
+                            <option value="HE">Hessen</option>
+                            <option value="MV">Mecklenburg-Vorpommern</option>
+                            <option value="NI">Niedersachsen</option>
+                            <option value="NW">Nordrhein-Westfalen</option>
+                            <option value="RP">Rheinland-Pfalz</option>
+                            <option value="SL">Saarland</option>
+                            <option value="SN">Sachsen</option>
+                            <option value="ST">Sachsen-Anhalt</option>
+                            <option value="SH">Schleswig-Holstein</option>
+                            <option value="TH">Thüringen</option>
+                        </select>
+                        <small class="text-muted">Länderspezifische Fragen werden zum Pool hinzugefügt</small>
                     </div>
                 </div>
 

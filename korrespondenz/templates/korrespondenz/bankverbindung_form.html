@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container py-4" style="max-width:600px;">
+  <h2 class="h4 fw-bold mb-4" style="color:#1a4d2e;">
+    {% if bank.pk %}Bankverbindung bearbeiten{% else %}Neue Bankverbindung{% endif %}
+  </h2>
+  <form method="post">
+    {% csrf_token %}
+    <div class="mb-3">
+      <label class="form-label fw-semibold">Bezeichnung *</label>
+      <input type="text" name="bezeichnung" class="form-control" value="{{ bank.bezeichnung }}" required>
+    </div>
+    <div class="mb-3">
+      <label class="form-label fw-semibold">Kürzel * <small class="text-muted">(Variablenname, z.B. <code>hauptkonto</code>)</small></label>
+      <input type="text" name="kuerzel" class="form-control font-monospace" value="{{ bank.kuerzel }}"
+             pattern="[a-z0-9\-]+" title="Nur Kleinbuchstaben, Ziffern und Bindestrich" required
+             {% if bank.pk %}readonly{% endif %}>
+      {% if bank.pk %}<div class="form-text text-muted">Kürzel kann nach dem Anlegen nicht mehr geändert werden.</div>{% endif %}
+    </div>
+    <div class="mb-3">
+      <label class="form-label fw-semibold">Kontoinhaber</label>
+      <input type="text" name="kontoinhaber" class="form-control" value="{{ bank.kontoinhaber }}">
+    </div>
+    <div class="mb-3">
+      <label class="form-label fw-semibold">IBAN</label>
+      <input type="text" name="iban" class="form-control font-monospace" value="{{ bank.iban }}" placeholder="DE12 3456 7890 ...">
+    </div>
+    <div class="row g-3 mb-3">
+      <div class="col-md-4">
+        <label class="form-label fw-semibold">BIC</label>
+        <input type="text" name="bic" class="form-control font-monospace" value="{{ bank.bic }}">
+      </div>
+      <div class="col-md-8">
+        <label class="form-label fw-semibold">Bank</label>
+        <input type="text" name="bank_name" class="form-control" value="{{ bank.bank_name }}">
+      </div>
+    </div>
+    <div class="mb-4">
+      <label class="form-label fw-semibold">Reihenfolge</label>
+      <input type="number" name="reihenfolge" class="form-control" value="{{ bank.reihenfolge }}" min="0" style="max-width:100px;">
+    </div>
+    <div class="d-flex gap-2">
+      <button type="submit" class="btn btn-success">Speichern</button>
+      <a href="{% url 'korrespondenz:bankverbindungen' %}" class="btn btn-outline-secondary">Abbrechen</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

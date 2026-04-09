@@ -69,7 +69,7 @@ document.addEventListener("DOMContentLoaded", function () {
         });
         // Textbloecke mit Platzhaltern aktualisieren
         document.querySelectorAll("[data-template]").forEach(function (el) {
-            el.textContent = el.dataset.template.replace(/\{\{(\w+)\}\}/g, function (_, id) {
+            el.innerHTML = el.dataset.template.replace(/\{\{(\w+)\}\}/g, function (_, id) {
                 return werte[id] !== undefined && werte[id] !== "" ? werte[id] : "…";
             });
         });
@@ -88,11 +88,11 @@ document.addEventListener("DOMContentLoaded", function () {
     // ---------------------------------------------------------------------------
 
     document.querySelectorAll("[id^='textblock-']").forEach(function (el) {
-        var text = el.textContent;
+        var text = el.innerHTML;
         text = text.replace(/\{\{(\w+)\}\}/g, function (_, id) {
             return gesammelteDaten[id] !== undefined ? gesammelteDaten[id] : "…";
         });
-        el.textContent = text;
+        el.innerHTML = text;
     });
 
     // ---------------------------------------------------------------------------

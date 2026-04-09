@@ -1,0 +1,240 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}{{ pool.name }} – Fragenpool{% endblock %}
+
+{% block content %}
+<div class="container py-4" style="max-width:1000px;">
+
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{% url 'quiz:pool_liste' %}">Fragenpools</a></li>
+            <li class="breadcrumb-item active">{{ pool.name }}</li>
+        </ol>
+    </nav>
+
+    <div class="d-flex justify-content-between align-items-start mb-3">
+        <div>
+            <h1 class="h3 fw-bold mb-0" style="color:#1a4d2e;">{{ pool.name }}</h1>
+            {% if pool.beschreibung %}
+            <p class="text-muted small mb-0">{{ pool.beschreibung }}</p>
+            {% endif %}
+        </div>
+        <div class="d-flex gap-2">
+            <span class="badge bg-secondary fs-6" id="anzahl-badge">{{ pool.anzahl }} Fragen</span>
+        </div>
+    </div>
+
+    <!-- Import-Bereich -->
+    <div class="card mb-4">
+        <div class="card-header py-2 fw-semibold">Fragen importieren</div>
+        <div class="card-body">
+            <div class="row g-3">
+
+                <!-- CSV-Upload -->
+                <div class="col-md-6">
+                    <label class="form-label fw-semibold small">CSV-Datei</label>
+                    <div class="input-group input-group-sm">
+                        <input type="file" class="form-control" id="csv-datei" accept=".csv">
+                        <button class="btn btn-outline-primary" id="btn-csv-import">CSV importieren</button>
+                    </div>
+                    <small class="text-muted">Format: Frage;RichtigeAntwort;Falsch1;Falsch2;Falsch3;Erklärung</small>
+                </div>
+
+                <!-- Portal-Analyse -->
+                <div class="col-md-6">
+                    <label class="form-label fw-semibold small">Aus Portal-Analyse (PDF)</label>
+                    <div class="input-group input-group-sm">
+                        <input type="file" class="form-control" id="pdf-datei" accept=".pdf">
+                        <button class="btn btn-outline-success" id="btn-pdf-import">PDF analysieren &amp; importieren</button>
+                    </div>
+                    <small class="text-muted">KI erkennt Fragen direkt aus dem PDF</small>
+                </div>
+
+                <!-- BAMF-Katalog einbinden -->
+                <div class="col-12">
+                    <label class="form-label fw-semibold small">Vorgefertigte Quellen</label>
+                    <div class="d-flex gap-2 flex-wrap">
+                        <button class="btn btn-outline-secondary btn-sm" data-quelle="bamf" id="btn-bamf-import">
+                            BAMF-Katalog ({{ bamf_anzahl }} Fragen) einladen
+                        </button>
+                        <button class="btn btn-outline-secondary btn-sm" data-quelle="einbuergerungstest" id="btn-demo-import">
+                            Demo-Deck (30 Fragen) einladen
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div id="import-status" class="mt-2" style="display:none;"></div>
+        </div>
+    </div>
+
+    <!-- Fragenliste -->
+    <div class="card">
+        <div class="card-header py-2 d-flex justify-content-between align-items-center">
+            <span class="fw-semibold">Fragen im Pool</span>
+            <div class="d-flex gap-2">
+                <input type="text" class="form-control form-control-sm" id="fragen-suche" placeholder="Suchen..." style="width:200px;">
+                <button class="btn btn-vw btn-sm" id="btn-speichern" style="display:none;">Speichern</button>
+            </div>
+        </div>
+        <div class="card-body p-0">
+            <div id="fragen-liste" class="list-group list-group-flush">
+                <div class="text-center text-muted py-4" id="fragen-leer">Keine Fragen geladen.</div>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<script>
+(function () {
+    var POOL_PK = {{ pool.pk }};
+    var CSRF = "{{ csrf_token }}";
+    var fragen = {{ pool.fragen_json|default:"[]"|safe }};
+    var geaendert = false;
+
+    function renderListe(filter) {
+        var container = document.getElementById("fragen-liste");
+        var leer = document.getElementById("fragen-leer");
+        var gefiltert = filter
+            ? fragen.filter(function(f) { return (f.label||"").toLowerCase().indexOf(filter.toLowerCase()) >= 0; })
+            : fragen;
+
+        document.getElementById("anzahl-badge").textContent = fragen.length + " Fragen";
+
+        if (!gefiltert.length) {
+            container.innerHTML = "";
+            leer.style.display = "";
+            return;
+        }
+        leer.style.display = "none";
+        container.innerHTML = gefiltert.map(function(f, i) {
+            var korrekt = (f.antworten || []).filter(function(a) { return a.korrekt; }).map(function(a) { return a.text; }).join(", ");
+            return '<div class="list-group-item py-2">' +
+                '<div class="d-flex justify-content-between align-items-start">' +
+                '<div class="small"><strong>' + (i+1) + '.</strong> ' + escHtml(f.label || "") + '</div>' +
+                '<button class="btn btn-outline-danger btn-sm py-0 px-1" onclick="loescheFrage(' + fragen.indexOf(f) + ')">&#10005;</button>' +
+                '</div>' +
+                '<small class="text-success">&#10003; ' + escHtml(korrekt) + '</small>' +
+                (f.erklaerung ? '<small class="text-muted d-block">' + escHtml(f.erklaerung) + '</small>' : '') +
+                '</div>';
+        }).join("");
+    }
+
+    window.loescheFrage = function(idx) {
+        fragen.splice(idx, 1);
+        geaendert = true;
+        document.getElementById("btn-speichern").style.display = "";
+        renderListe(document.getElementById("fragen-suche").value);
+    };
+
+    function escHtml(s) {
+        return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+    }
+
+    function zeigeStatus(msg, typ) {
+        var el = document.getElementById("import-status");
+        el.style.display = "";
+        el.className = "mt-2 alert alert-" + (typ||"info") + " py-2 small";
+        el.textContent = msg;
+    }
+
+    function fuegeHinzu(neueFragen) {
+        // IDs normalisieren
+        neueFragen.forEach(function(f, i) {
+            f.id = "pool_" + POOL_PK + "__" + (fragen.length + i);
+            f.typ = "quizfrage";
+        });
+        fragen = fragen.concat(neueFragen);
+        geaendert = true;
+        document.getElementById("btn-speichern").style.display = "";
+        renderListe(document.getElementById("fragen-suche").value);
+        zeigeStatus(neueFragen.length + " Fragen hinzugefügt. Bitte speichern.", "success");
+    }
+
+    // CSV-Import
+    document.getElementById("btn-csv-import").addEventListener("click", function() {
+        var file = document.getElementById("csv-datei").files[0];
+        if (!file) { zeigeStatus("Bitte zuerst eine CSV-Datei auswählen.", "warning"); return; }
+        var fd = new FormData();
+        fd.append("csv", file);
+        zeigeStatus("CSV wird verarbeitet…", "info");
+        fetch("/quiz/import/csv/", {method:"POST", headers:{"X-CSRFToken": CSRF}, body: fd})
+            .then(function(r) { return r.json(); })
+            .then(function(d) {
+                if (d.error) { zeigeStatus("Fehler: " + d.error, "danger"); return; }
+                fuegeHinzu(d.fragen);
+            }).catch(function() { zeigeStatus("Verbindungsfehler.", "danger"); });
+    });
+
+    // PDF-Import via KI
+    document.getElementById("btn-pdf-import").addEventListener("click", function() {
+        var file = document.getElementById("pdf-datei").files[0];
+        if (!file) { zeigeStatus("Bitte zuerst eine PDF-Datei auswählen.", "warning"); return; }
+        var fd = new FormData();
+        fd.append("pdf", file);
+        fd.append("anzahl", "50");
+        zeigeStatus("PDF wird analysiert… (kann einige Sekunden dauern)", "info");
+        fetch("/quiz/import/ki/", {method:"POST", headers:{"X-CSRFToken": CSRF}, body: fd})
+            .then(function(r) { return r.json(); })
+            .then(function(d) {
+                if (d.error) { zeigeStatus("Fehler: " + d.error, "danger"); return; }
+                fuegeHinzu(d.fragen);
+            }).catch(function() { zeigeStatus("Verbindungsfehler.", "danger"); });
+    });
+
+    // BAMF-Katalog einladen
+    document.getElementById("btn-bamf-import").addEventListener("click", function() {
+        zeigeStatus("BAMF-Katalog wird geladen…", "info");
+        fetch("/quiz/import/demo/bamf/", {headers:{"X-CSRFToken": CSRF}})
+            .then(function(r) { return r.json(); })
+            .then(function(d) {
+                if (d.error) { zeigeStatus("Fehler: " + d.error, "danger"); return; }
+                fuegeHinzu(d.fragen);
+            }).catch(function() { zeigeStatus("Verbindungsfehler.", "danger"); });
+    });
+
+    // Demo-Deck einladen
+    document.getElementById("btn-demo-import").addEventListener("click", function() {
+        zeigeStatus("Demo-Deck wird geladen…", "info");
+        fetch("/quiz/import/demo/einbuergerungstest/?anzahl=30", {headers:{"X-CSRFToken": CSRF}})
+            .then(function(r) { return r.json(); })
+            .then(function(d) {
+                if (d.error) { zeigeStatus("Fehler: " + d.error, "danger"); return; }
+                fuegeHinzu(d.fragen);
+            }).catch(function() { zeigeStatus("Verbindungsfehler.", "danger"); });
+    });
+
+    // Speichern
+    document.getElementById("btn-speichern").addEventListener("click", function() {
+        fetch("/quiz/pools/" + POOL_PK + "/fragen/", {
+            method: "POST",
+            headers: {"X-CSRFToken": CSRF, "Content-Type": "application/json"},
+            body: JSON.stringify({fragen: fragen}),
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+            if (d.ok) {
+                zeigeStatus(d.anzahl + " Fragen gespeichert.", "success");
+                document.getElementById("btn-speichern").style.display = "none";
+                geaendert = false;
+            } else {
+                zeigeStatus("Fehler: " + d.fehler, "danger");
+            }
+        });
+    });
+
+    // Suche
+    document.getElementById("fragen-suche").addEventListener("input", function() {
+        renderListe(this.value);
+    });
+
+    // Ungespeicherte Änderungen warnen
+    window.addEventListener("beforeunload", function(e) {
+        if (geaendert) { e.preventDefault(); e.returnValue = ""; }
+    });
+
+    renderListe();
+}());
+</script>
+{% endblock %}

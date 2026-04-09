@@ -21,6 +21,7 @@ urlpatterns = [
     path("analyse/<int:pk>/", views.analyse_detail, name="analyse_detail"),
     path("analyse/<int:pk>/status.json", views.analyse_status_json, name="analyse_status_json"),
     path("analyse/<int:pk>/importieren/", views.analyse_importieren, name="analyse_importieren"),
+    path("analyse/<int:pk>/pdf/", views.analyse_pdf, name="analyse_pdf"),
 
     # Credits
     path("credits/", views.credits_kaufen, name="credits_kaufen"),

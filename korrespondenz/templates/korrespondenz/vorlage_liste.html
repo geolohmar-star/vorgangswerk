@@ -1,0 +1,145 @@
+{% extends "base.html" %}
+
+{% block title %}Briefvorlagen – Vorgangswerk{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h2 class="mb-0">Briefvorlagen</h2>
+    <button class="btn btn-success" data-bs-toggle="collapse" data-bs-target="#upload-formular">
+      + Neue Vorlage hochladen
+    </button>
+  </div>
+
+  <!-- Suchfeld -->
+  <form method="get" class="mb-4">
+    <div class="input-group">
+      <input type="text" name="q" class="form-control"
+             placeholder="Nach Titel, Pfad-Kuerzel oder Gruppe suchen ..."
+             value="{{ q }}" autofocus>
+      <button type="submit" class="btn btn-success">Suchen</button>
+      {% if q %}<a href="{% url 'korrespondenz:vorlage_liste' %}" class="btn btn-outline-secondary">Alle</a>{% endif %}
+    </div>
+  </form>
+
+  <!-- Upload-Formular -->
+  <div class="{% if not pfad_vorauswahl %}collapse {% endif %}mb-4" id="upload-formular">
+    <div class="card border-success">
+      <div class="card-header bg-success text-white">
+        Neue DOCX-Vorlage hochladen
+        {% if pfad_vorauswahl %}<span class="badge bg-light text-success ms-2">{{ pfad_vorauswahl }}</span>{% endif %}
+      </div>
+      <div class="card-body">
+        <form method="post" action="{% url 'korrespondenz:vorlage_hochladen' %}" enctype="multipart/form-data">
+          {% csrf_token %}
+          <div class="row g-3">
+            <div class="col-md-3">
+              <label class="form-label fw-semibold">Titel <span class="text-danger">*</span></label>
+              <input type="text" name="titel" class="form-control" placeholder="z. B. Genehmigungsbescheid" required>
+            </div>
+            <div class="col-md-3">
+              <label class="form-label fw-semibold">Antrags-Pfad</label>
+              <select name="pfad_kuerzel" class="form-select">
+                <option value="">— Allgemeine Vorlage —</option>
+                {% for pfad in pfade %}
+                <option value="{{ pfad.kuerzel }}"
+                  {% if pfad.kuerzel == pfad_vorauswahl %}selected{% endif %}>
+                  {{ pfad.name }}{% if pfad.kuerzel %} ({{ pfad.kuerzel }}){% endif %}
+                </option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-md-2">
+              <label class="form-label fw-semibold">Gruppe <small class="text-muted">(optional)</small></label>
+              <input type="text" name="gruppe" class="form-control" placeholder="z. B. Bescheide">
+            </div>
+            <div class="col-md-2">
+              <label class="form-label fw-semibold">Beschreibung</label>
+              <input type="text" name="beschreibung" class="form-control" placeholder="Optional">
+            </div>
+            <div class="col-md-2">
+              <label class="form-label fw-semibold">DOCX-Datei <span class="text-danger">*</span></label>
+              <input type="file" name="docx_datei" class="form-control" accept=".docx" required>
+            </div>
+          </div>
+          <div class="mt-3">
+            <button type="submit" class="btn btn-success">Hochladen &amp; in OnlyOffice öffnen</button>
+            <button type="button" class="btn btn-outline-secondary ms-2"
+                    data-bs-toggle="collapse" data-bs-target="#upload-formular">Abbrechen</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  {% if not gruppen_liste and not allgemein %}
+  <div class="alert alert-info">
+    {% if q %}
+      Keine Vorlagen fuer &bdquo;{{ q }}&ldquo; gefunden.
+    {% else %}
+      Noch keine Briefvorlagen vorhanden. Lade eine DOCX-Datei mit &#123;&#123;platzhalter&#125;&#125; hoch.
+    {% endif %}
+  </div>
+  {% endif %}
+
+  <!-- Vorlagen nach Antrags-Pfad gruppiert -->
+  <div class="accordion" id="vorlagen-accordion">
+
+    {% for gruppe in gruppen_liste %}
+    <div class="accordion-item border mb-2">
+      <h2 class="accordion-header">
+        <button class="accordion-button" type="button"
+                data-bs-toggle="collapse"
+                data-bs-target="#gruppe-{{ gruppe.kuerzel }}"
+                aria-expanded="true">
+          <span class="fw-semibold">{{ gruppe.name }}</span>
+          <span class="badge bg-success ms-2">{{ gruppe.kuerzel }}</span>
+          <span class="badge bg-secondary ms-2">{{ gruppe.anzahl }} Vorlage{{ gruppe.anzahl|pluralize:"n" }}</span>
+        </button>
+      </h2>
+      <div id="gruppe-{{ gruppe.kuerzel }}" class="accordion-collapse collapse show">
+        <div class="accordion-body">
+          {% include "korrespondenz/_vorlage_abschnitte.html" with abschnitte=gruppe.abschnitte pfade=pfade kuerzel=gruppe.kuerzel %}
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+
+    <!-- Allgemeine Vorlagen (ohne Pfad-Zuordnung) -->
+    {% if allgemein %}
+    <div class="accordion-item border mb-2">
+      <h2 class="accordion-header">
+        <button class="accordion-button" type="button"
+                data-bs-toggle="collapse"
+                data-bs-target="#gruppe-allgemein"
+                aria-expanded="true">
+          <span class="fw-semibold">Allgemeine Vorlagen</span>
+          <span class="badge bg-secondary ms-2">{{ allgemein_anzahl }} Vorlage{{ allgemein_anzahl|pluralize:"n" }}</span>
+        </button>
+      </h2>
+      <div id="gruppe-allgemein" class="accordion-collapse collapse show">
+        <div class="accordion-body">
+          {% include "korrespondenz/_vorlage_abschnitte.html" with abschnitte=allgemein pfade=pfade kuerzel="allgemein" %}
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+  </div><!-- /accordion -->
+
+</div>
+{% endblock %}
+
+{% block extra_js %}
+{% load static %}
+<script>
+// Loeschen-Formulare bestaetigen
+document.querySelectorAll('.form-loeschen').forEach(form => {
+  form.addEventListener('submit', e => {
+    const titel = form.dataset.titel || 'diese Vorlage';
+    if (!confirm(`Vorlage "${titel}" wirklich loeschen?`)) e.preventDefault();
+  });
+});
+</script>
+{% endblock %}

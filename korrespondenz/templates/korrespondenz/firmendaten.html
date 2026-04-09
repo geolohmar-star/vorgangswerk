@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+{% block title %}Firmendaten – Vorgangswerk{% endblock %}
+
+{% block content %}
+<div class="container mt-4" style="max-width:640px;">
+
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h2 class="mb-0">Firmendaten</h2>
+    <div class="d-flex gap-2">
+      <a href="{% url 'korrespondenz:vorlage_liste' %}" class="btn btn-sm btn-outline-secondary">&larr; Vorlagen</a>
+      {% if user.is_staff %}
+      <a href="{% url 'korrespondenz:bankverbindungen' %}" class="btn btn-sm btn-outline-success">&#127968; Bankverbindungen</a>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="card shadow-sm">
+    <div class="card-header bg-success text-white fw-semibold">
+      Absender- und Fusszeilen-Daten fuer alle Briefvorlagen
+    </div>
+    <div class="card-body">
+      <form method="post">
+        {% csrf_token %}
+        <div class="row g-3">
+
+          <div class="col-12">
+            <label class="form-label fw-semibold">Firmenname / Behoerde</label>
+            <input type="text" name="firmenname" class="form-control"
+                   value="{{ firma.firmenname }}" placeholder="z. B. Gemeindeverwaltung Musterstadt">
+          </div>
+
+          <div class="col-8">
+            <label class="form-label fw-semibold">Strasse / Hausnummer</label>
+            <input type="text" name="strasse" class="form-control"
+                   value="{{ firma.strasse }}" placeholder="z. B. Rathausplatz 1">
+          </div>
+          <div class="col-4">
+            <label class="form-label fw-semibold">Ort (Datumszeile)</label>
+            <input type="text" name="ort" class="form-control"
+                   value="{{ firma.ort }}" placeholder="z. B. Musterstadt">
+          </div>
+
+          <div class="col-12">
+            <label class="form-label fw-semibold">PLZ / Ort</label>
+            <input type="text" name="plz_ort" class="form-control"
+                   value="{{ firma.plz_ort }}" placeholder="z. B. 12345 Musterstadt">
+          </div>
+
+          <div class="col-6">
+            <label class="form-label fw-semibold">Telefon</label>
+            <input type="text" name="telefon" class="form-control"
+                   value="{{ firma.telefon }}" placeholder="z. B. 01234 56789-0">
+          </div>
+          <div class="col-6">
+            <label class="form-label fw-semibold">Telefax</label>
+            <input type="text" name="telefax" class="form-control"
+                   value="{{ firma.telefax }}" placeholder="z. B. 01234 56789-99">
+          </div>
+
+          <div class="col-6">
+            <label class="form-label fw-semibold">E-Mail</label>
+            <input type="email" name="email" class="form-control"
+                   value="{{ firma.email }}" placeholder="info@musterstadt.de">
+          </div>
+          <div class="col-6">
+            <label class="form-label fw-semibold">Internet</label>
+            <input type="text" name="internet" class="form-control"
+                   value="{{ firma.internet }}" placeholder="www.musterstadt.de">
+          </div>
+
+          <div class="col-12">
+            <label class="form-label fw-semibold">Standard-Grussformel</label>
+            <input type="text" name="grussformel" class="form-control"
+                   value="{{ firma.grussformel }}" placeholder="Mit freundlichen Gruessen">
+          </div>
+
+        </div>
+        <div class="mt-4">
+          <button type="submit" class="btn btn-success">Speichern</button>
+        </div>
+      </form>
+    </div>
+    <div class="card-footer text-muted small">
+      Diese Daten werden automatisch als Absender in neue Briefvorlagen eingetragen.
+    </div>
+  </div>
+
+</div>
+{% endblock %}

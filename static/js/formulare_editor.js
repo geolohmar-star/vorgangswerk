@@ -1307,6 +1307,24 @@
         if (elQZT) elQZT.value = (feld && feld.zertifikat_titel) ? feld.zertifikat_titel : "";
         var elQZM = document.getElementById("quiz-zertifikat-monate");
         if (elQZM) elQZM.value = (feld && feld.zertifikat_gueltig_monate != null) ? feld.zertifikat_gueltig_monate : 12;
+        // Quizpool
+        var elQPoolQuelle = document.getElementById("quizpool-quelle");
+        if (elQPoolQuelle) elQPoolQuelle.value = (feld && feld.quelle) ? feld.quelle : "bamf";
+        var elQPoolAnzahl = document.getElementById("quizpool-anzahl");
+        if (elQPoolAnzahl) elQPoolAnzahl.value = (feld && feld.anzahl != null) ? feld.anzahl : 33;
+        var elQPoolBl = document.getElementById("quizpool-bundesland");
+        if (elQPoolBl) elQPoolBl.value = (feld && feld.bundesland) ? feld.bundesland : "";
+        var elQPoolId = document.getElementById("quizpool-pool-id");
+        if (elQPoolId && feld && feld.pool_id) {
+            elQPoolId.value = feld.pool_id;
+        }
+        // Pool-Dropdown befüllen wenn quelle=db
+        if (feld && feld.quelle === "db") {
+            ladePools(feld.pool_id || null);
+        }
+        if (typeof toggleQuizpoolDb === "function") {
+            toggleQuizpoolDb((feld && feld.quelle) ? feld.quelle : "bamf");
+        }
         // Optionen: visuelle Liste aufbauen
         renderOptionenListe((feld && feld.optionen) ? feld.optionen : []);
         // Gruppe: Unterfelder laden
@@ -1374,7 +1392,7 @@
             .filter(Boolean);
     }
 
-    var STRUKTUR_TYPEN = ["textblock", "abschnitt", "trennlinie", "leerblock", "zusammenfassung", "link", "pdf_email", "einwilligung", "systemfeld", "quizhinweis", "quizergebnis"];
+    var STRUKTUR_TYPEN = ["textblock", "abschnitt", "trennlinie", "leerblock", "zusammenfassung", "link", "pdf_email", "einwilligung", "systemfeld", "quizhinweis", "quizergebnis", "quizpool"];
 
     function toggleOptionenRow(typ) {
         var mitOptionen = ["auswahl", "radio", "checkboxen"];
@@ -1387,10 +1405,10 @@
         var mitPdfEmail = ["pdf_email"];
         var mitEinwilligung = ["einwilligung"];
         var mitSystemfeld = ["systemfeld"];
-        var ohneLabel = ["trennlinie", "leerblock", "zusammenfassung", "einwilligung", "quizhinweis", "quizergebnis"];
+        var ohneLabel = ["trennlinie", "leerblock", "zusammenfassung", "einwilligung", "quizhinweis", "quizergebnis", "quizpool"];
         var ohneHilfe = ["trennlinie", "leerblock", "bool", "abschnitt", "textblock", "berechnung",
                          "zusammenfassung", "signatur", "gruppe", "link", "pdf_email", "einwilligung", "systemfeld",
-                         "quizfrage", "quizhinweis", "quizergebnis"];
+                         "quizfrage", "quizhinweis", "quizergebnis", "quizpool"];
         // Regex-Validierung nur bei freien Texteingaben sinnvoll
         var mitRegex = ["text", "mehrzeil", "telefon", "steuernummer", "kfz", "mitarbeiternummer",
                         "iban", "bic", "plz", "email", "zahl", "uhrzeit", "iban"];
@@ -1420,13 +1438,15 @@
         if (quizfrageRow) quizfrageRow.style.display = typ === "quizfrage" ? "" : "none";
         var quizergebnisRow = document.getElementById("quizergebnis-row");
         if (quizergebnisRow) quizergebnisRow.style.display = typ === "quizergebnis" ? "" : "none";
+        var quizpoolRow = document.getElementById("quizpool-row");
+        if (quizpoolRow) quizpoolRow.style.display = typ === "quizpool" ? "" : "none";
         // Quizergebnis: Bewertungsmodell-Wechsel sofort auslösen
         if (typ === "quizergebnis") {
             var bm = document.getElementById("quiz-bewertungsmodell");
             if (bm) bm.dispatchEvent(new Event("change"));
         }
         // quizfrage: pflicht immer anzeigen, aber breite ausblenden
-        var ohneBreiteQuiz = ["quizergebnis", "quizhinweis"];
+        var ohneBreiteQuiz = ["quizergebnis", "quizhinweis", "quizpool"];
         if (ohneBreiteQuiz.indexOf(typ) >= 0) {
             document.getElementById("breite-row").style.display = "none";
         }
@@ -1661,6 +1681,19 @@
                 feld.zertifikat_gueltig_monate = parseInt(document.getElementById("quiz-zertifikat-monate").value, 10) || 0;
             }
             feld.label = feld.label || "Testergebnis";
+        }
+        if (typ === "quizpool") {
+            var qpQuelle = document.getElementById("quizpool-quelle");
+            feld.quelle = qpQuelle ? qpQuelle.value : "bamf";
+            var qpAnzahl = document.getElementById("quizpool-anzahl");
+            feld.anzahl = qpAnzahl ? (parseInt(qpAnzahl.value, 10) || 33) : 33;
+            var qpBl = document.getElementById("quizpool-bundesland");
+            feld.bundesland = qpBl ? qpBl.value.trim() : "";
+            if (feld.quelle === "db") {
+                var qpPoolId = document.getElementById("quizpool-pool-id");
+                feld.pool_id = qpPoolId ? (parseInt(qpPoolId.value, 10) || null) : null;
+            }
+            feld.label = feld.label || "Fragenkatalog";
         }
         if (typ === "gruppe") {
             feld.singular = document.getElementById("feld-singular").value.trim() || "Eintrag";
@@ -3151,3 +3184,37 @@
     });
 
 }());
+
+// ---------------------------------------------------------------------------
+// Quizpool: DB-Pool Dropdown
+// ---------------------------------------------------------------------------
+function toggleQuizpoolDb(quelle) {
+    var row = document.getElementById("quizpool-db-row");
+    if (!row) return;
+    if (quelle === "db") {
+        row.style.display = "";
+        ladePools(null);
+    } else {
+        row.style.display = "none";
+    }
+}
+
+function ladePools(selectId) {
+    var sel = document.getElementById("quizpool-pool-id");
+    if (!sel) return;
+    fetch("/quiz/pools/json/")
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+            sel.innerHTML = '<option value="">— Pool wählen —</option>';
+            (d.pools || []).forEach(function(p) {
+                var opt = document.createElement("option");
+                opt.value = p.id;
+                opt.textContent = p.name;
+                if (selectId && p.id == selectId) opt.selected = true;
+                sel.appendChild(opt);
+            });
+        })
+        .catch(function() {
+            sel.innerHTML = '<option value="">Fehler beim Laden</option>';
+        });
+}

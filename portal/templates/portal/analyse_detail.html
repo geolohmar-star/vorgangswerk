@@ -35,6 +35,16 @@
                     <dd class="col-sm-9">{{ analyse.credits_verbraucht }}</dd>
                 </dl>
 
+                <div class="d-flex gap-2 mb-3">
+                    <a href="{% url 'portal:analyse_pdf' analyse.pk %}" target="_blank"
+                       class="btn btn-outline-secondary btn-sm">PDF herunterladen</a>
+                    {% if bentopdf_url %}
+                    <a href="{{ bentopdf_url }}?url={{ pdf_url|urlencode }}" target="_blank"
+                       class="btn btn-outline-primary btn-sm">PDF-Werkzeuge (BentoPDF)</a>
+                    {% endif %}
+                </div>
+                <hr class="mb-3">
+
                 {# Ladeanimation #}
                 {% if analyse.status == "wartend" or analyse.status == "verarbeitung" %}
                 <div id="warte-bereich" class="text-center py-4">
