@@ -73,6 +73,20 @@ Lizenz: [EUPL-1.2](LICENSE) · Sprache: Deutsch · Stack: Django · PostgreSQL �
 
 ---
 
+## Demo
+
+Eine öffentliche Demo-Instanz ist verfügbar unter:
+
+**https://vorgangswerk.georg-klein.com**
+
+| Feld | Wert |
+|---|---|
+| Benutzer | `demo@vorgangswerk.de` |
+| Passwort | `Demo1234!` |
+| Rolle | Sachbearbeiter (kein Admin, keine Benutzerverwaltung) |
+
+---
+
 ## Schnellstart (Docker)
 
 **Voraussetzungen:** Docker und Docker Compose
