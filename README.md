@@ -8,6 +8,22 @@ Lizenz: [EUPL-1.2](LICENSE) · Sprache: Deutsch · Stack: Django · PostgreSQL �
 
 ---
 
+## Screenshots
+
+**Visueller Pfad-Editor** – Verzweigte Antragsformulare per Drag & Drop
+
+![Pfad-Editor](docs/screenshots/editor_graph.png)
+
+**Prozesszentrale** – Überfällige Tasks, laufende Workflows, Sachbearbeiter-Übersicht
+
+![Prozesszentrale](docs/screenshots/prozesszentrale.png)
+
+**Bürgerseitige Antragsstrecke** – Mit Fortschrittsbalken, Breadcrumb-Navigation und mobilem Layout
+
+![Antragsstrecke](docs/screenshots/buerger_formular.png)
+
+---
+
 ## Funktionsübersicht
 
 ### Formulare & Antragsstrecken
