@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: EUPL-1.2
 # Copyright (C) 2026 Georg Klein
 
-FROM python:3.12-slim
+FROM python:3.12-slim-bookworm
 
 # Systemabhaengigkeiten (WeasyPrint + psycopg2)
 RUN apt-get update && apt-get install -y \

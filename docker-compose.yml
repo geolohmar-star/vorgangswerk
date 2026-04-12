@@ -8,7 +8,7 @@ services:
   # Datenbank
   # ---------------------------------------------------------------------------
   db:
-    image: postgres:16
+    image: postgres:16@sha256:78df81b1442dcc764c1104154da7162635e40cfffe67579c42a1c1b96dfc209c
     restart: unless-stopped
     environment:
       POSTGRES_DB: vorgangswerk
@@ -106,7 +106,7 @@ services:
       - "8089:8080"
 
   onlyoffice:
-    image: onlyoffice/documentserver:latest
+    image: onlyoffice/documentserver:8.3
     restart: unless-stopped
     profiles:
       - onlyoffice
