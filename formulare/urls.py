@@ -24,6 +24,8 @@ urlpatterns = [
     path("blockansicht/<int:pk>/", views.pfad_blockansicht, name="pfad_blockansicht"),
     path("loeschen/<int:pk>/", views.pfad_loeschen, name="pfad_loeschen"),
     path("kopieren/<int:pk>/", views.pfad_kopieren, name="pfad_kopieren"),
+    path("exportieren/<int:pk>/", views.pfad_exportieren, name="pfad_exportieren"),
+    path("importieren/", views.pfad_importieren, name="pfad_importieren"),
     path("kategorie/<int:pk>/", views.pfad_kategorie_setzen, name="pfad_kategorie_setzen"),
     # Player (eingeloggte Nutzer)
     path("starten/<int:pk>/", views.pfad_starten, name="pfad_starten"),

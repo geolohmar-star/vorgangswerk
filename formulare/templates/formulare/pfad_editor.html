@@ -68,6 +68,12 @@ html, body { overflow: hidden; height: 100%; }
             {% if pfad %}
             <button id="btn-versionen" class="btn btn-sm btn-outline-secondary" title="Versionshistorie">&#128336; Versionen</button>
             {% endif %}
+            {% if pfad %}
+            <a href="{% url 'formulare:pfad_exportieren' pfad.pk %}"
+               class="btn btn-sm btn-outline-secondary" title="Pfad als JSON herunterladen">
+                &#8659; JSON
+            </a>
+            {% endif %}
             <button id="btn-variablen" class="btn btn-sm btn-outline-warning"
                     data-bs-toggle="modal" data-bs-target="#variablen-modal"
                     title="Pfad-weite Variablen / Berechnungsgrundlagen">

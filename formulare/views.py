@@ -969,6 +969,143 @@ def pfad_kopieren(request, pk):
 
 
 # ---------------------------------------------------------------------------
+# Export / Import als JSON
+# ---------------------------------------------------------------------------
+
+@login_required
+def pfad_exportieren(request, pk):
+    """GET: Pfad als .json-Datei herunterladen."""
+    pfad = get_object_or_404(AntrPfad, pk=pk)
+    schritte = [
+        {
+            "node_id":   s.node_id,
+            "titel":     s.titel,
+            "ist_start": s.ist_start,
+            "ist_ende":  s.ist_ende,
+            "felder_json": s.felder_json,
+            "pos_x":     s.pos_x,
+            "pos_y":     s.pos_y,
+        }
+        for s in pfad.schritte.order_by("pk")
+    ]
+    transitionen = [
+        {
+            "von":         t.von_schritt.node_id,
+            "zu":          t.zu_schritt.node_id,
+            "bedingung":   t.bedingung,
+            "label":       t.label,
+            "reihenfolge": t.reihenfolge,
+        }
+        for t in pfad.transitionen.select_related("von_schritt", "zu_schritt")
+    ]
+    payload = {
+        "vorgangswerk_export": "1.0",
+        "exportiert_am": timezone.now().isoformat(),
+        "pfad": {
+            "name":                   pfad.name,
+            "beschreibung":           pfad.beschreibung,
+            "kategorie":              pfad.kategorie,
+            "kuerzel":                pfad.kuerzel,
+            "oeffentlich":            pfad.oeffentlich,
+            "variablen_json":         pfad.variablen_json or {},
+            "benachrichtigung_email": pfad.benachrichtigung_email,
+            "leika_schluessel":       pfad.leika_schluessel,
+        },
+        "schritte":    schritte,
+        "transitionen": transitionen,
+    }
+    dateiname = re.sub(r"[^\w\-]", "_", pfad.name)[:60] + ".json"
+    response = HttpResponse(
+        json.dumps(payload, ensure_ascii=False, indent=2),
+        content_type="application/json",
+    )
+    response["Content-Disposition"] = f'attachment; filename="{dateiname}"'
+    return response
+
+
+@login_required
+def pfad_importieren(request):
+    """POST: Pfad aus .json-Datei importieren → neuen Pfad anlegen."""
+    if not _ist_editor(request.user):
+        messages.error(request, "Kein Zugriff.")
+        return redirect("formulare:liste")
+
+    if request.method != "POST":
+        return redirect("formulare:liste")
+
+    upload = request.FILES.get("json_datei")
+    if not upload:
+        messages.error(request, "Keine Datei ausgewählt.")
+        return redirect("formulare:liste")
+
+    try:
+        rohdaten = upload.read().decode("utf-8")
+        daten = json.loads(rohdaten)
+    except Exception:
+        messages.error(request, "Datei konnte nicht gelesen werden – kein gültiges JSON.")
+        return redirect("formulare:liste")
+
+    if daten.get("vorgangswerk_export") != "1.0":
+        messages.error(request, "Unbekanntes Export-Format.")
+        return redirect("formulare:liste")
+
+    pfad_daten = daten.get("pfad", {})
+
+    # Kürzel-Konflikt: leer lassen wenn bereits vergeben
+    kuerzel = (pfad_daten.get("kuerzel") or "").upper().strip()
+    if kuerzel and AntrPfad.objects.filter(kuerzel=kuerzel).exists():
+        kuerzel = ""
+
+    pfad = AntrPfad.objects.create(
+        name=f"(Import) {pfad_daten.get('name', 'Unbekannt')}",
+        beschreibung=pfad_daten.get("beschreibung", ""),
+        kategorie=pfad_daten.get("kategorie", ""),
+        kuerzel=kuerzel,
+        oeffentlich=False,  # Sicherheitshalber nicht sofort öffentlich
+        variablen_json=pfad_daten.get("variablen_json") or {},
+        benachrichtigung_email=pfad_daten.get("benachrichtigung_email", ""),
+        leika_schluessel=pfad_daten.get("leika_schluessel", ""),
+        erstellt_von=request.user,
+    )
+
+    # Schritte anlegen, node_id → AntrSchritt-Objekt merken
+    node_map = {}
+    for s in daten.get("schritte", []):
+        node_id = s.get("node_id", "")
+        if not node_id:
+            continue
+        schritt = AntrSchritt.objects.create(
+            pfad=pfad,
+            node_id=node_id,
+            titel=s.get("titel", "Schritt"),
+            ist_start=s.get("ist_start", False),
+            ist_ende=s.get("ist_ende", False),
+            felder_json=s.get("felder_json") or [],
+            pos_x=s.get("pos_x", 200),
+            pos_y=s.get("pos_y", 200),
+        )
+        node_map[node_id] = schritt
+
+    # Transitionen anlegen
+    for t in daten.get("transitionen", []):
+        von = node_map.get(t.get("von"))
+        zu  = node_map.get(t.get("zu"))
+        if not von or not zu:
+            continue
+        AntrTransition.objects.create(
+            pfad=pfad,
+            von_schritt=von,
+            zu_schritt=zu,
+            bedingung=t.get("bedingung", ""),
+            label=t.get("label", ""),
+            reihenfolge=t.get("reihenfolge", 0),
+        )
+
+    messages.success(request, f'Pfad „{pfad.name}" wurde importiert.')
+    return redirect("formulare:pfad_editor", pk=pfad.pk)
+
+
+# ---------------------------------------------------------------------------
 # Kategorie setzen
 # ---------------------------------------------------------------------------
 

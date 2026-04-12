@@ -10,10 +10,17 @@
             <p class="text-muted small mb-0">Intelligente Formulare mit Verzweigungen und Bedingungen</p>
         </div>
         {% if ist_editor %}
-        <button type="button" class="btn btn-vw"
-                data-bs-toggle="modal" data-bs-target="#pfad-neu-modal">
-            + Neuer Pfad
-        </button>
+        <div class="d-flex gap-2">
+            <button type="button" class="btn btn-outline-secondary"
+                    data-bs-toggle="modal" data-bs-target="#pfad-import-modal"
+                    title="Pfad aus JSON-Datei importieren">
+                &#8657; Importieren
+            </button>
+            <button type="button" class="btn btn-vw"
+                    data-bs-toggle="modal" data-bs-target="#pfad-neu-modal">
+                + Neuer Pfad
+            </button>
+        </div>
         {% endif %}
     </div>
 
@@ -63,6 +70,35 @@
                     <div class="modal-footer">
                         <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Abbrechen</button>
                         <button type="submit" class="btn btn-vw">Erstellen &amp; Editor oeffnen</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    <!-- Modal: Pfad importieren -->
+    {% if ist_editor %}
+    <div class="modal fade" id="pfad-import-modal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title fw-bold">&#8657; Pfad importieren</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <form method="post" action="{% url 'formulare:pfad_importieren' %}" enctype="multipart/form-data">
+                    {% csrf_token %}
+                    <div class="modal-body">
+                        <p class="text-muted small">Laden Sie eine <code>.json</code>-Datei hoch, die mit dem „↓ JSON"-Button aus dem Editor exportiert wurde.</p>
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">JSON-Datei <span class="text-danger">*</span></label>
+                            <input type="file" name="json_datei" class="form-control" accept=".json" required>
+                        </div>
+                        <div class="alert alert-warning py-2 small mb-0">
+                            Der importierte Pfad wird als <strong>nicht öffentlich</strong> angelegt und erhält den Präfix „(Import)". Kürzel und Einstellungen können danach im Editor angepasst werden.
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Abbrechen</button>
+                        <button type="submit" class="btn btn-vw">Importieren</button>
                     </div>
                 </form>
             </div>

@@ -55,6 +55,10 @@
                         &#128203; Kopieren
                     </button>
                 </form>
+                <a href="{% url 'formulare:pfad_exportieren' pfad.pk %}"
+                   class="btn btn-outline-secondary btn-sm" title="Als JSON exportieren">
+                    &#8659; JSON
+                </a>
                 <form method="post" action="{% url 'formulare:pfad_loeschen' pfad.pk %}"
                       data-loeschen-form data-name="{{ pfad.name }}"
                       data-anzahl="{{ pfad.sitzungen.count }}">
