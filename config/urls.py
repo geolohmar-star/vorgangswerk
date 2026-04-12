@@ -1,11 +1,15 @@
 # SPDX-License-Identifier: EUPL-1.2
 # Copyright (C) 2026 Georg Klein
 """Vorgangswerk – URL-Konfiguration."""
+from django.conf import settings
 from django.contrib import admin
 from django.contrib.auth import views as auth_views
 from django.urls import include, path
 from django.views.generic import RedirectView
 from core.api import api
+
+_bundid_idp = getattr(settings, "BUNDID_IDP_SSO_URL", "")
+_bundid_aktiv = bool(_bundid_idp) and "localhost" not in _bundid_idp
 
 urlpatterns = [
     # ---------------------------------------------------------------------------
@@ -16,7 +20,10 @@ urlpatterns = [
     # ---------------------------------------------------------------------------
     # Auth (Login / Logout)
     # ---------------------------------------------------------------------------
-    path("auth/login/", auth_views.LoginView.as_view(template_name="core/login.html"), name="login"),
+    path("auth/login/", auth_views.LoginView.as_view(
+        template_name="core/login.html",
+        extra_context={"bundid_aktiv": _bundid_aktiv},
+    ), name="login"),
     path("auth/logout/", auth_views.LogoutView.as_view(), name="logout"),
     # Django-Standard-Login-URL auf unsere Login-Seite weiterleiten
     path("accounts/login/", RedirectView.as_view(url="/auth/login/", query_string=True)),

@@ -60,13 +60,14 @@
                 </button>
             </form>
 
+            {% if bundid_aktiv %}
             <hr class="my-3">
-
             <a href="{% url 'bundid:login' %}{% if next %}?next={{ next }}{% endif %}"
                class="btn w-100 fw-semibold border-0 text-white"
                style="background:#003f7d;">
                 Mit BundID anmelden
             </a>
+            {% endif %}
 
         </div>
 
