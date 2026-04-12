@@ -438,9 +438,22 @@
             toggleOptionenRow(this.value);
         });
 
-        // Feld-Modal: Label → ID-Vorschau
+        // Feld-Modal: Label → ID-Vorschau (+ auto-fill bool Feld-ID)
         document.getElementById("feld-label").addEventListener("input", function () {
-            document.getElementById("feld-id-vorschau").textContent = labelZuId(this.value, document.getElementById("feld-typ").value);
+            var typ = document.getElementById("feld-typ").value;
+            var genId = labelZuId(this.value, typ);
+            document.getElementById("feld-id-vorschau").textContent = genId;
+            // bool: Feld-ID automatisch vorausfüllen solange nicht manuell geändert
+            if (typ === "bool") {
+                var boolIdEl = document.getElementById("feld-bool-feld-id");
+                if (boolIdEl && !boolIdEl.dataset.manuallyEdited) {
+                    boolIdEl.value = genId;
+                }
+            }
+        });
+        // bool Feld-ID: manuell geändert merken
+        document.getElementById("feld-bool-feld-id").addEventListener("input", function () {
+            this.dataset.manuallyEdited = "1";
         });
 
         // Feld-Modal: OK
@@ -1006,8 +1019,9 @@
             html += '<span class="drag-handle text-muted" style="cursor:grab; padding:0 4px; font-size:1rem;" title="Ziehen zum Sortieren">&#8942;&#8942;</span>';
             html += '<span class="badge bg-secondary small">' + (TYP_LABEL[feld.typ] || feld.typ) + '</span> ';
             html += esc(feld.label || "");
-            if (feld.pflicht)   html += ' <span class="text-danger small">*</span>';
-            if (feld.versteckt) html += ' <span class="text-muted small" title="Versteckt">&#128065;&#xFE0E;</span>';
+            if (feld.pflicht)    html += ' <span class="text-danger small">*</span>';
+            if (feld.versteckt)  html += ' <span class="text-muted small" title="Versteckt">&#128065;&#xFE0E;</span>';
+            if (feld.zeige_wenn) html += ' <span class="badge bg-info text-dark small" title="Bedingt anzeigen">&#8627; wenn ' + esc(feld.zeige_wenn) + '</span>';
             html += '</span>';
             html += '<span class="d-flex gap-1">';
             // Pfeil-Buttons hoch/runter
@@ -1213,9 +1227,14 @@
         document.getElementById("feld-pflicht").checked   = feld ? !!feld.pflicht   : false;
         document.getElementById("feld-versteckt").checked = feld ? !!feld.versteckt : false;
         document.getElementById("feld-id-vorschau").textContent = feld ? (feld.id || "") : "";
-        // bool: Feld-ID explizit vorbelegen
+        // bool: Feld-ID explizit vorbelegen; manuallyEdited-Flag zurücksetzen
         var elBoolFeldId = document.getElementById("feld-bool-feld-id");
-        if (elBoolFeldId) elBoolFeldId.value = (feld && typ === "bool") ? (feld.id || "") : "";
+        if (elBoolFeldId) {
+            elBoolFeldId.value = (feld && typ === "bool") ? (feld.id || "") : "";
+            delete elBoolFeldId.dataset.manuallyEdited;
+        }
+        // zeige_wenn: Dropdown mit bool-Feldern des aktuellen Schritts füllen
+        _fuelleZeigeWennDropdown(feld ? (feld.zeige_wenn || "") : "");
         document.getElementById("feld-formel").value = feld ? (feld.formel || "") : "";
         document.getElementById("feld-einheit").value = feld ? (feld.einheit || "") : "";
         var elSysw = document.getElementById("feld-systemwert");
@@ -1502,6 +1521,28 @@
     }
 
     // -----------------------------------------------------------------------
+    // zeige_wenn – Dropdown befüllen
+    // -----------------------------------------------------------------------
+
+    function _fuelleZeigeWennDropdown(aktuellerWert) {
+        var sel = document.getElementById("feld-zeige-wenn");
+        if (!sel) return;
+        // Alle bool-Felder des aktuellen Schritts sammeln
+        var boolFelder = schritteFelder.filter(function (f) { return f.typ === "bool" && f.id; });
+        sel.innerHTML = '<option value="">— immer anzeigen —</option>';
+        boolFelder.forEach(function (f) {
+            var opt = document.createElement("option");
+            opt.value = f.id;
+            opt.textContent = (f.label || f.id) + " (" + f.id + ")";
+            if (f.id === aktuellerWert) opt.selected = true;
+            sel.appendChild(opt);
+        });
+        // Zeige-wenn-Row verstecken wenn es keine bool-Felder gibt
+        var row = document.getElementById("zeige-wenn-row");
+        if (row) row.style.display = boolFelder.length ? "" : "none";
+    }
+
+    // -----------------------------------------------------------------------
     // FIM-Feld anwenden
     // -----------------------------------------------------------------------
 
@@ -1715,6 +1756,11 @@
         // Breite auslesen
         var breiteInput = document.querySelector("input[name='feld-breite']:checked");
         feld.breite = breiteInput ? parseInt(breiteInput.value, 10) : 100;
+
+        // zeige_wenn auslesen
+        var zeigeWennSel = document.getElementById("feld-zeige-wenn");
+        var zeigeWennVal = zeigeWennSel ? zeigeWennSel.value : "";
+        if (zeigeWennVal) feld.zeige_wenn = zeigeWennVal;
 
         // bool: explizite Feld-ID pflicht
         if (typ === "bool") {

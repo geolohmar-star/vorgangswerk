@@ -1882,7 +1882,7 @@ def sitzung_gesamtakte_zip(request, pk):
         # 6. Metadaten-TXT
         meta = (
             f"Vorgangsnummer: {vgnr}\n"
-            f"Formular: {sitzung.pfad.titel}\n"
+            f"Formular: {sitzung.pfad.name}\n"
             f"Eingereicht: {sitzung.abgeschlossen_am.strftime('%d.%m.%Y %H:%M') if sitzung.abgeschlossen_am else '-'}\n"
             f"Exportiert: {timezone.localtime().strftime('%d.%m.%Y %H:%M')}\n"
         )
