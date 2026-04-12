@@ -1,0 +1,53 @@
+# Vorgangswerk – .dockerignore
+# Verhindert unnötige Dateien im Build-Kontext → schnellerer Build
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+*.egg-info/
+
+# Git
+.git/
+.gitignore
+
+# Entwicklung
+.env
+.env.*
+!.env.example
+*.md
+docs/
+
+# Tests
+tests/
+pytest.ini
+.coverage
+htmlcov/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker
+docker-compose*.yml
+Dockerfile*
+
+# Node (falls vorhanden)
+node_modules/
+
+# Statische Dateien (werden im Container erzeugt)
+staticfiles/
+
+# Sicherungen
+sicherungen/
+
+# Claude
+.claude/

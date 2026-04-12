@@ -113,27 +113,38 @@ Eine öffentliche Demo-Instanz ist verfügbar unter:
 
 ## Schnellstart (Docker)
 
-**Voraussetzungen:** Docker und Docker Compose
+**Voraussetzungen:** Docker, Docker Compose, Make
 
 ```bash
-# Repository klonen
-git clone https://github.com/<org>/vorgangswerk.git
+# 1. Repository klonen
+git clone https://github.com/geolohmar-star/vorgangswerk.git
 cd vorgangswerk
 
-# Umgebungsvariablen anlegen
-cp .env.example .env
-# .env anpassen (SECRET_KEY, DB_PASSWORD, ALLOWED_HOSTS)
+# 2. .env anlegen und anpassen
+make setup
+# SECRET_KEY generieren:
+python -c "import secrets; print(secrets.token_urlsafe(50))"
+# Wert in .env bei SECRET_KEY eintragen, DB_PASSWORD setzen
 
-# Starten
-docker compose up -d
+# 3. Starten (erster Build: ~5-10 Minuten)
+make build
 
-# Datenbank initialisieren
-docker compose exec web python manage.py migrate
-docker compose exec web python manage.py createsuperuser
-docker compose exec web python manage.py collectstatic --noinput
+# 4. Superuser anlegen
+make superuser
 ```
 
-Die Anwendung ist danach unter `http://localhost:8100` erreichbar.
+Die Anwendung ist danach unter **http://localhost:8100** erreichbar.
+
+### Weitere Befehle
+
+```bash
+make start      # Starten
+make stop       # Stoppen
+make restart    # Web-Container neu starten
+make logs       # Logs live verfolgen
+make shell      # Django-Shell
+make update     # git pull + neu bauen + migrieren
+```
 
 ### Optionale Dienste
 
