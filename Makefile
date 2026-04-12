@@ -35,7 +35,13 @@ migrate:
 superuser:
 	docker compose exec web python manage.py createsuperuser
 
-## Update: Code holen, Image neu bauen, neu starten
+## Update: fertiges Image von ghcr.io laden und neu starten (kein Build nötig)
+pull:
+	docker compose pull
+	docker compose up -d
+	docker compose exec web python manage.py migrate
+
+## Update: Code holen, Image neu bauen, neu starten (für Entwickler)
 update:
 	git pull
 	docker compose up -d --build

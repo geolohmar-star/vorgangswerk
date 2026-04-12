@@ -26,6 +26,7 @@ services:
   # Web-App
   # ---------------------------------------------------------------------------
   web:
+    image: ${VORGANGSWERK_IMAGE:-ghcr.io/geolohmar-star/vorgangswerk:latest}
     build: .
     restart: unless-stopped
     depends_on:
@@ -69,6 +70,7 @@ services:
   # E-Mail-Worker (IMAP-Polling)
   # ---------------------------------------------------------------------------
   worker:
+    image: ${VORGANGSWERK_IMAGE:-ghcr.io/geolohmar-star/vorgangswerk:latest}
     build: .
     restart: unless-stopped
     command: python manage.py email_worker
@@ -130,6 +132,7 @@ services:
   # Sicherungs-Worker (täglich 02:00 Uhr, wöchentlich Sonntag, monatlich 1.)
   # ---------------------------------------------------------------------------
   backup:
+    image: ${VORGANGSWERK_IMAGE:-ghcr.io/geolohmar-star/vorgangswerk:latest}
     build: .
     restart: unless-stopped
     command: python manage.py backup_worker

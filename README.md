@@ -115,6 +115,8 @@ Eine öffentliche Demo-Instanz ist verfügbar unter:
 
 **Voraussetzungen:** Docker, Docker Compose, Make
 
+### Option A – Fertiges Image (empfohlen, ~30 Sekunden)
+
 ```bash
 # 1. Repository klonen
 git clone https://github.com/geolohmar-star/vorgangswerk.git
@@ -126,10 +128,18 @@ make setup
 python -c "import secrets; print(secrets.token_urlsafe(50))"
 # Wert in .env bei SECRET_KEY eintragen, DB_PASSWORD setzen
 
-# 3. Starten (erster Build: ~5-10 Minuten)
-make build
+# 3. Fertiges Image laden und starten
+make pull
 
 # 4. Superuser anlegen
+make superuser
+```
+
+### Option B – Selbst bauen (~5-10 Minuten)
+
+```bash
+make setup   # .env anlegen
+make build   # Image bauen und starten
 make superuser
 ```
 
