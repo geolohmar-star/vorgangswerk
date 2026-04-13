@@ -480,7 +480,7 @@
 
                 {% elif typ == "textblock" %}
                 <div class="col-12">
-                    <div class="alert alert-light border" id="textblock-{{ id }}" data-template="{{ feld.text }}">{{ feld.text|safe }}</div>
+                    <div class="alert alert-light border" id="textblock-{{ id }}" data-template="{{ feld.text }}">{{ feld.text|safe_html }}</div>
                 </div>
 
                 {% elif typ == "pdf_email" %}
@@ -1002,9 +1002,9 @@
 
 {% block extra_js %}
 {% load static %}
-<script type="application/json" id="gesammelte-daten">{{ gesammelte_daten_json|safe }}</script>
+{{ gesammelte_daten_json|json_script:"gesammelte-daten" }}
 {{ schritt.felder_json|json_script:"schritt-felder" }}
-<script type="application/json" id="bankverbindungen-daten">{{ bankverbindungen_json|safe }}</script>
+{{ bankverbindungen_json|json_script:"bankverbindungen-daten" }}
 <script src="{% static 'js/pfad_schritt.js' %}"></script>
 <script>
 function zahlung_demo_bestaetigen(feldId) {

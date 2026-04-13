@@ -21,7 +21,7 @@ Vorgangswerk schließt diese Lücke:
 - **Kein Vendor Lock-in** – Open Source unter EUPL-1.2, selbst gehostet, volle Datenkontrolle
 - **Kein IT-Großprojekt** – läuft mit `make pull` in unter einer Minute, ein einziger Docker-Befehl
 - **Für die Praxis gebaut** – Formulare, Workflows, Dokumente und Postfach in einer Anwendung statt vier verschiedenen Systemen
-- **OZG-konform** – BundID-Anbindung (SAML SP), öffentliche Antragsstrecken ohne Login, LeiKa-Schlüssel
+- **OZG-konform** – BundID-Anbindung (SAML SP), öffentliche Antragsstrecken ohne Login, LeiKa-Schlüssel, FIT-Connect Eingang
 - **Barrierefrei** – BITV 2.0 / WCAG 2.1 AA, gesetzliche Pflichtanforderung für Behördensoftware
 - **Souverän** – kein SaaS, keine Cloud-Abhängigkeit, läuft on-premise oder im eigenen Rechenzentrum
 
@@ -94,9 +94,18 @@ Kommunalverwaltungen, Zweckverbände, kommunale Unternehmen, Behörden auf Lande
 - Für Produktivbetrieb: SP-Registrierung beim ITZBund + SP-Zertifikat (kein Codeaufwand)
 - OZG-Anforderung erfüllt: Kommunen benötigen kein eigenes Identity-Management
 
+### FIT-Connect (OZG-Kanal / Super App)
+- **Inbound-Empfänger** – nimmt Submissions von der OZG-Super-App oder anderen FIT-Connect-Sendern entgegen
+- Automatische Zuordnung über **LeiKa-Schlüssel** zum passenden Antragspfad
+- **FIM-Feldzuordnung** – FIM-IDs (`F6xxxxxxx`) werden auf interne Felder gemappt
+- JWE-Entschlüsselung mit RSA-4096 (Subscriber-Zertifikat der FITKO)
+- Workflow-Start, Benachrichtigungs-E-Mails und Audit-Log automatisch nach Eingang
+- **Export** bestehender Anträge als FIT-Connect Submission Payload (`/api/antrag/{nr}/fitconnect/`)
+- Positionierung: Vorgangswerk als **Backend-Fachverfahren** hinter der Super App – kein Widerspruch, sondern Ergänzung
+
 ### Core & Administration
 - Benutzerverwaltung mit MFA (TOTP), Brute-Force-Schutz (django-axes)
-- REST-API via django-ninja
+- REST-API via django-ninja (OpenAPI-Doku unter `/api/docs`)
 - Dashboard mit Live-Daten aus allen Apps
 - Profilverwaltung mit Benachrichtigungseinstellungen
 

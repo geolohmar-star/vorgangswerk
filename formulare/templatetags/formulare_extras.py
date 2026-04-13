@@ -1,8 +1,48 @@
 # SPDX-License-Identifier: EUPL-1.2
 # Copyright (C) 2026 Georg Klein
 from django import template
+from django.utils.safestring import mark_safe
 
 register = template.Library()
+
+
+@register.filter(is_safe=True)
+def safe_html(value):
+    """
+    Bereinigt HTML auf eine Zulässigkeitsliste (lxml).
+    Erlaubt: b, i, u, strong, em, p, br, ul, ol, li, a (href, target),
+             h3–h6, blockquote, code, pre.
+    Entfernt: script, style, on*-Attribute und alle nicht-erlaubten Tags.
+    """
+    if not value:
+        return ""
+    try:
+        from lxml.html.clean import Cleaner
+        cleaner = Cleaner(
+            allow_tags=[
+                "b", "i", "u", "strong", "em", "p", "br",
+                "ul", "ol", "li", "a", "h3", "h4", "h5", "h6",
+                "blockquote", "code", "pre", "span", "div",
+            ],
+            safe_attrs_only=True,
+            safe_attrs={"href", "target", "rel", "class"},
+            remove_unknown_tags=False,
+            scripts=True,
+            javascript=True,
+            style=True,
+            links=False,
+            meta=True,
+            page_structure=True,
+            processing_instructions=True,
+            embedded=True,
+            frames=True,
+            forms=True,
+            annoying_tags=True,
+        )
+        return mark_safe(cleaner.clean_html(str(value)))
+    except Exception:
+        from django.utils.html import escape
+        return escape(value)
 
 
 @register.filter

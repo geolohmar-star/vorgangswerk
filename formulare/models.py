@@ -240,7 +240,8 @@ class AntrSitzung(models.Model):
 
     @staticmethod
     def generiere_vorgangsnummer(pfad):
-        """Erzeugt eine eindeutige Vorgangsnummer im Format KUERZEL-LFDNR-DATUM-UHRZEIT."""
+        """Erzeugt eine eindeutige Vorgangsnummer im Format KUERZEL-LFDNR-DATUM-TOKEN."""
+        import secrets as _secrets
         kuerzel = (pfad.kuerzel or "ANT").upper().strip()
         jetzt = timezone.localtime()
         letzte = AntrSitzung.objects.filter(
@@ -253,7 +254,8 @@ class AntrSitzung(models.Model):
                 lfd = 1
         else:
             lfd = 1
-        return f"{kuerzel}-{lfd:05d}-{jetzt.strftime('%Y%m%d')}-{jetzt.strftime('%H%M')}"
+        token = _secrets.token_hex(3).upper()  # 6-stelliger zufälliger Hex-Wert
+        return f"{kuerzel}-{lfd:05d}-{jetzt.strftime('%Y%m%d')}-{token}"
 
     def abschliessen(self):
         """Markiert die Sitzung als abgeschlossen und generiert die Vorgangsnummer."""

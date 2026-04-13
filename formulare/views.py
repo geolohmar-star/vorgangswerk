@@ -26,6 +26,7 @@ import zipfile
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.core.cache import cache
 from django.db import models
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -2192,6 +2193,21 @@ def antrag_oeffentlich_starten(request, kuerzel):
     pfad = get_object_or_404(AntrPfad, kuerzel__iexact=kuerzel, aktiv=True, oeffentlich=True)
     if request.method != "POST":
         return redirect("formulare:antrag_oeffentlich", kuerzel=kuerzel)
+
+    # Rate limiting: max. 10 Starts pro IP und Pfad innerhalb von 10 Minuten
+    ip = (
+        request.META.get("HTTP_X_FORWARDED_FOR", "").split(",")[0].strip()
+        or request.META.get("REMOTE_ADDR", "anon")
+    )
+    rate_key = f"antrag_start:{pfad.pk}:{ip}"
+    zaehler = cache.get(rate_key, 0)
+    if zaehler >= 10:
+        return HttpResponse(
+            "Zu viele Anfragen. Bitte warten Sie einige Minuten.",
+            status=429,
+            content_type="text/plain; charset=utf-8",
+        )
+    cache.set(rate_key, zaehler + 1, timeout=600)
     start = pfad.start_schritt()
     if not start:
         return redirect("formulare:antrag_oeffentlich_fehler")
@@ -2394,12 +2410,15 @@ def vorgang_tracking(request, vorgangsnummer):
 @login_required
 def datei_download(request, pk):
     """Liefert eine hochgeladene AntrDatei aus."""
-    datei = get_object_or_404(AntrDatei, pk=pk)
-    # Nur Staff oder Besitzer der Sitzung
-    if not request.user.is_staff and datei.sitzung.user != request.user:
-        return HttpResponse(status=403)
+    if request.user.is_staff:
+        datei = get_object_or_404(AntrDatei, pk=pk)
+    else:
+        datei = get_object_or_404(AntrDatei, pk=pk, sitzung__user=request.user)
+    # Dateiname sanitieren: nur alphanumerisch, Punkt, Bindestrich, Unterstrich
+    import re
+    sicherer_name = re.sub(r'[^\w.\-]', '_', datei.dateiname)
     response = HttpResponse(bytes(datei.inhalt), content_type=datei.mime_type)
-    response["Content-Disposition"] = f'inline; filename="{datei.dateiname}"'
+    response["Content-Disposition"] = f"inline; filename=\"{sicherer_name}\""
     return response
 
 

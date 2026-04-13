@@ -427,6 +427,269 @@ def leika_vorschlag(request, daten: LeikaVorschlagAnfrageSchema):
 
 
 # ---------------------------------------------------------------------------
+# FIT-Connect Eingang (Inbound)
+# ---------------------------------------------------------------------------
+
+class FitConnectServiceTypeSchema(Schema):
+    identifier: str           # LeiKa-Schlüssel, z.B. "99108018026000"
+    name: Optional[str] = None
+
+
+class FitConnectApplicantSchema(Schema):
+    authLevel: Optional[str] = None   # "none" | "normal" | "substantial" | "high"
+    userId: Optional[str] = None      # BundID-GUID
+    displayName: Optional[str] = None
+    email: Optional[str] = None
+
+
+class FitConnectAttachmentRefSchema(Schema):
+    attachmentId: str
+    filename: Optional[str] = None
+    mimeType: Optional[str] = None
+    fieldRef: Optional[str] = None    # FIM-ID oder x-feldId
+
+
+class FitConnectEingangSchema(Schema):
+    submissionId: Optional[str] = None
+    serviceType: FitConnectServiceTypeSchema
+    submittedAt: Optional[str] = None
+    applicant: Optional[FitConnectApplicantSchema] = None
+    data: dict = {}
+    attachments: list[FitConnectAttachmentRefSchema] = []
+
+
+class FitConnectEingangAntwortSchema(Schema):
+    vorgangsnummer: str
+    sitzung_id: int
+    workflow_gestartet: bool
+    hinweis: Optional[str] = None
+
+
+def _fitconnect_entschluesseln(raw: str) -> dict:
+    """
+    Versucht JWE-verschlüsselte FIT-Connect Payload zu entschlüsseln.
+    Benötigt FITCONNECT_PRIVATE_KEY_PEM in settings (PEM-kodierter RSA-Privat­schlüssel).
+    Gibt bei Erfolg das geparste Dict zurück, wirft ValueError bei Fehler.
+    """
+    pem = getattr(settings, "FITCONNECT_PRIVATE_KEY_PEM", "")
+    if not pem:
+        raise ValueError("FITCONNECT_PRIVATE_KEY_PEM nicht konfiguriert")
+    try:
+        from jwcrypto import jwk, jwe as jwecrypto
+        import json as _json
+        key = jwk.JWK.from_pem(pem.encode())
+        token = jwecrypto.JWE()
+        token.deserialize(raw, key=key)
+        return _json.loads(token.payload)
+    except ImportError:
+        raise ValueError("jwcrypto nicht installiert (pip install jwcrypto)")
+    except Exception as exc:
+        raise ValueError(f"JWE-Entschlüsselung fehlgeschlagen: {exc}") from exc
+
+
+@api.post(
+    "/fitconnect/eingang/",
+    response={200: FitConnectEingangAntwortSchema, 400: FehlerSchema, 404: FehlerSchema},
+    summary="FIT-Connect Submission empfangen und als Antrag anlegen",
+    tags=["FIT-Connect"],
+)
+def fitconnect_eingang(request, submission: FitConnectEingangSchema):
+    """
+    Nimmt eine FIT-Connect Submission entgegen und legt sie als abgeschlossene
+    AntrSitzung an. Startet automatisch den verknüpften Workflow.
+
+    **Plaintext-Modus** (Entwicklung/Test): JSON direkt posten.
+
+    **JWE-Modus** (Produktion): Den verschlüsselten JWE-Compact-String als
+    `{"_jwe": "<token>"}` übergeben. Voraussetzung: `FITCONNECT_PRIVATE_KEY_PEM`
+    in der .env konfiguriert (RSA 4096 Bit, entspricht Subscriber-Zertifikat der FITKO).
+
+    Feldzuordnung: FIM-IDs (F6xxxxxxx) werden auf interne Feld-IDs gemappt.
+    Felder mit `x-`-Präfix (proprietär) werden direkt übernommen.
+
+    Spec: https://gitlab.opencode.de/fitko/fit-connect
+    """
+    import secrets
+    from django.utils import timezone
+    from formulare.models import AntrPfad, AntrSitzung
+
+    # ------------------------------------------------------------------
+    # 1. AntrPfad über LeiKa-Schlüssel finden
+    # ------------------------------------------------------------------
+    leika = submission.serviceType.identifier.strip()
+    pfad = AntrPfad.objects.filter(leika_schluessel=leika, aktiv=True).first()
+    if not pfad:
+        return 404, {
+            "fehler": (
+                f"Kein aktiver Antragspfad mit LeiKa-Schlüssel '{leika}' gefunden. "
+                f"Schlüssel im Pfad-Editor hinterlegen oder Pfad aktivieren."
+            )
+        }
+
+    # ------------------------------------------------------------------
+    # 2. FIM-ID → interner Feld-Key (Reverse-Map)
+    # ------------------------------------------------------------------
+    fim_zu_intern: dict[str, str] = {}
+    for schritt in pfad.schritte.all():
+        for feld in (schritt.felder_json or []):
+            fim_id = feld.get("fim_id", "")
+            intern_id = feld.get("id", "")
+            if fim_id and intern_id:
+                fim_zu_intern[fim_id.upper()] = intern_id
+
+    gesammelte_daten: dict = {}
+    for key, wert in submission.data.items():
+        if key.upper().startswith("F6") and key.upper() in fim_zu_intern:
+            gesammelte_daten[fim_zu_intern[key.upper()]] = wert
+        elif key.startswith("x-"):
+            gesammelte_daten[key[2:]] = wert   # x-Präfix entfernen
+        else:
+            gesammelte_daten[key] = wert
+
+    if not gesammelte_daten and submission.data:
+        return 400, {
+            "fehler": (
+                "Keine Felder konnten gemappt werden. "
+                "Prüfen Sie ob FIM-IDs im Pfad hinterlegt sind."
+            )
+        }
+
+    # ------------------------------------------------------------------
+    # 3. AntrSitzung anlegen (direkt abgeschlossen)
+    # ------------------------------------------------------------------
+    applicant = submission.applicant or FitConnectApplicantSchema()
+    vorgangsnummer = (
+        submission.submissionId
+        or AntrSitzung.generiere_vorgangsnummer(pfad)
+    )
+    tracking_token = secrets.token_hex(32)
+
+    sitzung = AntrSitzung.objects.create(
+        pfad=pfad,
+        user=None,
+        email_anonym=applicant.email or None,
+        gesammelte_daten=gesammelte_daten,
+        status=AntrSitzung.STATUS_ABGESCHLOSSEN,
+        abgeschlossen_am=timezone.now(),
+        vorgangsnummer=vorgangsnummer,
+        tracking_token=tracking_token,
+        einwilligungen_json={
+            "fitconnect": {
+                "authLevel": applicant.authLevel or "none",
+                "userId":    applicant.userId or None,
+                "displayName": applicant.displayName or None,
+                "submittedAt": submission.submittedAt,
+                "submissionId": submission.submissionId,
+            }
+        },
+    )
+
+    # ------------------------------------------------------------------
+    # 4. Anhang-Metadaten als __fitconnect_anhänge speichern
+    # ------------------------------------------------------------------
+    if submission.attachments:
+        sitzung.gesammelte_daten["__fitconnect_anhaenge"] = [
+            {
+                "attachmentId": a.attachmentId,
+                "filename":     a.filename,
+                "mimeType":     a.mimeType,
+                "fieldRef":     a.fieldRef,
+            }
+            for a in submission.attachments
+        ]
+        sitzung.save(update_fields=["gesammelte_daten"])
+
+    # ------------------------------------------------------------------
+    # 5. Workflow starten (falls am Pfad verknüpft)
+    # ------------------------------------------------------------------
+    workflow_gestartet = False
+    if pfad.workflow_template:
+        try:
+            from workflow.services import WorkflowEngine
+            from django.contrib.auth import get_user_model
+            User = get_user_model()
+            system_user = User.objects.filter(is_superuser=True).first()
+            engine = WorkflowEngine()
+            engine.start_workflow(pfad.workflow_template, sitzung, system_user)
+            workflow_gestartet = True
+        except Exception as exc:
+            pass
+
+    # ------------------------------------------------------------------
+    # 6. Benachrichtigungs-E-Mails (Sachbearbeiter + Antragsteller)
+    # ------------------------------------------------------------------
+    try:
+        sitzung._sende_sachbearbeiter_email()
+    except Exception:
+        pass
+    if applicant.email:
+        try:
+            sitzung._sende_tracking_email()
+        except Exception:
+            pass
+
+    # Audit
+    from core.models import AuditLog
+    AuditLog.objects.create(
+        user=None,
+        aktion="erstellt",
+        app="formulare",
+        objekt_typ="AntrSitzung",
+        objekt_id=str(sitzung.pk),
+        beschreibung=(
+            f"FIT-Connect Eingang: {pfad.name} "
+            f"(LeiKa {leika}, submissionId={submission.submissionId or 'n/a'})"
+        ),
+    )
+
+    hinweis = None
+    if submission.attachments:
+        hinweis = (
+            f"{len(submission.attachments)} Anhang-Referenz(en) gespeichert. "
+            "Binärdateien separat über FIT-Connect Attachment-API abrufen."
+        )
+
+    return 200, {
+        "vorgangsnummer":    sitzung.vorgangsnummer,
+        "sitzung_id":        sitzung.pk,
+        "workflow_gestartet": workflow_gestartet,
+        "hinweis":           hinweis,
+    }
+
+
+@api.post(
+    "/fitconnect/eingang/jwe/",
+    response={200: FitConnectEingangAntwortSchema, 400: FehlerSchema, 404: FehlerSchema},
+    summary="FIT-Connect JWE-verschlüsselte Submission empfangen",
+    tags=["FIT-Connect"],
+)
+def fitconnect_eingang_jwe(request, body: dict):
+    """
+    Entschlüsselt einen JWE-Compact-String und verarbeitet ihn wie `/fitconnect/eingang/`.
+
+    Body: `{ "token": "<JWE-Compact-String>" }`
+
+    Voraussetzung: `FITCONNECT_PRIVATE_KEY_PEM` in .env (RSA 4096 Bit).
+    Entspricht dem Subscriber-Schlüssel, der bei der FITKO registriert wird.
+    """
+    import json as _json
+    token = body.get("token", "")
+    if not token:
+        return 400, {"fehler": "Feld 'token' fehlt im Request-Body"}
+    try:
+        payload = _fitconnect_entschluesseln(token)
+    except ValueError as exc:
+        return 400, {"fehler": str(exc)}
+
+    try:
+        submission = FitConnectEingangSchema(**payload)
+    except Exception as exc:
+        return 400, {"fehler": f"Payload-Struktur ungültig: {exc}"}
+
+    return fitconnect_eingang(request, submission)
+
+
+# ---------------------------------------------------------------------------
 # System
 # ---------------------------------------------------------------------------
 
@@ -462,10 +725,26 @@ def api_status(request):
                 "endpunkt": "/api/antrag/{vorgangsnummer}/daten/",
             },
         ],
+        "importformate": [
+            {
+                "id":       "fitconnect-eingang",
+                "name":     "FIT-Connect Submission Eingang (Plaintext)",
+                "endpunkt": "/api/fitconnect/eingang/",
+                "methode":  "POST",
+            },
+            {
+                "id":       "fitconnect-eingang-jwe",
+                "name":     "FIT-Connect Submission Eingang (JWE-verschlüsselt)",
+                "endpunkt": "/api/fitconnect/eingang/jwe/",
+                "methode":  "POST",
+                "voraussetzung": "FITCONNECT_PRIVATE_KEY_PEM in .env",
+            },
+        ],
         "standards": {
             "felder":  "FIM XDatenfelder 2.0 (https://fimportal.de)",
             "dienste": "LeiKa Leistungskatalog (https://www.leika.de)",
             "export":  "FIT-Connect (https://gitlab.opencode.de/fitko/fit-connect)",
+            "eingang": "FIT-Connect Subscriber API v1",
         },
     }
 

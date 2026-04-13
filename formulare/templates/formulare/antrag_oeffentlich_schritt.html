@@ -373,7 +373,7 @@
 
                 {% elif typ == "textblock" %}
                 <div class="col-12">
-                    <div class="alert alert-light border" data-template="{{ feld.text }}">{{ feld.text|safe }}</div>
+                    <div class="alert alert-light border" data-template="{{ feld.text }}">{{ feld.text|safe_html }}</div>
                 </div>
 
                 {% elif typ == "pdf_email" %}
@@ -498,7 +498,7 @@
 {% load static %}
 {{ gesammelte_daten_json|json_script:"gesammelte-daten" }}
 {{ schritt.felder_json|json_script:"schritt-felder" }}
-<script type="application/json" id="bankverbindungen-daten">{{ bankverbindungen_json|safe }}</script>
+{{ bankverbindungen_json|json_script:"bankverbindungen-daten" }}
 <script src="{% static 'js/pfad_schritt.js' %}"></script>
 {% endblock %}
 {% endblock %}

@@ -1,96 +1,147 @@
-# This repository adheres to the publiccode.yml standard by including this 
-# metadata file that makes public software easily discoverable.
-# More info at https://github.com/italia/publiccode.yml
+# SPDX-License-Identifier: EUPL-1.2
+# publiccode.yml – Maschinenlesbares Metadaten-Format für öffentliche Software
+# Spec: https://github.com/publiccodeyml/publiccode.yml
+# Validator: https://publiccode-editor.developers.italia.it/
 
-publiccodeYmlVersion: '0.2'
+publiccodeYmlVersion: "0.2"
+
 name: Vorgangswerk
-url: 'https://github.com/geolohmar-star/vorgangswerk'
-landingURL: 'https://vorgangswerk.de'
-softwareVersion: 1.0.0
-releaseDate: '2026-04-09'
-logo: .opencode/logo.svg
+url: "https://github.com/geolohmar-star/vorgangswerk"
+softwareVersion: "1.0.0"
+releaseDate: "2026-04-13"
+
 platforms:
-  - linux
   - web
+  - linux
+
 categories:
+  - business-process-management
   - document-management
-  - it-development
+  - it-service-management
   - workflow-management
+
 developmentStatus: stable
+
 softwareType: standalone/web
+
+description:
+  de:
+    localisedName: Vorgangswerk
+    shortDescription: >-
+      Open-Source-Plattform für digitale Verwaltungsvorgänge – Formulare,
+      Workflows, Dokumente und Kommunikation in einer Anwendung.
+    longDescription: >-
+      Vorgangswerk ist eine quelloffene Plattform zur digitalen Bearbeitung
+      von Verwaltungsvorgängen. Kommunen, Zweckverbände und Behörden können
+      damit mehrstufige Antragsformulare aufbauen, Workflows zur
+      Sachbearbeitung modellieren, Dokumente verwalten und eingehende
+      E-Mails bearbeiten – alles selbst gehostet ohne Cloud-Abhängigkeit.
+
+      Kernfunktionen: Visueller Pfad-Editor für verzweigte Antragsformulare
+      (über 20 Feldtypen), Workflow-Engine mit Aufgabenzuweisung und
+      Arbeitsstapel, Dokumentenmanagementsystem mit OnlyOffice-Integration,
+      IMAP-E-Mail-Worker, BundID-Anbindung (SAML SP), FIT-Connect
+      Inbound-Empfänger (OZG-Kanal), LeiKa-Schlüssel, FIM-Feldzuordnung,
+      BITV 2.0 / WCAG 2.1 AA, digitale Signaturen (FES + QES via sign.me),
+      REST-API (django-ninja) mit OpenAPI-Dokumentation.
+
+      Deployment: Docker Compose, ein einziger Befehl (make pull).
+      Datenbank: PostgreSQL. EUPL-1.2-lizenziert.
+
+    documentation: "https://github.com/geolohmar-star/vorgangswerk/blob/main/docs/BETRIEB.md"
+    apiDocumentation: "https://github.com/geolohmar-star/vorgangswerk/blob/main/docs/ARCHITEKTUR.md"
+    features:
+      - Visueller Formular- und Pfad-Editor (Drag & Drop, Verzweigungen)
+      - Über 20 Feldtypen inkl. Datei-Upload, Unterschrift, IBAN, Quiz
+      - Workflow-Engine mit Aufgabenzuweisung und Gruppenqueues
+      - Dokumentenmanagementsystem mit Versionierung
+      - OnlyOffice WOPI-Integration zur Bearbeitung im Browser
+      - BundID-Anbindung (SAML SP, BundID-ready)
+      - FIT-Connect Inbound-Empfänger (OZG-Kanal)
+      - LeiKa-Schlüssel und FIM-Feldzuordnung (XDatenfelder 2.0)
+      - BITV 2.0 / WCAG 2.1 AA Barrierefreiheit
+      - Digitale Signaturen FES (pyHanko) und QES (sign.me/Bundesdruckerei)
+      - IMAP-E-Mail-Worker und Postfach
+      - REST-API mit OpenAPI-Dokumentation
+      - DSGVO-konformes Audit-Log
+      - Docker-Deployment, selbst gehostet
+
+  en:
+    localisedName: Vorgangswerk
+    shortDescription: >-
+      Open-source platform for digital administrative processes – forms,
+      workflows, documents and communication in one application.
+    longDescription: >-
+      Vorgangswerk is an open-source platform for digital processing of
+      administrative procedures. Municipalities, associations and public
+      authorities can build multi-step application forms, model workflows
+      for case processing, manage documents and handle incoming emails –
+      all self-hosted without cloud dependency.
+
+      Key features: Visual path editor for branched application forms
+      (20+ field types), workflow engine with task assignment and work
+      queues, document management with OnlyOffice integration, IMAP
+      email worker, BundID integration (SAML SP), FIT-Connect inbound
+      receiver (OZG channel), LeiKa service keys, FIM field mapping,
+      BITV 2.0 / WCAG 2.1 AA accessibility, digital signatures
+      (FES + QES via sign.me), REST API with OpenAPI documentation.
+
+      Deployment: Docker Compose, single command (make pull).
+      Database: PostgreSQL. EUPL-1.2 licensed.
+
+    documentation: "https://github.com/geolohmar-star/vorgangswerk/blob/main/docs/BETRIEB.md"
+    apiDocumentation: "https://github.com/geolohmar-star/vorgangswerk/blob/main/docs/ARCHITEKTUR.md"
+    features:
+      - Visual form and path editor (drag & drop, branching)
+      - 20+ field types including file upload, signature, IBAN, quiz
+      - Workflow engine with task assignment and group queues
+      - Document management with versioning
+      - OnlyOffice WOPI integration for in-browser editing
+      - BundID integration (SAML SP, BundID-ready)
+      - FIT-Connect inbound receiver (OZG channel)
+      - LeiKa service keys and FIM field mapping (XDatenfelder 2.0)
+      - BITV 2.0 / WCAG 2.1 AA accessibility
+      - Digital signatures FES (pyHanko) and QES (sign.me)
+      - IMAP email worker and inbox
+      - REST API with OpenAPI documentation
+      - GDPR-compliant audit log
+      - Docker deployment, self-hosted
+
+legal:
+  license: EUPL-1.2
+  mainCopyrightOwner: Georg Klein
+  repoOwner: Georg Klein
+
 maintenance:
   type: internal
   contacts:
     - name: Georg Klein
-      email: vorgangswerk@georg-klein.com
-      affiliation: Georg Klein
-legal:
-  license: EUPL-1.2
+      github: geolohmar-star
+
+localisation:
+  localisationReady: false
+  availableLanguages:
+    - de
+
 intendedAudience:
+  scope:
+    - government
+    - local-authorities
   countries:
     - de
     - at
     - ch
-  scope:
-    - local-authorities
-    - regional-authorities
-    - central-government
-localisation:
-  localisationReady: true
-  availableLanguages:
-    - de
-description:
-  de:
-    genericName: Vorgangsbearbeitung
-    shortDescription: >
-      OZG-konforme Plattform für digitale Verwaltungsvorgänge – Formulare,
-      Workflows, DMS und Signaturen in einer Anwendung.
-    longDescription: >
-      Vorgangswerk ist eine quelloffene Plattform zur digitalen Bearbeitung von
-      Verwaltungsvorgängen. Sie ermöglicht Behörden und Organisationen,
-      Antragsformulare, Workflows, Dokumente und Kommunikation in einer
-      einheitlichen, selbst gehosteten Anwendung zu verwalten.
 
-      Der visuelle Pfad-Editor erlaubt die Erstellung mehrstufiger
-      Antragsstrecken mit über 20 Feldtypen, bedingten Feldern (zeige_wenn),
-      Verzweigungen und automatischer PDF-Ausgabe. Öffentliche Antragsstrecken
-      können ohne Login genutzt werden; Antragsteller erhalten einen
-      Tracking-Link für den Bearbeitungsstatus.
-
-      Das integrierte Workflow-System ermöglicht die Modellierung von
-      Geschäftsprozessen mit Aufgabenzuweisung, Arbeitsstapel-Übersicht und
-      Prozesszentrale. Das Dokumentenmanagementsystem (DMS) unterstützt
-      Versionierung, Klassifizierung (öffentlich/intern/sensibel) und direkte
-      Dokumentenbearbeitung via OnlyOffice (WOPI).
-
-      Digitale Signaturen sind sowohl als Fortgeschrittene Elektronische
-      Signatur (FES) intern via pyHanko als auch als Qualifizierte Elektronische
-      Signatur (QES) via sign.me (Bundesdruckerei) möglich.
-
-      Ein optionales KI-Portal ermöglicht den Import beliebiger PDF-Formulare:
-      Claude KI analysiert Struktur und Felder und legt automatisch eine
-      vollständige Pfad-Definition an.
-
-      Das integrierte Quiz-Modul eignet sich für Schulungen,
-      Sicherheitseinweisungen und Prüfungen (z. B. BAMF-Einbürgerungstest) mit
-      automatischer Auswertung und Zertifikatsgenerierung.
-
-      BundID-ready: SAML SP-Integration implementiert und mit dem offiziellen
-      BundID-Simulator getestet. Anbindung an id.bund.de nach SP-Registrierung
-      beim ITZBund ohne Codeänderungen möglich. OZG-konformes Bürgerkonto
-      out-of-the-box.
-    features:
-      - Visueller Pfad-Editor für mehrstufige Antragsstrecken
-      - 'Über 20 Feldtypen inkl. Datei-Upload, Unterschrift, IBAN, Adresse'
-      - Bedingte Felder (zeige_wenn) und Verzweigungen
-      - Öffentliche Antragsstrecken ohne Login mit Tracking
-      - Workflow-Engine mit Aufgabenverwaltung und Arbeitsstapel
-      - Dokumentenmanagementsystem mit OnlyOffice-Integration
-      - 'Digitale Signatur: FES (intern) und QES (sign.me / Bundesdruckerei)'
-      - Quiz-Modul für Schulungen und Einbürgerungstest
-      - KI-gestützter PDF-Formular-Import (Claude API)
-      - IMAP-E-Mail-Integration
-      - AES-256-GCM-Verschlüsselung für sensible Dokumente
-      - 'MFA (TOTP), Brute-Force-Schutz, REST-API'
-      - 'BundID-ready: SAML SP implementiert, OZG-konform'
-      - Docker-basiertes Deployment
+dependsOn:
+  open:
+    - name: PostgreSQL
+      versionMin: "14"
+      optional: false
+    - name: Docker
+      optional: false
+    - name: Django
+      versionMin: "5.2"
+      optional: false
+  proprietary:
+    - name: OnlyOffice Document Server
+      optional: true

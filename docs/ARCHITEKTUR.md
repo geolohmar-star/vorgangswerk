@@ -127,7 +127,43 @@ Die API wird mit **django-ninja** umgesetzt – typsicher, automatisch dokumenti
 Erreichbar unter: `/api/`  
 Swagger-UI: `/api/docs`
 
-Authentifizierung: Session-Cookie (gleiche Auth wie die Web-UI) oder Token.
+Authentifizierung: Bearer-Token (`API_KEY` aus `.env`).
+
+### Endpunkte (Auszug)
+
+| Methode | Pfad | Beschreibung |
+|---------|------|-------------|
+| GET | `/api/antrag/{nr}/` | Antragsstatus |
+| GET | `/api/antrag/{nr}/daten/` | Formularfelder (Label-basiert) |
+| GET | `/api/antrag/{nr}/fitconnect/` | Export als FIT-Connect Submission Payload |
+| GET | `/api/workflow/antrag/{nr}/` | Workflow-Instanzen zu einem Antrag |
+| GET | `/api/workflow/aufgaben/` | Alle offenen Tasks |
+| GET | `/api/pfad/{pk}/capabilities/` | FIM-Abdeckung und FIT-Connect-Bereitschaft |
+| POST | `/api/fitconnect/eingang/` | FIT-Connect Submission empfangen (Plaintext) |
+| POST | `/api/fitconnect/eingang/jwe/` | FIT-Connect Submission empfangen (JWE) |
+| GET | `/api/status/` | API-Status, Export- & Importformate (kein Auth) |
+
+### FIT-Connect Eingang – Datenfluss
+
+```
+OZG Super App / Fachportal
+  │  POST /api/fitconnect/eingang/jwe/
+  │  { "token": "<JWE-Compact-String>" }
+  ▼
+Vorgangswerk API
+  ├─ JWE entschlüsseln (RSA-4096, Subscriber-Zertifikat FITKO)
+  ├─ LeiKa-Schlüssel → AntrPfad lookup
+  ├─ FIM-IDs → interne Feld-IDs reverse-mappen
+  ├─ AntrSitzung anlegen (status=abgeschlossen)
+  ├─ Workflow starten (falls am Pfad konfiguriert)
+  ├─ E-Mail an Sachbearbeiter + Antragsteller
+  └─ AuditLog-Eintrag
+```
+
+**Voraussetzungen für Produktion:**
+1. Subscriber-Zertifikat bei der FITKO beantragen
+2. `FITCONNECT_PRIVATE_KEY_PEM` in `.env` eintragen
+3. Pfad in Vorgangswerk mit LeiKa-Schlüssel versehen und FIM-IDs pro Feld hinterlegen
 
 ---
 

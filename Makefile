@@ -51,6 +51,10 @@ update:
 demo:
 	docker compose exec web python manage.py demo_daten
 
+## DGUV V3 Prüfprotokoll anlegen (ortsveränderliche Betriebsmittel)
+dguv:
+	docker compose exec web python manage.py dguv_v3_pfad
+
 ## Erstes Setup: .env anlegen + starten
 setup:
 	@if [ ! -f .env ]; then \
