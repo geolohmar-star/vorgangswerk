@@ -123,6 +123,19 @@ def dashboard(request):
         or user.groups.filter(name="Sachbearbeiter").exists()
     )
 
+    # Onboarding-Card: anzeigen wenn System noch leer ist
+    if user.is_staff:
+        try:
+            from formulare.models import AntrPfad
+            from workflow.models import WorkflowTemplate
+            keine_pfade = not AntrPfad.objects.exists()
+            keine_workflows = not WorkflowTemplate.objects.exists()
+            kontext["zeige_onboarding"] = keine_pfade and keine_workflows
+        except Exception:
+            kontext["zeige_onboarding"] = False
+    else:
+        kontext["zeige_onboarding"] = False
+
     return render(request, "core/dashboard.html", kontext)
 
 

@@ -230,6 +230,23 @@ vorgangswerk/
 
 ---
 
+## Troubleshooting
+
+| Problem | Lösung |
+|---|---|
+| Container startet nicht | `make logs` → fehlende `.env`-Werte prüfen (`SECRET_KEY`, `DB_PASSWORD`) |
+| Datenbank nicht erreichbar | `docker compose ps db` → `docker compose restart db` |
+| CSS/JS fehlt | `docker compose exec web python manage.py collectstatic --noinput` |
+| Migrationen fehlgeschlagen | `docker compose exec web python manage.py migrate --verbosity 2` |
+| E-Mail wird nicht versandt | `docker compose exec web python manage.py sendtestemail test@beispiel.de` |
+| OnlyOffice öffnet nicht | `WOPI_BASE_URL` muss vom OnlyOffice-Container erreichbar sein |
+| Gesperrter Benutzer (MFA) | `docker compose exec web python manage.py axes_reset` |
+| Speicherplatz voll | `docker system prune -f` + alte Sicherungen prüfen |
+
+Ausführliche Hilfe: [docs/BETRIEB.md](docs/BETRIEB.md#troubleshooting)
+
+---
+
 ## Dokumentation
 
 | Dokument | Inhalt |

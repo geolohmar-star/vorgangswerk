@@ -39,6 +39,75 @@
         <p class="text-muted small mb-0">Ihre persoenliche Uebersicht</p>
     </div>
 
+    {# ---- Onboarding-Card (nur wenn System noch leer ist) ---- #}
+    {% if zeige_onboarding %}
+    <div class="card border-0 shadow-sm mb-4" style="border-left:4px solid #1a4d2e !important;">
+        <div class="card-body px-4 py-3">
+            <h2 class="h5 fw-bold mb-3" style="color:#1a4d2e;">
+                Erste Schritte – System einrichten
+            </h2>
+            <div class="row g-3">
+
+                <div class="col-md-4">
+                    <div class="d-flex gap-3 align-items-start">
+                        <div class="rounded-circle d-flex align-items-center justify-content-center flex-shrink-0 fw-bold text-white"
+                             style="width:32px;height:32px;background:#1a4d2e;font-size:.85rem;">1</div>
+                        <div>
+                            <div class="fw-semibold small">Demo-Daten laden</div>
+                            <div class="text-muted small">Beispiel-Formular und Workflow für erste Orientierung</div>
+                            <code class="small d-block mt-1 text-success">make demo</code>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-md-4">
+                    <div class="d-flex gap-3 align-items-start">
+                        <div class="rounded-circle d-flex align-items-center justify-content-center flex-shrink-0 fw-bold text-white"
+                             style="width:32px;height:32px;background:#1a4d2e;font-size:.85rem;">2</div>
+                        <div>
+                            <div class="fw-semibold small">Ersten Pfad anlegen</div>
+                            <div class="text-muted small">Antragsformular mit dem visuellen Editor erstellen</div>
+                            <a href="{% url 'formulare:liste' %}" class="small text-decoration-none" style="color:#1a4d2e;">
+                                → Formulare öffnen
+                            </a>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-md-4">
+                    <div class="d-flex gap-3 align-items-start">
+                        <div class="rounded-circle d-flex align-items-center justify-content-center flex-shrink-0 fw-bold text-white"
+                             style="width:32px;height:32px;background:#1a4d2e;font-size:.85rem;">3</div>
+                        <div>
+                            <div class="fw-semibold small">Benutzer anlegen</div>
+                            <div class="text-muted small">Sachbearbeiter und Gruppen einrichten</div>
+                            <a href="/admin/auth/user/add/" class="small text-decoration-none" style="color:#1a4d2e;">
+                                → Administration öffnen
+                            </a>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+            <div class="mt-3 pt-3 border-top d-flex gap-3 flex-wrap">
+                <a href="https://github.com/geolohmar-star/vorgangswerk/blob/master/docs/BETRIEB.md"
+                   target="_blank" rel="noopener" class="btn btn-sm btn-outline-secondary">
+                    Betriebsanleitung
+                </a>
+                <a href="{% url 'formulare:liste' %}" class="btn btn-sm btn-outline-secondary">
+                    Formulare
+                </a>
+                <a href="{% url 'workflow:arbeitsstapel' %}" class="btn btn-sm btn-outline-secondary">
+                    Workflows
+                </a>
+                <small class="text-muted align-self-center ms-auto">
+                    Diese Karte verschwindet sobald Formulare oder Workflows angelegt wurden.
+                </small>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
     <!-- ZEILE 1 – Zaehler-Kacheln -->
     <div class="row g-3 mb-4">
 
