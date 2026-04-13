@@ -291,7 +291,15 @@ Für größere Änderungen, Fragen oder Fehlerberichte bitte ein [GitHub Issue](
 
 Veröffentlicht unter der [European Union Public Licence 1.2 (EUPL-1.2)](LICENSE).
 
-Die EUPL-1.2 ist eine von der EU-Kommission entwickelte Open-Source-Lizenz, die speziell für Software der öffentlichen Verwaltung konzipiert wurde und mit anderen gängigen Open-Source-Lizenzen kompatibel ist.
+Die EUPL-1.2 ist die offizielle Open-Source-Lizenz der Europäischen Kommission – entwickelt speziell für den Einsatz in der öffentlichen Verwaltung. Sie ist in allen 23 EU-Amtssprachen rechtsverbindlich verfasst und damit eine der wenigen Lizenzen, die in einem deutschen Behördenumfeld ohne rechtliche Graubereiche eingesetzt werden kann.
+
+Für den Verwaltungseinsatz relevant:
+
+- **Nutzung ist kostenfrei und dauerhaft gesichert** – keine Abhängigkeit von Lizenzgebühren oder Herstellerentscheidungen
+- **Quellcode-Einsicht ist garantiert** – Behörden können den Code prüfen, anpassen und weitergeben
+- **Copyleft-Pflicht** – Weiterentwicklungen müssen ebenfalls unter EUPL veröffentlicht werden; verhindert proprietäre Abspaltungen
+- **Empfohlen auf opencode.de** – der deutschen Open-Source-Plattform für die Verwaltung (Pendant zu GitHub für den öffentlichen Sektor)
+- **Kompatibel mit GPL, LGPL, MPL u. a.** – problemlose Kombination mit anderen Open-Source-Komponenten
 
 ---
 
