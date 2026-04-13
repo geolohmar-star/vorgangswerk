@@ -99,6 +99,20 @@ def task_detail(request, pk):
         kommentar = request.POST.get("kommentar", "")
         engine = WorkflowEngine()
         engine.complete_task(task, request.user, entscheidung=entscheidung, kommentar=kommentar)
+        from core.models import audit
+        audit(
+            request,
+            aktion="geaendert",
+            app="workflow",
+            objekt_typ="WorkflowTask",
+            objekt_id=task.pk,
+            beschreibung=(
+                f"Task '{task.step.titel}' abgeschlossen – "
+                f"Workflow: {task.step.template.name} – "
+                f"Entscheidung: {entscheidung}"
+                + (f" – Kommentar: {kommentar[:100]}" if kommentar else "")
+            ),
+        )
         messages.success(request, f"Task '{task.step.titel}' wurde abgeschlossen.")
         return redirect("workflow:arbeitsstapel")
 
@@ -188,6 +202,15 @@ def task_abholen(request, pk):
             task.claimed_am = timezone.now()
             task.status = WorkflowTask.STATUS_IN_BEARBEITUNG
             task.save(update_fields=["claimed_von", "claimed_am", "status"])
+            from core.models import audit
+            audit(
+                request,
+                aktion="geaendert",
+                app="workflow",
+                objekt_typ="WorkflowTask",
+                objekt_id=task.pk,
+                beschreibung=f"Task '{task.step.titel}' abgeholt aus Gruppen-Queue ({task.zugewiesen_an_gruppe.name})",
+            )
             messages.success(request, f"Task '{task.step.titel}' wurde abgeholt.")
         else:
             messages.warning(request, "Dieser Task wurde bereits von jemand anderem abgeholt.")

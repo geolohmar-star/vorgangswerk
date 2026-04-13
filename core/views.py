@@ -147,6 +147,10 @@ def profil(request):
 
     if request.method == "POST" and form.is_valid():
         form.save()
+        from core.models import audit
+        audit(request, aktion="geaendert", app="core",
+              objekt_typ="Benutzerprofil", objekt_id=request.user.pk,
+              beschreibung="Benutzerprofil aktualisiert")
         messages.success(request, "Profil gespeichert.")
         return redirect("core:profil")
 

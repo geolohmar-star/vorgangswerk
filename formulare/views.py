@@ -1770,6 +1770,15 @@ def pfad_schritt(request, sitzung_pk):
             sitzung.abschliessen()
             _starte_workflow_trigger(sitzung)
             _starte_quiz_auswertung(sitzung)
+            from core.models import audit
+            audit(
+                request,
+                aktion="erstellt",
+                app="formulare",
+                objekt_typ="AntrSitzung",
+                objekt_id=sitzung.pk,
+                beschreibung=f"Antrag abgeschlossen: {sitzung.pfad.name} (#{sitzung.pk})",
+            )
             return redirect("formulare:pfad_abgeschlossen", sitzung_pk=sitzung.pk)
 
         transition = _naechster_schritt(schritt, sitzung.gesammelte_daten)
@@ -1804,6 +1813,15 @@ def pfad_schritt(request, sitzung_pk):
             sitzung.abschliessen()
             _starte_workflow_trigger(sitzung)
             _starte_quiz_auswertung(sitzung)
+            from core.models import audit
+            audit(
+                request,
+                aktion="erstellt",
+                app="formulare",
+                objekt_typ="AntrSitzung",
+                objekt_id=sitzung.pk,
+                beschreibung=f"Antrag abgeschlossen: {sitzung.pfad.name} (#{sitzung.pk})",
+            )
             return redirect("formulare:pfad_abgeschlossen", sitzung_pk=sitzung.pk)
         return redirect("formulare:pfad_schritt", sitzung_pk=sitzung.pk)
 
@@ -2272,6 +2290,19 @@ def antrag_oeffentlich_schritt(request, sitzung_pk):
                 }
         if schritt.ist_ende:
             sitzung.abschliessen()
+            from core.models import AuditLog
+            AuditLog.objects.create(
+                user=None,
+                aktion="erstellt",
+                app="formulare",
+                objekt_typ="AntrSitzung",
+                objekt_id=str(sitzung.pk),
+                beschreibung=f"Öffentlicher Antrag abgeschlossen: {sitzung.pfad.name} (#{sitzung.pk})",
+                ip_adresse=(
+                    request.META.get("HTTP_X_FORWARDED_FOR", "").split(",")[0].strip()
+                    or request.META.get("REMOTE_ADDR") or None
+                ),
+            )
             return redirect("formulare:antrag_oeffentlich_abgeschlossen", sitzung_pk=sitzung.pk)
         transition = _naechster_schritt(schritt, sitzung.gesammelte_daten)
         if transition is None:
