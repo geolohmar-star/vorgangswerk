@@ -270,6 +270,7 @@ Ausführliche Hilfe: [docs/BETRIEB.md](docs/BETRIEB.md#troubleshooting)
 | Dokument | Inhalt |
 |---|---|
 | [Betriebsanleitung](docs/BETRIEB.md) | Updates, Backup/Restore, Logs, E-Mail, HTTPS, Troubleshooting |
+| [Architektur](docs/ARCHITEKTUR.md) | App-Struktur, Datenmodelle, Datenfluss, Erweiterungspunkte |
 | [Mitwirken](CONTRIBUTING.md) | Entwicklungsumgebung, PR-Workflow, Code-Stil |
 
 ---
