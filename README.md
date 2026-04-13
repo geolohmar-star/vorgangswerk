@@ -298,7 +298,7 @@ Für den Verwaltungseinsatz relevant:
 - **Nutzung ist kostenfrei und dauerhaft gesichert** – keine Abhängigkeit von Lizenzgebühren oder Herstellerentscheidungen
 - **Quellcode-Einsicht ist garantiert** – Behörden können den Code prüfen, anpassen und weitergeben
 - **Copyleft-Pflicht** – Weiterentwicklungen müssen ebenfalls unter EUPL veröffentlicht werden; verhindert proprietäre Abspaltungen
-- **Empfohlen auf opencode.de** – der deutschen Open-Source-Plattform für die Verwaltung (Pendant zu GitHub für den öffentlichen Sektor)
+- **Kompatibel mit opencode.de** – der deutschen Open-Source-Plattform für die Verwaltung; EUPL-1.2 ist dort die bevorzugte Lizenz
 - **Kompatibel mit GPL, LGPL, MPL u. a.** – problemlose Kombination mit anderen Open-Source-Komponenten
 
 ---
