@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: EUPL-1.2
+# Copyright (C) 2026 Georg Klein
 """
 ASGI config for config project.
 

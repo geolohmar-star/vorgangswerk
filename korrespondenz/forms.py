@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: EUPL-1.2
+# Copyright (C) 2026 Georg Klein
 from datetime import date
 
 from django import forms

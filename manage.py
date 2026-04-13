@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: EUPL-1.2
+# Copyright (C) 2026 Georg Klein
 #!/usr/bin/env python
 """Django's command-line utility for administrative tasks."""
 import os

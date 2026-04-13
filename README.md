@@ -2,6 +2,10 @@
 
 **Digitale Vorgangsbearbeitung für die öffentliche Verwaltung**
 
+[![Lizenz: EUPL-1.2](https://img.shields.io/badge/Lizenz-EUPL--1.2-blue.svg)](LICENSE)
+[![Made in Germany](https://img.shields.io/badge/Made%20in-Germany-black.svg)](https://github.com/geolohmar-star/vorgangswerk)
+[![BITV 2.0](https://img.shields.io/badge/Barrierefreiheit-BITV%202.0-green.svg)](#barrierefreiheit)
+
 Vorgangswerk ist eine quelloffene Plattform zur digitalen Bearbeitung von Verwaltungsvorgängen. Sie ermöglicht es Behörden und Organisationen, Antragsformulare, Workflows, Dokumente und Kommunikation in einer einheitlichen Anwendung zu verwalten – OZG-konform und selbst gehostet.
 
 Lizenz: [EUPL-1.2](LICENSE) · Sprache: Deutsch · Stack: Django · PostgreSQL · Docker

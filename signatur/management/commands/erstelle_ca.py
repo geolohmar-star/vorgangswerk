@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: EUPL-1.2
+# Copyright (C) 2026 Georg Klein
 """
 Management Command: Erstellt die interne Root-CA und Mitarbeiter-Zertifikate.
 
