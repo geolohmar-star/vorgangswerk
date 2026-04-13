@@ -6,9 +6,27 @@
 [![Made in Germany](https://img.shields.io/badge/Made%20in-Germany-black.svg)](https://github.com/geolohmar-star/vorgangswerk)
 [![BITV 2.0](https://img.shields.io/badge/Barrierefreiheit-BITV%202.0-green.svg)](#barrierefreiheit)
 
-Vorgangswerk ist eine quelloffene Plattform zur digitalen Bearbeitung von Verwaltungsvorgängen. Sie ermöglicht es Behörden und Organisationen, Antragsformulare, Workflows, Dokumente und Kommunikation in einer einheitlichen Anwendung zu verwalten – OZG-konform und selbst gehostet.
+Vorgangswerk ist eine quelloffene Plattform zur digitalen Bearbeitung von Verwaltungsvorgängen. Antragsformulare, Workflows, Dokumente und Kommunikation – in einer Anwendung, selbst gehostet, OZG-konform.
 
 Lizenz: [EUPL-1.2](LICENSE) · Sprache: Deutsch · Stack: Django · PostgreSQL · Docker
+
+---
+
+## Warum Vorgangswerk?
+
+Viele Behörden – besonders Kommunen und kleine Träger – stehen vor demselben Problem: Anträge kommen per E-Mail oder Papier rein, werden in Excel verwaltet, und der Bearbeitungsstatus ist für niemanden transparent. Kommerzielle Lösungen sind teuer, proprietär und oft überdimensioniert.
+
+Vorgangswerk schließt diese Lücke:
+
+- **Kein Vendor Lock-in** – Open Source unter EUPL-1.2, selbst gehostet, volle Datenkontrolle
+- **Kein IT-Großprojekt** – läuft mit `make pull` in unter einer Minute, ein einziger Docker-Befehl
+- **Für die Praxis gebaut** – Formulare, Workflows, Dokumente und Postfach in einer Anwendung statt vier verschiedenen Systemen
+- **OZG-konform** – BundID-Anbindung (SAML SP), öffentliche Antragsstrecken ohne Login, LeiKa-Schlüssel
+- **Barrierefrei** – BITV 2.0 / WCAG 2.1 AA, gesetzliche Pflichtanforderung für Behördensoftware
+- **Souverän** – kein SaaS, keine Cloud-Abhängigkeit, läuft on-premise oder im eigenen Rechenzentrum
+
+**Für wen:**
+Kommunalverwaltungen, Zweckverbände, kommunale Unternehmen, Behörden auf Landes- und Bundesebene sowie gemeinnützige Organisationen mit Verwaltungsaufgaben.
 
 ---
 
