@@ -230,6 +230,15 @@ vorgangswerk/
 
 ---
 
+## Dokumentation
+
+| Dokument | Inhalt |
+|---|---|
+| [Betriebsanleitung](docs/BETRIEB.md) | Updates, Backup/Restore, Logs, E-Mail, HTTPS, Troubleshooting |
+| [Mitwirken](CONTRIBUTING.md) | Entwicklungsumgebung, PR-Workflow, Code-Stil |
+
+---
+
 ## Mitmachen
 
 Beiträge sind willkommen. Bitte:
