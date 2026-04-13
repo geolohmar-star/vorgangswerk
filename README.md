@@ -80,6 +80,23 @@ Lizenz: [EUPL-1.2](LICENSE) · Sprache: Deutsch · Stack: Django · PostgreSQL �
 
 ---
 
+## Barrierefreiheit
+
+Vorgangswerk ist auf Konformität mit **BITV 2.0 / WCAG 2.1 AA** ausgerichtet – Pflichtanforderung für Behördensoftware gemäß § 12a BGG.
+
+Umgesetzte Maßnahmen:
+
+- **Tastaturnavigation**: Skip-Link, semantische Landmarks (`<main>`, `<nav>`, `<footer>`), `tabindex`-Fokus-Management
+- **Screenreader**: `aria-hidden` auf alle dekorativen Icons/Emojis, `aria-label` auf Kachel-Links und Schaltflächen
+- **Formulare**: `<fieldset>`/`<legend>` für Radio- und Checkbox-Gruppen, korrekte `<label for=...>`-Verknüpfung, `aria-required` auf Pflichtfeldern, Pflichtfeld-Sterne mit `aria-hidden`
+- **Fortschrittsanzeige**: `<nav aria-label="Formularfortschritt">` mit `aria-current="step"` auf dem aktiven Schritt
+- **Fehlermeldungen**: `role="alert"` + `aria-live="assertive"`, Fokus springt automatisch auf Fehler-Box
+- **Überschriftenhierarchie**: Abschnitts-Header als `<h2 class="h6">` (kein H1→H6-Sprung)
+- **Signatur-Feld**: `role="img"` + `aria-labelledby` auf Canvas, Tastatur-Alternative (Bestätigungs-Checkbox)
+- **Gruppen-Felder**: `role="list"` / `role="listitem"`, Fokus nach Hinzufügen auf erstes Feld des neuen Eintrags
+
+---
+
 ## Technischer Stack
 
 | Komponente | Technologie |
@@ -153,6 +170,7 @@ make stop       # Stoppen
 make restart    # Web-Container neu starten
 make logs       # Logs live verfolgen
 make shell      # Django-Shell
+make demo       # Demo-Daten laden (Beispiel-Pfad, Workflow, Testbenutzer)
 make update     # git pull + neu bauen + migrieren
 ```
 

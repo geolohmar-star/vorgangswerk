@@ -1,7 +1,7 @@
 # Vorgangswerk – Makefile
 # Kurzformen für häufige Docker-Befehle
 
-.PHONY: start stop restart build logs shell migrate superuser update
+.PHONY: start stop restart build logs shell migrate superuser update demo
 
 ## Starten (im Hintergrund)
 start:
@@ -46,6 +46,10 @@ update:
 	git pull
 	docker compose up -d --build
 	docker compose exec web python manage.py migrate
+
+## Demo-Daten laden (Beispiel-Pfad, Workflow, Benutzer demo@vorgangswerk.de)
+demo:
+	docker compose exec web python manage.py demo_daten
 
 ## Erstes Setup: .env anlegen + starten
 setup:

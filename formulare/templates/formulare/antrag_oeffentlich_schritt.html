@@ -21,46 +21,48 @@
                  aria-valuenow="{{ fortschritt }}" aria-valuemin="0" aria-valuemax="100">
             </div>
         </div>
-        <div class="d-flex flex-wrap gap-2 align-items-center">
+        <nav aria-label="Formularfortschritt">
+        <ol class="d-flex flex-wrap gap-2 align-items-center list-unstyled mb-0">
             {% for eintrag in schritt_anzeige %}
                 {% if eintrag.zustand == "erledigt" %}
-                <div class="d-flex align-items-center gap-1">
-                    <span style="width:18px;height:18px;border-radius:50%;background:#1a4d2e;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;">
+                <li class="d-flex align-items-center gap-1">
+                    <span aria-hidden="true" style="width:18px;height:18px;border-radius:50%;background:#1a4d2e;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;">
                         <svg width="10" height="10" viewBox="0 0 10 10"><polyline points="1.5,5 4,7.5 8.5,2.5" stroke="white" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
                     </span>
                     <span class="text-muted small" style="text-decoration:line-through;">{{ eintrag.titel }}</span>
-                </div>
+                </li>
                 {% elif eintrag.zustand == "aktuell" %}
-                <div class="d-flex align-items-center gap-1">
-                    <span style="width:18px;height:18px;border-radius:50%;background:#1a4d2e;border:2px solid #1a4d2e;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;">
+                <li class="d-flex align-items-center gap-1" aria-current="step">
+                    <span aria-hidden="true" style="width:18px;height:18px;border-radius:50%;background:#1a4d2e;border:2px solid #1a4d2e;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;">
                         <span style="width:7px;height:7px;border-radius:50%;background:white;display:block;"></span>
                     </span>
                     <span class="fw-semibold small" style="color:#1a4d2e;">{{ eintrag.titel }}</span>
-                </div>
+                </li>
                 {% elif eintrag.zustand == "naechster" %}
-                <div class="d-flex align-items-center gap-1">
-                    <span style="width:18px;height:18px;border-radius:50%;border:2px solid #6c757d;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;background:white;">
+                <li class="d-flex align-items-center gap-1">
+                    <span aria-hidden="true" style="width:18px;height:18px;border-radius:50%;border:2px solid #6c757d;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;background:white;">
                         <span style="width:6px;height:6px;border-radius:50%;background:#adb5bd;display:block;"></span>
                     </span>
                     <span class="text-muted small">{{ eintrag.titel }}{% if eintrag.ist_verzweigung %} <em style="font-size:0.7rem;">(je nach Antwort)</em>{% endif %}</span>
-                </div>
+                </li>
                 {% elif eintrag.zustand == "ausstehend" %}
-                <div class="d-flex align-items-center gap-1">
-                    <span style="width:16px;height:16px;border-radius:50%;border:1px dashed #ced4da;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;background:white;"></span>
+                <li class="d-flex align-items-center gap-1">
+                    <span aria-hidden="true" style="width:16px;height:16px;border-radius:50%;border:1px dashed #ced4da;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;background:white;"></span>
                     <span class="text-muted small" style="opacity:0.6;">{{ eintrag.titel }}</span>
-                </div>
+                </li>
                 {% endif %}
                 {% if not forloop.last %}
-                <span class="text-muted" style="font-size:0.75rem;opacity:0.5;">&#8250;</span>
+                <li aria-hidden="true" class="text-muted" style="font-size:0.75rem;opacity:0.5;">&#8250;</li>
                 {% endif %}
             {% endfor %}
-        </div>
+        </ol>
+        </nav>
     </div>
 
     <h1 class="h3 fw-bold mb-1" style="color:#1a4d2e;">{{ schritt.titel }}</h1>
 
     {% if fehler %}
-    <div class="alert alert-danger mt-3">
+    <div class="alert alert-danger mt-3" role="alert" id="fehler-zusammenfassung" aria-live="assertive" tabindex="-1">
         <strong>Bitte korrigiere folgende Fehler:</strong>
         <ul class="mb-0 mt-1">{% for f in fehler %}<li>{{ f }}</li>{% endfor %}</ul>
     </div>
@@ -85,7 +87,7 @@
 
                 {% if typ == "abschnitt" %}
                 <div class="col-12">
-                    <h6 style="color:#1a4d2e;border-bottom:1px solid #dee2e6;padding-bottom:4px;">{{ feld.text }}</h6>
+                    <h2 class="h6" style="color:#1a4d2e;border-bottom:1px solid #dee2e6;padding-bottom:4px;">{{ feld.text }}</h2>
                 </div>
 
                 {% elif typ == "trennlinie" %}
@@ -100,7 +102,7 @@
                             {% if feld.link_text and feld.link_url %}
                             – <a href="{{ feld.link_url }}" target="_blank" class="text-decoration-underline">{{ feld.link_text }} &#8599;</a>
                             {% endif %}
-                            <span class="text-danger ms-1">*</span>
+                            <span class="text-danger ms-1" aria-hidden="true">*</span>
                         </label>
                     </div>
                 </div>
@@ -111,7 +113,7 @@
                         <input class="form-check-input" type="checkbox" name="{{ id }}" id="f-{{ id }}" value="1"
                                {% if vorwerte and id in vorwerte %}checked{% endif %}>
                         <label class="form-check-label fw-semibold" for="f-{{ id }}">
-                            {{ label }}{% if pflicht %} <span class="text-danger">*</span>{% endif %}
+                            {{ label }}{% if pflicht %} <span class="text-danger" aria-hidden="true">*</span>{% endif %}
                         </label>
                     </div>
                 </div>
@@ -119,7 +121,7 @@
                 {% elif typ == "mehrzeil" %}
                 <div class="col-12">
                     <label class="form-label fw-semibold" for="f-{{ id }}">
-                        {{ label }}{% if pflicht %} <span class="text-danger">*</span>{% endif %}
+                        {{ label }}{% if pflicht %} <span class="text-danger" aria-hidden="true">*</span>{% endif %}
                     </label>
                     <textarea class="form-control" name="{{ id }}" id="f-{{ id }}" rows="3"
                               placeholder="{{ feld.hilfetext }}"
@@ -129,7 +131,7 @@
                 {% elif typ == "bankverbindung" %}
                 <div class="{% if feld.breite == 50 %}col-md-6{% elif feld.breite == 25 %}col-md-3{% elif feld.breite == 75 %}col-md-9{% else %}col-12{% endif %}">
                     <label class="form-label fw-semibold" for="f-{{ id }}">
-                        {{ label }}{% if pflicht %} <span class="text-danger">*</span>{% endif %}
+                        {{ label }}{% if pflicht %} <span class="text-danger" aria-hidden="true">*</span>{% endif %}
                     </label>
                     <select class="form-select" name="{{ id }}" id="f-{{ id }}"
                             data-bankverbindung="{{ id }}"
@@ -144,35 +146,40 @@
                 </div>
 
                 {% elif typ == "auswahl" or typ == "radio" %}
+                {% if typ == "auswahl" %}
                 <div class="{% if feld.breite == 50 %}col-md-6{% elif feld.breite == 25 %}col-md-3{% elif feld.breite == 75 %}col-md-9{% else %}col-12{% endif %}">
-                    <label class="form-label fw-semibold">
-                        {{ label }}{% if pflicht %} <span class="text-danger">*</span>{% endif %}
+                    <label class="form-label fw-semibold" for="f-{{ id }}">
+                        {{ label }}{% if pflicht %} <span class="text-danger" aria-hidden="true">*</span>{% endif %}
                     </label>
-                    {% if typ == "auswahl" %}
-                    <select class="form-select" name="{{ id }}" id="f-{{ id }}" {% if pflicht %}required{% endif %}>
+                    <select class="form-select" name="{{ id }}" id="f-{{ id }}" {% if pflicht %}required aria-required="true"{% endif %}>
                         <option value="">— bitte wählen —</option>
                         {% for opt in feld.optionen %}
                         <option value="{{ opt|opt_value }}">{{ opt|opt_label }}</option>
                         {% endfor %}
                     </select>
-                    {% else %}
+                </div>
+                {% else %}
+                <fieldset class="{% if feld.breite == 50 %}col-md-6{% elif feld.breite == 25 %}col-md-3{% elif feld.breite == 75 %}col-md-9{% else %}col-12{% endif %}">
+                    <legend class="form-label fw-semibold">
+                        {{ label }}{% if pflicht %} <span class="text-danger" aria-hidden="true">*</span>{% endif %}
+                    </legend>
                     <div class="d-flex flex-column gap-1">
                         {% for opt in feld.optionen %}
                         <div class="form-check">
                             <input class="form-check-input" type="radio" name="{{ id }}"
                                    id="f-{{ id }}-{{ forloop.counter }}" value="{{ opt|opt_value }}"
-                                   {% if pflicht %}required{% endif %}>
+                                   {% if pflicht %}required aria-required="true"{% endif %}>
                             <label class="form-check-label" for="f-{{ id }}-{{ forloop.counter }}">{{ opt|opt_label }}</label>
                         </div>
                         {% endfor %}
                     </div>
-                    {% endif %}
-                </div>
+                </fieldset>
+                {% endif %}
 
                 {% elif typ == "datum" %}
                 <div class="{% if feld.breite == 50 %}col-md-6{% elif feld.breite == 25 %}col-md-3{% elif feld.breite == 75 %}col-md-9{% else %}col-12{% endif %}">
                     <label class="form-label fw-semibold" for="f-{{ id }}">
-                        {{ label }}{% if pflicht %} <span class="text-danger">*</span>{% endif %}
+                        {{ label }}{% if pflicht %} <span class="text-danger" aria-hidden="true">*</span>{% endif %}
                     </label>
                     <input type="date" class="form-control" name="{{ id }}" id="f-{{ id }}"
                            {% if pflicht %}required{% endif %}>
@@ -181,7 +188,7 @@
                 {% elif typ == "uhrzeit" %}
                 <div class="{% if feld.breite == 50 %}col-md-6{% elif feld.breite == 25 %}col-md-3{% elif feld.breite == 75 %}col-md-9{% else %}col-12{% endif %}">
                     <label class="form-label fw-semibold" for="f-{{ id }}">
-                        {{ label }}{% if pflicht %} <span class="text-danger">*</span>{% endif %}
+                        {{ label }}{% if pflicht %} <span class="text-danger" aria-hidden="true">*</span>{% endif %}
                     </label>
                     <input type="text" class="form-control" name="{{ id }}" id="f-{{ id }}"
                            placeholder="14:30 oder 1430" maxlength="5"
@@ -191,7 +198,7 @@
                 {% elif typ == "zahl" %}
                 <div class="{% if feld.breite == 50 %}col-md-6{% elif feld.breite == 25 %}col-md-3{% elif feld.breite == 75 %}col-md-9{% else %}col-12{% endif %}">
                     <label class="form-label fw-semibold" for="f-{{ id }}">
-                        {{ label }}{% if pflicht %} <span class="text-danger">*</span>{% endif %}
+                        {{ label }}{% if pflicht %} <span class="text-danger" aria-hidden="true">*</span>{% endif %}
                     </label>
                     <input type="number" step="any" class="form-control" name="{{ id }}" id="f-{{ id }}"
                            placeholder="{{ feld.hilfetext }}" {% if pflicht %}required{% endif %}>
@@ -200,7 +207,7 @@
                 {% elif typ == "email" %}
                 <div class="{% if feld.breite == 50 %}col-md-6{% elif feld.breite == 25 %}col-md-3{% elif feld.breite == 75 %}col-md-9{% else %}col-12{% endif %}">
                     <label class="form-label fw-semibold" for="f-{{ id }}">
-                        {{ label }}{% if pflicht %} <span class="text-danger">*</span>{% endif %}
+                        {{ label }}{% if pflicht %} <span class="text-danger" aria-hidden="true">*</span>{% endif %}
                     </label>
                     <input type="email" class="form-control" name="{{ id }}" id="f-{{ id }}"
                            placeholder="{{ feld.hilfetext|default:'name@beispiel.de' }}"
@@ -210,7 +217,7 @@
                 {% elif typ == "iban" %}
                 <div class="{% if feld.breite == 50 %}col-md-6{% elif feld.breite == 25 %}col-md-3{% elif feld.breite == 75 %}col-md-9{% else %}col-12{% endif %}">
                     <label class="form-label fw-semibold" for="f-{{ id }}">
-                        {{ label }}{% if pflicht %} <span class="text-danger">*</span>{% endif %}
+                        {{ label }}{% if pflicht %} <span class="text-danger" aria-hidden="true">*</span>{% endif %}
                     </label>
                     <input type="text" class="form-control" name="{{ id }}" id="f-{{ id }}"
                            placeholder="DE00 0000 0000 0000 0000 00" maxlength="34"
@@ -220,7 +227,7 @@
                 {% elif typ == "bic" %}
                 <div class="{% if feld.breite == 50 %}col-md-6{% elif feld.breite == 25 %}col-md-3{% elif feld.breite == 75 %}col-md-9{% else %}col-12{% endif %}">
                     <label class="form-label fw-semibold" for="f-{{ id }}">
-                        {{ label }}{% if pflicht %} <span class="text-danger">*</span>{% endif %}
+                        {{ label }}{% if pflicht %} <span class="text-danger" aria-hidden="true">*</span>{% endif %}
                     </label>
                     <input type="text" class="form-control" name="{{ id }}" id="f-{{ id }}"
                            placeholder="{{ feld.hilfetext|default:'BELADEBEXXX' }}" maxlength="11"
@@ -230,7 +237,7 @@
                 {% elif typ == "telefon" %}
                 <div class="{% if feld.breite == 50 %}col-md-6{% elif feld.breite == 25 %}col-md-3{% elif feld.breite == 75 %}col-md-9{% else %}col-12{% endif %}">
                     <label class="form-label fw-semibold" for="f-{{ id }}">
-                        {{ label }}{% if pflicht %} <span class="text-danger">*</span>{% endif %}
+                        {{ label }}{% if pflicht %} <span class="text-danger" aria-hidden="true">*</span>{% endif %}
                     </label>
                     <input type="tel" class="form-control" name="{{ id }}" id="f-{{ id }}"
                            placeholder="{{ feld.hilfetext|default:'+49 40 123456' }}" maxlength="30"
@@ -240,7 +247,7 @@
                 {% elif typ == "plz" %}
                 <div class="{% if feld.breite == 50 %}col-md-6{% elif feld.breite == 25 %}col-md-3{% elif feld.breite == 75 %}col-md-9{% else %}col-12{% endif %}">
                     <label class="form-label fw-semibold" for="f-{{ id }}">
-                        {{ label }}{% if pflicht %} <span class="text-danger">*</span>{% endif %}
+                        {{ label }}{% if pflicht %} <span class="text-danger" aria-hidden="true">*</span>{% endif %}
                     </label>
                     <input type="text" class="form-control" name="{{ id }}" id="f-{{ id }}"
                            placeholder="{{ feld.hilfetext|default:'20099' }}" maxlength="5"
@@ -251,7 +258,7 @@
                 {% elif typ == "kfz" %}
                 <div class="{% if feld.breite == 50 %}col-md-6{% elif feld.breite == 25 %}col-md-3{% elif feld.breite == 75 %}col-md-9{% else %}col-12{% endif %}">
                     <label class="form-label fw-semibold" for="f-{{ id }}">
-                        {{ label }}{% if pflicht %} <span class="text-danger">*</span>{% endif %}
+                        {{ label }}{% if pflicht %} <span class="text-danger" aria-hidden="true">*</span>{% endif %}
                     </label>
                     <input type="text" class="form-control" name="{{ id }}" id="f-{{ id }}"
                            placeholder="{{ feld.hilfetext|default:'HH-AB 1234' }}" maxlength="12"
@@ -263,7 +270,7 @@
                 {% elif typ == "steuernummer" %}
                 <div class="{% if feld.breite == 50 %}col-md-6{% elif feld.breite == 25 %}col-md-3{% elif feld.breite == 75 %}col-md-9{% else %}col-12{% endif %}">
                     <label class="form-label fw-semibold" for="f-{{ id }}">
-                        {{ label }}{% if pflicht %} <span class="text-danger">*</span>{% endif %}
+                        {{ label }}{% if pflicht %} <span class="text-danger" aria-hidden="true">*</span>{% endif %}
                     </label>
                     <input type="text" class="form-control" name="{{ id }}" id="f-{{ id }}"
                            placeholder="{{ feld.hilfetext|default:'123/456/78901' }}" maxlength="20"
@@ -273,7 +280,7 @@
                 {% elif typ == "mitarbeiternummer" %}
                 <div class="{% if feld.breite == 50 %}col-md-6{% elif feld.breite == 25 %}col-md-3{% elif feld.breite == 75 %}col-md-9{% else %}col-12{% endif %}">
                     <label class="form-label fw-semibold" for="f-{{ id }}">
-                        {{ label }}{% if pflicht %} <span class="text-danger">*</span>{% endif %}
+                        {{ label }}{% if pflicht %} <span class="text-danger" aria-hidden="true">*</span>{% endif %}
                     </label>
                     <input type="text" class="form-control" name="{{ id }}" id="f-{{ id }}"
                            placeholder="{{ feld.hilfetext|default:'12345' }}" maxlength="20"
@@ -282,10 +289,10 @@
                 </div>
 
                 {% elif typ == "checkboxen" %}
-                <div class="col-12">
-                    <label class="form-label fw-semibold">
-                        {{ label }}{% if pflicht %} <span class="text-danger">*</span>{% endif %}
-                    </label>
+                <fieldset class="col-12">
+                    <legend class="form-label fw-semibold">
+                        {{ label }}{% if pflicht %} <span class="text-danger" aria-hidden="true">*</span>{% endif %}
+                    </legend>
                     <div class="d-flex flex-column gap-1">
                         {% for opt in feld.optionen %}
                         <div class="form-check">
@@ -295,7 +302,7 @@
                         </div>
                         {% endfor %}
                     </div>
-                </div>
+                </fieldset>
 
                 {% elif typ == "berechnung" %}
                 <div class="{% if feld.breite == 50 %}col-md-6{% elif feld.breite == 25 %}col-md-3{% elif feld.breite == 75 %}col-md-9{% else %}col-12{% endif %}">
@@ -312,18 +319,33 @@
 
                 {% elif typ == "signatur" %}
                 <div class="col-12">
-                    <label class="form-label fw-semibold">
-                        {{ label }}{% if pflicht %} <span class="text-danger">*</span>{% endif %}
+                    <label class="form-label fw-semibold" id="sig-label-{{ id }}">
+                        {{ label }}{% if pflicht %} <span class="text-danger" aria-hidden="true">*</span>{% endif %}
                     </label>
                     <div class="border rounded bg-white" style="touch-action:none;cursor:crosshair;display:inline-block;">
                         <canvas id="sig-canvas-{{ id }}" width="500" height="150"
                                 data-sig-id="{{ id }}"
+                                role="img"
+                                aria-labelledby="sig-label-{{ id }}"
+                                aria-describedby="sig-hinweis-{{ id }}"
+                                tabindex="0"
                                 style="display:block;max-width:100%;"></canvas>
                     </div>
                     <div class="mt-1">
                         <button type="button" class="btn btn-sm btn-outline-secondary"
-                                data-sig-clear="{{ id }}">Löschen</button>
-                        <small class="text-muted ms-2">Mit Maus oder Finger unterschreiben</small>
+                                data-sig-clear="{{ id }}"
+                                aria-label="Unterschrift löschen">Löschen</button>
+                        <small class="text-muted ms-2" id="sig-hinweis-{{ id }}">Mit Maus oder Finger unterschreiben</small>
+                    </div>
+                    {# Tastatur-Alternative für Personen ohne Zeigegerät #}
+                    <div class="mt-2">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox"
+                                   id="sig-tastatur-{{ id }}" name="{{ id }}__tastatur" value="1">
+                            <label class="form-check-label small text-muted" for="sig-tastatur-{{ id }}">
+                                Tastatur-Alternative: Ich bestätige hiermit ausdrücklich meine rechtsverbindliche Unterschrift
+                            </label>
+                        </div>
                     </div>
                     <input type="hidden" name="{{ id }}" id="sig-input-{{ id }}">
                 </div>
@@ -331,7 +353,7 @@
                 {% elif typ == "datei" %}
                 <div class="{% if feld.breite == 50 %}col-md-6{% elif feld.breite == 25 %}col-md-3{% elif feld.breite == 75 %}col-md-9{% else %}col-12{% endif %}">
                     <label class="form-label fw-semibold" for="f-{{ id }}">
-                        {{ label }}{% if pflicht %} <span class="text-danger">*</span>{% endif %}
+                        {{ label }}{% if pflicht %} <span class="text-danger" aria-hidden="true">*</span>{% endif %}
                     </label>
                     <input type="file" class="form-control" name="{{ id }}" id="f-{{ id }}"
                            {% if feld.akzeptieren %}accept="{{ feld.akzeptieren }}"{% endif %}
@@ -345,7 +367,7 @@
                 <div class="col-12">
                     <a href="{{ feld.url }}" target="{{ feld.ziel|default:'_blank' }}"
                        class="btn btn-outline-secondary btn-sm">
-                        &#128196; {{ feld.label }}
+                        <span aria-hidden="true">&#128196;</span> {{ feld.label }}
                     </a>
                 </div>
 
@@ -358,7 +380,7 @@
                 <div class="col-12">
                     <div class="card border-primary">
                         <div class="card-header fw-semibold" style="background:#e8f0fe;color:#1a3c8c;">
-                            &#128231; {{ label }}
+                            <span aria-hidden="true">&#128231;</span> {{ label }}
                         </div>
                         <div class="card-body">
                             <p class="mb-2 text-muted small">
@@ -392,19 +414,20 @@
                 <div class="col-12" style="height:1rem;"></div>
 
                 {% elif typ == "gruppe" %}
-                <div class="col-12">
-                    <label class="form-label fw-semibold">
-                        {{ label }}{% if pflicht %} <span class="text-danger">*</span>{% endif %}
-                    </label>
-                    {% if feld.hilfetext %}<div class="form-text mb-2">{{ feld.hilfetext }}</div>{% endif %}
-                    <div id="gruppe-eintraege-{{ id }}"></div>
+                <fieldset class="col-12">
+                    <legend class="form-label fw-semibold" id="gruppe-label-{{ id }}">
+                        {{ label }}{% if pflicht %} <span class="text-danger" aria-hidden="true">*</span>{% endif %}
+                    </legend>
+                    {% if feld.hilfetext %}<div class="form-text mb-2" id="gruppe-hint-{{ id }}">{{ feld.hilfetext }}</div>{% endif %}
+                    <div id="gruppe-eintraege-{{ id }}" role="list" aria-labelledby="gruppe-label-{{ id }}{% if feld.hilfetext %} gruppe-hint-{{ id }}{% endif %}"></div>
                     <input type="hidden" name="{{ id }}__count" id="gruppe-count-{{ id }}" value="0">
                     <button type="button" class="btn btn-sm btn-outline-primary mt-2"
                             data-gruppe-add="{{ id }}"
-                            data-singular="{{ feld.singular|default:'Eintrag' }}">
+                            data-singular="{{ feld.singular|default:'Eintrag' }}"
+                            aria-label="{{ feld.singular|default:'Eintrag' }} hinzufügen">
                         + {{ feld.singular|default:"Eintrag" }} hinzufügen
                     </button>
-                </div>
+                </fieldset>
 
                 {% elif typ == "zusammenfassung" %}
                 <div class="col-12">
@@ -446,7 +469,7 @@
                 {% else %}
                 <div class="{% if feld.breite == 50 %}col-md-6{% elif feld.breite == 25 %}col-md-3{% elif feld.breite == 75 %}col-md-9{% else %}col-12{% endif %}">
                     <label class="form-label fw-semibold" for="f-{{ id }}">
-                        {{ label }}{% if pflicht %} <span class="text-danger">*</span>{% endif %}
+                        {{ label }}{% if pflicht %} <span class="text-danger" aria-hidden="true">*</span>{% endif %}
                     </label>
                     <input type="text" class="form-control" name="{{ id }}" id="f-{{ id }}"
                            placeholder="{{ feld.hilfetext }}" {% if pflicht %}required{% endif %}>

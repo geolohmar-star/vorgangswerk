@@ -44,11 +44,11 @@
 
         {# Meine Aufgaben #}
         <div class="col-6 col-md-3">
-            <a href="{% url 'workflow:arbeitsstapel' %}" class="text-decoration-none">
+            <a href="{% url 'workflow:arbeitsstapel' %}" class="text-decoration-none" aria-label="Meine Aufgaben: {{ eigene_tasks|length }}">
                 <div class="card border-0 shadow-sm h-100 vw-kachel vw-kachel-aufgaben">
                     <div class="card-body p-3 text-center">
                         <div class="kachel-icon">
-                            <i class="bi bi-check2-square"></i>
+                            <i class="bi bi-check2-square" aria-hidden="true"></i>
                         </div>
                         <div class="kachel-zahl">{{ eigene_tasks|length }}</div>
                         <div class="kachel-label">Meine Aufgaben</div>
@@ -62,11 +62,11 @@
 
         {# Meine Antraege #}
         <div class="col-6 col-md-3">
-            <a href="{% url 'formulare:liste' %}" class="text-decoration-none">
+            <a href="{% url 'formulare:liste' %}" class="text-decoration-none" aria-label="Offene Anträge: {{ offene_sitzungen }}">
                 <div class="card border-0 shadow-sm h-100 vw-kachel vw-kachel-antraege">
                     <div class="card-body p-3 text-center">
                         <div class="kachel-icon">
-                            <i class="bi bi-file-earmark-text"></i>
+                            <i class="bi bi-file-earmark-text" aria-hidden="true"></i>
                         </div>
                         <div class="kachel-zahl">{{ offene_sitzungen }}</div>
                         <div class="kachel-label">Offene Antraege</div>
@@ -77,14 +77,14 @@
 
         {# Benachrichtigungen #}
         <div class="col-6 col-md-3">
-            <a href="{% url 'kommunikation:benachrichtigungen' %}" class="text-decoration-none">
+            <a href="{% url 'kommunikation:benachrichtigungen' %}" class="text-decoration-none" aria-label="Ungelesene Meldungen: {{ ungelesen_anzahl }}">
                 <div class="card border-0 shadow-sm h-100 vw-kachel vw-kachel-meldungen">
                     <div class="card-body p-3 text-center">
                         <div class="kachel-icon">
                             {% if ungelesen_anzahl %}
-                            <i class="bi bi-bell-fill"></i>
+                            <i class="bi bi-bell-fill" aria-hidden="true"></i>
                             {% else %}
-                            <i class="bi bi-bell"></i>
+                            <i class="bi bi-bell" aria-hidden="true"></i>
                             {% endif %}
                         </div>
                         <div class="kachel-zahl">{{ ungelesen_anzahl }}</div>
@@ -96,11 +96,11 @@
 
         {# Dokumente #}
         <div class="col-6 col-md-3">
-            <a href="{% url 'dokumente:liste' %}" class="text-decoration-none">
+            <a href="{% url 'dokumente:liste' %}" class="text-decoration-none" aria-label="Dokumente gesamt: {{ dokumente_gesamt }}">
                 <div class="card border-0 shadow-sm h-100 vw-kachel vw-kachel-dokumente">
                     <div class="card-body p-3 text-center">
                         <div class="kachel-icon">
-                            <i class="bi bi-folder2-open"></i>
+                            <i class="bi bi-folder2-open" aria-hidden="true"></i>
                         </div>
                         <div class="kachel-zahl">{{ dokumente_gesamt }}</div>
                         <div class="kachel-label">Dokumente gesamt</div>

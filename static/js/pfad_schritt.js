@@ -1,6 +1,21 @@
 // pfad_schritt.js – Berechnungsfelder und Textblock-Variablen im Antrags-Player
 
 document.addEventListener("DOMContentLoaded", function () {
+    // -----------------------------------------------------------------------
+    // BITV 2.0 / WCAG 2.4.3: Fokus-Management
+    // -----------------------------------------------------------------------
+    // Bei Fehler: Fokus auf Fehler-Alert setzen
+    var fehlerBox = document.getElementById("fehler-zusammenfassung");
+    if (fehlerBox) {
+        fehlerBox.focus();
+    }
+    // Bei Seitenneuladen nach Schritt-Wechsel: Fokus auf Hauptinhalt
+    var main = document.getElementById("main-content");
+    if (main && !fehlerBox) {
+        main.setAttribute("tabindex", "-1");
+        main.focus();
+    }
+
     // Gesammelte Daten aus vorherigen Schritten (vom Server als JSON eingebettet)
     var gesammelteDaten = {};
     var gesammelteEl = document.getElementById("gesammelte-daten");
@@ -191,13 +206,14 @@ document.addEventListener("DOMContentLoaded", function () {
             felderHtml += '<div class="col-md-6">' + inner + '</div>';
         });
 
-        return '<div class="card mb-2 gruppe-eintrag">' +
+        return '<div class="card mb-2 gruppe-eintrag" role="listitem">' +
             '<div class="card-body py-2 px-3">' +
             '<div class="d-flex justify-content-between align-items-center mb-2">' +
             '<small class="fw-semibold text-muted gruppe-eintrag-titel">' +
             escHtml(singular) + ' ' + (idx + 1) + '</small>' +
             '<button type="button" class="btn btn-sm btn-outline-danger py-0 px-2" ' +
-            'style="font-size:0.75rem;" data-gruppe-remove="' + gruppeId + '">&#10005; Entfernen</button>' +
+            'style="font-size:0.75rem;" data-gruppe-remove="' + gruppeId + '" ' +
+            'aria-label="' + escHtml(singular) + ' ' + (idx + 1) + ' entfernen">&#10005; Entfernen</button>' +
             '</div><div class="row g-2">' + felderHtml + '</div></div></div>';
     }
 
@@ -238,6 +254,12 @@ document.addEventListener("DOMContentLoaded", function () {
         var idx = parseInt(countInput.value) || 0;
         container.insertAdjacentHTML("beforeend", bauEintragHtml(gruppeId, idx, unterfelder, singular));
         countInput.value = idx + 1;
+        // BITV: Fokus auf erstes Feld des neuen Eintrags setzen
+        var neuerEintrag = container.lastElementChild;
+        if (neuerEintrag) {
+            var erstesInput = neuerEintrag.querySelector("input, select, textarea");
+            if (erstesInput) erstesInput.focus();
+        }
     }
 
     // Direkte Listener auf alle statischen Hinzufuegen-Buttons (kein Event Delegation)
@@ -369,6 +391,26 @@ document.addEventListener("DOMContentLoaded", function () {
             clearBtn.addEventListener("click", function () {
                 ctx.clearRect(0, 0, canvas.width, canvas.height);
                 if (hidden) hidden.value = "";
+                // Tastatur-Alternative zurücksetzen
+                var tastaturCb = document.getElementById("sig-tastatur-" + id);
+                if (tastaturCb) tastaturCb.checked = false;
+            });
+        }
+
+        // BITV 2.0: Tastatur-Alternative
+        // Wenn Checkbox gesetzt wird, gilt Unterschrift als geleistet (Text-Signatur)
+        var tastaturCheckbox = document.getElementById("sig-tastatur-" + id);
+        if (tastaturCheckbox) {
+            tastaturCheckbox.addEventListener("change", function () {
+                if (this.checked) {
+                    // Nur setzen falls Canvas leer
+                    if (!hidden || !hidden.value) {
+                        if (hidden) hidden.value = "TASTATUR_BESTAETIGT";
+                    }
+                    canvas.setAttribute("aria-label", canvas.getAttribute("aria-label") + " (per Tastatur bestätigt)");
+                } else {
+                    if (hidden && hidden.value === "TASTATUR_BESTAETIGT") hidden.value = "";
+                }
             });
         }
     });
