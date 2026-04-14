@@ -410,6 +410,19 @@ def _baue_zusammenfassung(sitzung):
                                     "typ":   uf.get("typ", "text"),
                                 })
                     continue
+                if typ == "gemeindekennzahl":
+                    hauptlabel = feld.get("label", feld_id)
+                    zeilen.append({"label": hauptlabel, "wert": "", "typ": "_abschnitt"})
+                    for suffix, sublabel in [
+                        ("",         "Gemeindekennzahl (AGS)"),
+                        ("_gemeinde", "Gemeinde"),
+                        ("_kreis",    "Kreis"),
+                        ("_land",     "Bundesland"),
+                    ]:
+                        subwert = daten_dict.get(feld_id + suffix, "")
+                        if subwert:
+                            zeilen.append({"label": sublabel, "wert": subwert, "typ": "text"})
+                    continue
                 if typ == "berechnung" and feld.get("einheit"):
                     wert = f"{wert} {feld['einheit']}"
                 datei_pk = None
@@ -2113,6 +2126,18 @@ def pfad_auswertung(request, pk):
                             "gruppe_id": feld_id,
                             "uf_id":     uf_id,
                         })
+                        gesehene_ids.add(col_id)
+            elif typ == "gemeindekennzahl":
+                # Vier Spalten: AGS, Gemeinde, Kreis, Bundesland
+                for suffix, sublabel in [
+                    ("",          label),
+                    ("_gemeinde", f"{label} – Gemeinde"),
+                    ("_kreis",    f"{label} – Kreis"),
+                    ("_land",     f"{label} – Bundesland"),
+                ]:
+                    col_id = feld_id + suffix
+                    if col_id not in gesehene_ids:
+                        spalten.append({"id": col_id, "label": sublabel})
                         gesehene_ids.add(col_id)
             else:
                 spalten.append({"id": feld_id, "label": label})
