@@ -46,8 +46,8 @@ html, body { overflow: hidden; height: 100%; }
         </div>
         {% endif %}
         {% if pfad and pfad.kuerzel %}
-        <button id="btn-qrcode" class="btn btn-sm btn-outline-success" title="QR-Code und oeffentliche URL anzeigen">
-            &#9641; QR-Code
+        <button id="btn-qrcode" class="btn btn-sm btn-outline-success" title="Öffentliche URL, QR-Code und Einbettungs-Snippet">
+            &#9641; URL / Einbetten
         </button>
         {% endif %}
         <div class="ms-auto d-flex gap-2">
@@ -59,11 +59,6 @@ html, body { overflow: hidden; height: 100%; }
             {% if formular_schemas %}
             <button id="btn-schema-import" class="btn btn-sm btn-outline-primary" title="Felder aus bestehendem Formular als Schritt importieren">
                 &#8659; Formular importieren
-            </button>
-            {% endif %}
-            {% if pfad and pfad.kuerzel %}
-            <button id="btn-embed" class="btn btn-sm btn-outline-info" title="iframe-Snippet für Einbettung in externe Webseiten">
-                &lt;/&gt; Einbetten
             </button>
             {% endif %}
             {% if pfad %}

@@ -151,12 +151,11 @@
 
         // QR-Code-Modal
         var qrBtnEl = document.getElementById("btn-qrcode");
-        var embedBtnEl = document.getElementById("btn-embed");
         var qrcodeModalEl = document.getElementById("qrcode-modal");
         if (qrBtnEl && qrcodeModalEl) {
             var qrcodeModal = new bootstrap.Modal(qrcodeModalEl);
 
-            function _oeffneQrcodeModal(scrollZuIframe) {
+            qrBtnEl.addEventListener("click", function () {
                 var kuerzel = (document.getElementById("pfad-kuerzel").value || "").trim().toUpperCase();
                 var istOeffentlich = document.getElementById("pfad-oeffentlich") &&
                                      document.getElementById("pfad-oeffentlich").checked;
@@ -168,24 +167,10 @@
                 if (warnung) warnung.style.display = istOeffentlich ? "none" : "";
                 var iframeEl = document.getElementById("qrcode-iframe");
                 if (iframeEl && url) {
-                    var embedUrl = url + "?embed=1";
-                    iframeEl.value = '<iframe src="' + embedUrl + '" width="100%" height="600" frameborder="0" style="border:none;"></iframe>';
+                    iframeEl.value = '<iframe src="' + url + '?embed=1" width="100%" height="600" frameborder="0" style="border:none;"></iframe>';
                 }
                 qrcodeModal.show();
-                if (scrollZuIframe) {
-                    qrcodeModalEl.addEventListener("shown.bs.modal", function _scroll() {
-                        var el = document.getElementById("qrcode-iframe");
-                        if (el) el.scrollIntoView({behavior: "smooth", block: "center"});
-                        qrcodeModalEl.removeEventListener("shown.bs.modal", _scroll);
-                    });
-                }
-            }
-
-            if (embedBtnEl) {
-                embedBtnEl.addEventListener("click", function () { _oeffneQrcodeModal(true); });
-            }
-
-            qrBtnEl.addEventListener("click", function () { _oeffneQrcodeModal(false); });
+            });
 
             // URL kopieren
             var kopiBtn = document.getElementById("btn-url-kopieren");
