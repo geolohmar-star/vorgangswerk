@@ -151,33 +151,41 @@
 
         // QR-Code-Modal
         var qrBtnEl = document.getElementById("btn-qrcode");
+        var embedBtnEl = document.getElementById("btn-embed");
         var qrcodeModalEl = document.getElementById("qrcode-modal");
         if (qrBtnEl && qrcodeModalEl) {
             var qrcodeModal = new bootstrap.Modal(qrcodeModalEl);
 
-            qrBtnEl.addEventListener("click", function () {
-                // Aktuelle URL zusammenbauen
+            function _oeffneQrcodeModal(scrollZuIframe) {
                 var kuerzel = (document.getElementById("pfad-kuerzel").value || "").trim().toUpperCase();
                 var istOeffentlich = document.getElementById("pfad-oeffentlich") &&
                                      document.getElementById("pfad-oeffentlich").checked;
-
                 var basis = window.location.protocol + "//" + window.location.host;
                 var url = kuerzel ? basis + "/antrag/" + kuerzel + "/" : "";
-
                 var urlInput = document.getElementById("qrcode-url");
                 if (urlInput) urlInput.value = url;
-
                 var warnung = document.getElementById("qrcode-warnung-oeffentlich");
                 if (warnung) warnung.style.display = istOeffentlich ? "none" : "";
-
                 var iframeEl = document.getElementById("qrcode-iframe");
                 if (iframeEl && url) {
                     var embedUrl = url + "?embed=1";
                     iframeEl.value = '<iframe src="' + embedUrl + '" width="100%" height="600" frameborder="0" style="border:none;"></iframe>';
                 }
-
                 qrcodeModal.show();
-            });
+                if (scrollZuIframe) {
+                    qrcodeModalEl.addEventListener("shown.bs.modal", function _scroll() {
+                        var el = document.getElementById("qrcode-iframe");
+                        if (el) el.scrollIntoView({behavior: "smooth", block: "center"});
+                        qrcodeModalEl.removeEventListener("shown.bs.modal", _scroll);
+                    });
+                }
+            }
+
+            if (embedBtnEl) {
+                embedBtnEl.addEventListener("click", function () { _oeffneQrcodeModal(true); });
+            }
+
+            qrBtnEl.addEventListener("click", function () { _oeffneQrcodeModal(false); });
 
             // URL kopieren
             var kopiBtn = document.getElementById("btn-url-kopieren");
