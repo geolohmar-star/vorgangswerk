@@ -45,5 +45,20 @@
 
     <script src="{% static 'js/bootstrap.bundle.min.js' %}"></script>
     {% block extra_js %}{% endblock %}
+    {% if embed %}
+    <script>
+    (function() {
+        function sendHeight() {
+            window.parent.postMessage({
+                type: "vorgangswerk:resize",
+                height: document.body.scrollHeight
+            }, "*");
+        }
+        sendHeight();
+        new MutationObserver(sendHeight).observe(document.body, {childList: true, subtree: true, attributes: true});
+        window.addEventListener("load", sendHeight);
+    })();
+    </script>
+    {% endif %}
 </body>
 </html>
