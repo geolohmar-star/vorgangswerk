@@ -2,6 +2,18 @@
 
 {% block title %}Antrag eingereicht{% endblock %}
 
+{% if embed %}
+{% block extra_js %}
+<script>
+window.parent.postMessage({
+    type: "vorgangswerk:abgeschlossen",
+    vorgangsnummer: "{{ sitzung.vorgangsnummer|default:'' }}",
+    pfad: "{{ sitzung.pfad.kuerzel }}"
+}, "*");
+</script>
+{% endblock %}
+{% endif %}
+
 {% block content %}
 <div class="container py-2" style="max-width:700px;">
     <div class="text-center mb-4">

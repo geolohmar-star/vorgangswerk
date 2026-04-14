@@ -26,6 +26,7 @@
         }
     </style>
     {% block extra_css %}{% endblock %}
+    {% if embed %}<style>body { background: #fff; } .prima-header, .prima-footer { display: none !important; }</style>{% endif %}
 </head>
 <body>
     <div class="prima-header">

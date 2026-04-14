@@ -1028,8 +1028,11 @@ html, body { overflow: hidden; height: 100%; }
                 </div>
                 <div class="mb-3">
                     <label class="form-label fw-semibold small">Einbettungs-Code (iframe)</label>
-                    <textarea class="form-control form-control-sm font-monospace" id="qrcode-iframe" rows="3" readonly></textarea>
-                    <div class="form-text">Diesen Code in Ihre Webseite einfügen.</div>
+                    <div class="input-group">
+                        <textarea class="form-control form-control-sm font-monospace" id="qrcode-iframe" rows="3" readonly></textarea>
+                        <button class="btn btn-outline-secondary btn-sm" id="btn-iframe-kopieren" type="button" title="Code kopieren">&#128203;</button>
+                    </div>
+                    <div class="form-text">Diesen Code in Ihre Webseite einfügen. Das Formular erscheint ohne Vorgangswerk-Header.</div>
                 </div>
             </div>
             <div class="modal-footer">

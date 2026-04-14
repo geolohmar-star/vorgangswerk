@@ -172,7 +172,8 @@
 
                 var iframeEl = document.getElementById("qrcode-iframe");
                 if (iframeEl && url) {
-                    iframeEl.value = '<iframe src="' + url + '" width="100%" height="600" frameborder="0" allowfullscreen></iframe>';
+                    var embedUrl = url + "?embed=1";
+                    iframeEl.value = '<iframe src="' + embedUrl + '" width="100%" height="600" frameborder="0" style="border:none;"></iframe>';
                 }
 
                 qrcodeModal.show();
@@ -190,6 +191,24 @@
                             setTimeout(function () { kopiBtn.textContent = "\uD83D\uDCCB"; }, 1500);
                         } catch (e2) {
                             urlInput.select();
+                        }
+                    }
+                });
+            }
+        }
+
+            // iframe-Code kopieren
+            var iframeKopiBtn = document.getElementById("btn-iframe-kopieren");
+            if (iframeKopiBtn) {
+                iframeKopiBtn.addEventListener("click", function () {
+                    var iframeEl = document.getElementById("qrcode-iframe");
+                    if (iframeEl && iframeEl.value) {
+                        try {
+                            navigator.clipboard.writeText(iframeEl.value);
+                            iframeKopiBtn.textContent = "\u2713";
+                            setTimeout(function () { iframeKopiBtn.textContent = "\uD83D\uDCCB"; }, 1500);
+                        } catch (e2) {
+                            iframeEl.select();
                         }
                     }
                 });

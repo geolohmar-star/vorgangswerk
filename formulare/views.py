@@ -33,6 +33,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.template.loader import render_to_string
 from django.utils import timezone
 from django.views.decorators.http import require_POST
+from django.views.decorators.clickjacking import xframe_options_exempt
 
 from .models import AntrDatei, AntrPfad, AntrSchritt, AntrSitzung, AntrTransition, AntrVersion
 
@@ -2182,12 +2183,17 @@ def _anon_darf_sitzung(request, sitzung_pk):
     return sitzung_pk in request.session.get("anon_sitzungen", [])
 
 
+@xframe_options_exempt
 def antrag_oeffentlich(request, kuerzel):
     """Startseite eines oeffentlichen Formulars (kein Login noetig)."""
     pfad = get_object_or_404(AntrPfad, kuerzel__iexact=kuerzel, aktiv=True, oeffentlich=True)
-    return render(request, "formulare/antrag_oeffentlich.html", {"pfad": pfad})
+    if request.GET.get("embed") == "1":
+        request.session["embed"] = True
+    embed = request.session.get("embed", False)
+    return render(request, "formulare/antrag_oeffentlich.html", {"pfad": pfad, "embed": embed})
 
 
+@xframe_options_exempt
 def antrag_oeffentlich_starten(request, kuerzel):
     """POST: Neue anonyme Sitzung anlegen."""
     pfad = get_object_or_404(AntrPfad, kuerzel__iexact=kuerzel, aktiv=True, oeffentlich=True)
@@ -2225,6 +2231,7 @@ def antrag_oeffentlich_starten(request, kuerzel):
     return redirect("formulare:antrag_oeffentlich_schritt", sitzung_pk=sitzung.pk)
 
 
+@xframe_options_exempt
 def antrag_oeffentlich_schritt(request, sitzung_pk):
     """Zeigt aktuellen Schritt einer anonymen Sitzung."""
     if not _anon_darf_sitzung(request, sitzung_pk):
@@ -2274,6 +2281,7 @@ def antrag_oeffentlich_schritt(request, sitzung_pk):
             "zusammenfassung":       _baue_zusammenfassung(sitzung) if schritt.ist_ende else [],
             "bankverbindungen":      _bankverbindungen_pub,
             "bankverbindungen_json": _bankverbindungen_json_pub,
+            "embed":                 request.session.get("embed", False),
         })
 
     if request.method == "POST" and "_zurueck" in request.POST:
@@ -2350,16 +2358,21 @@ def antrag_oeffentlich_schritt(request, sitzung_pk):
     return _render_pub([], sitzung.gesammelte_daten)
 
 
+@xframe_options_exempt
 def antrag_oeffentlich_abgeschlossen(request, sitzung_pk):
     """Abschluss-Seite anonymer Sitzungen."""
     if not _anon_darf_sitzung(request, sitzung_pk):
         return redirect("formulare:antrag_oeffentlich_fehler")
     sitzung = get_object_or_404(AntrSitzung, pk=sitzung_pk, user__isnull=True)
     email_empfaenger = _versende_pdf_email(sitzung)
+    embed = request.session.get("embed", False)
+    if embed:
+        request.session.pop("embed", None)
     return render(request, "formulare/antrag_oeffentlich_abgeschlossen.html", {
         "sitzung":          sitzung,
         "zusammenfassung":  _baue_zusammenfassung(sitzung),
         "email_empfaenger": email_empfaenger,
+        "embed":            embed,
     })
 
 
