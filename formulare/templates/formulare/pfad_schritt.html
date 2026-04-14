@@ -1160,6 +1160,12 @@ function zahlung_demo_bestaetigen(feldId) {
             el.addEventListener("input", function(){
                 if (el.value.length === 8) lookup(el);
             });
+            // Bereits vorausgefüllten Wert auflösen, nur wenn Sub-Felder noch leer
+            if (el.value.length === 8) {
+                var ziel = el.dataset.agsZiel;
+                var gemFeld = document.getElementById("f-" + ziel + "_gemeinde");
+                if (!gemFeld || !gemFeld.value.trim()) lookup(el);
+            }
         });
     });
 }());
