@@ -158,6 +158,123 @@ def profil(request):
 
 
 # ---------------------------------------------------------------------------
+# Benutzerverwaltung (nur Administratoren)
+# ---------------------------------------------------------------------------
+
+def _ist_admin(user):
+    return user.is_authenticated and user.groups.filter(name="Administratoren").exists()
+
+
+@login_required
+def benutzer_liste(request):
+    if not _ist_admin(request.user):
+        messages.error(request, "Kein Zugriff.")
+        return redirect("core:dashboard")
+    from django.contrib.auth.models import User
+    benutzer = User.objects.select_related("profil").prefetch_related("groups").order_by("last_name", "first_name", "username")
+    return render(request, "core/benutzer_liste.html", {"benutzer": benutzer})
+
+
+@login_required
+def benutzer_neu(request):
+    if not _ist_admin(request.user):
+        messages.error(request, "Kein Zugriff.")
+        return redirect("core:dashboard")
+    from django.contrib.auth.models import User, Group
+    fehler = {}
+    if request.method == "POST":
+        username  = request.POST.get("username", "").strip()
+        vorname   = request.POST.get("vorname", "").strip()
+        nachname  = request.POST.get("nachname", "").strip()
+        email     = request.POST.get("email", "").strip()
+        passwort  = request.POST.get("passwort", "")
+        rolle     = request.POST.get("rolle", "")
+        if not username:
+            fehler["username"] = "Pflichtfeld."
+        elif User.objects.filter(username=username).exists():
+            fehler["username"] = "Benutzername bereits vergeben."
+        if not passwort or len(passwort) < 8:
+            fehler["passwort"] = "Mindestens 8 Zeichen."
+        if not fehler:
+            user = User.objects.create_user(username=username, email=email, password=passwort,
+                                            first_name=vorname, last_name=nachname)
+            if rolle in ("Administratoren", "Bearbeiter"):
+                gruppe, _ = Group.objects.get_or_create(name=rolle)
+                user.groups.add(gruppe)
+            Benutzerprofil.objects.get_or_create(user=user)
+            from core.models import audit
+            audit(request, aktion="erstellt", app="core", objekt_typ="User",
+                  objekt_id=str(user.pk), beschreibung=f"Benutzer angelegt: {username}")
+            messages.success(request, f"Benutzer „{username}" angelegt.")
+            return redirect("core:benutzer_liste")
+    return render(request, "core/benutzer_form.html", {"fehler": fehler, "modus": "neu", "post": request.POST})
+
+
+@login_required
+def benutzer_bearbeiten(request, pk):
+    if not _ist_admin(request.user):
+        messages.error(request, "Kein Zugriff.")
+        return redirect("core:dashboard")
+    from django.contrib.auth.models import User, Group
+    from django.shortcuts import get_object_or_404
+    ziel = get_object_or_404(User, pk=pk)
+    profil_obj, _ = Benutzerprofil.objects.get_or_create(user=ziel)
+    fehler = {}
+    if request.method == "POST":
+        ziel.first_name = request.POST.get("vorname", "").strip()
+        ziel.last_name  = request.POST.get("nachname", "").strip()
+        ziel.email      = request.POST.get("email", "").strip()
+        ziel.is_active  = request.POST.get("aktiv") == "1"
+        ziel.save()
+        rolle = request.POST.get("rolle", "")
+        ziel.groups.clear()
+        if rolle in ("Administratoren", "Bearbeiter"):
+            gruppe, _ = Group.objects.get_or_create(name=rolle)
+            ziel.groups.add(gruppe)
+        profil_obj.abteilung = request.POST.get("abteilung", "").strip()
+        profil_obj.telefon   = request.POST.get("telefon", "").strip()
+        profil_obj.save()
+        from core.models import audit
+        audit(request, aktion="geaendert", app="core", objekt_typ="User",
+              objekt_id=str(ziel.pk), beschreibung=f"Benutzer bearbeitet: {ziel.username}")
+        messages.success(request, "Gespeichert.")
+        return redirect("core:benutzer_liste")
+    aktuelle_rolle = ""
+    if ziel.groups.filter(name="Administratoren").exists():
+        aktuelle_rolle = "Administratoren"
+    elif ziel.groups.filter(name="Bearbeiter").exists():
+        aktuelle_rolle = "Bearbeiter"
+    return render(request, "core/benutzer_form.html", {
+        "modus": "bearbeiten", "ziel": ziel, "profil": profil_obj,
+        "aktuelle_rolle": aktuelle_rolle, "fehler": fehler,
+    })
+
+
+@login_required
+def benutzer_passwort(request, pk):
+    if not _ist_admin(request.user):
+        messages.error(request, "Kein Zugriff.")
+        return redirect("core:dashboard")
+    from django.contrib.auth.models import User
+    from django.shortcuts import get_object_or_404
+    ziel = get_object_or_404(User, pk=pk)
+    fehler = {}
+    if request.method == "POST":
+        passwort = request.POST.get("passwort", "")
+        if not passwort or len(passwort) < 8:
+            fehler["passwort"] = "Mindestens 8 Zeichen."
+        else:
+            ziel.set_password(passwort)
+            ziel.save()
+            from core.models import audit
+            audit(request, aktion="geaendert", app="core", objekt_typ="User",
+                  objekt_id=str(ziel.pk), beschreibung=f"Passwort gesetzt: {ziel.username}")
+            messages.success(request, f"Passwort für „{ziel.username}" gesetzt.")
+            return redirect("core:benutzer_liste")
+    return render(request, "core/benutzer_passwort.html", {"ziel": ziel, "fehler": fehler})
+
+
+# ---------------------------------------------------------------------------
 # LeiKa-Autocomplete
 # Hinweis: PVOG-API URL wechselt am 1. August 2026 auf pvog.fitko.net
 # ---------------------------------------------------------------------------

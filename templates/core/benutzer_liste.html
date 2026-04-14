@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+
+{% block title %}Benutzerverwaltung – Vorgangswerk{% endblock %}
+
+{% block content %}
+<div class="container py-4" style="max-width:900px;">
+
+    <div class="d-flex align-items-center justify-content-between mb-4">
+        <h1 class="h3 fw-bold mb-0" style="color:#1a4d2e;">Benutzerverwaltung</h1>
+        <a href="{% url 'core:benutzer_neu' %}" class="btn btn-sm btn-success">+ Neuer Benutzer</a>
+    </div>
+
+    {% if messages %}
+    {% for msg in messages %}
+    <div class="alert alert-{{ msg.tags|default:'info' }} alert-dismissible py-2">
+        {{ msg }} <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+    {% endfor %}
+    {% endif %}
+
+    <div class="card border-0 shadow-sm">
+        <table class="table table-hover mb-0 align-middle">
+            <thead class="table-light">
+                <tr>
+                    <th>Name / Benutzername</th>
+                    <th>E-Mail</th>
+                    <th>Rolle</th>
+                    <th>Status</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for u in benutzer %}
+            <tr>
+                <td>
+                    <div class="fw-semibold">{{ u.get_full_name|default:u.username }}</div>
+                    <div class="text-muted small">{{ u.username }}</div>
+                </td>
+                <td class="text-muted small">{{ u.email|default:"–" }}</td>
+                <td>
+                    {% if u.groups.all %}
+                    {% for g in u.groups.all %}
+                    <span class="badge bg-secondary">{{ g.name }}</span>
+                    {% endfor %}
+                    {% else %}
+                    <span class="text-muted small">Antragsteller</span>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if u.is_active %}
+                    <span class="badge bg-success">Aktiv</span>
+                    {% else %}
+                    <span class="badge bg-danger">Inaktiv</span>
+                    {% endif %}
+                </td>
+                <td class="text-end">
+                    <a href="{% url 'core:benutzer_bearbeiten' u.pk %}" class="btn btn-xs btn-outline-secondary btn-sm">Bearbeiten</a>
+                    <a href="{% url 'core:benutzer_passwort' u.pk %}" class="btn btn-xs btn-outline-warning btn-sm">Passwort</a>
+                </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="5" class="text-muted text-center py-4">Keine Benutzer gefunden.</td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+</div>
+{% endblock %}

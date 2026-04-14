@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+
+{% block title %}{% if modus == "neu" %}Neuer Benutzer{% else %}Benutzer bearbeiten{% endif %} – Vorgangswerk{% endblock %}
+
+{% block content %}
+<div class="container py-4" style="max-width:600px;">
+
+    <h1 class="h3 fw-bold mb-4" style="color:#1a4d2e;">
+        {% if modus == "neu" %}Neuer Benutzer{% else %}{{ ziel.get_full_name|default:ziel.username }} bearbeiten{% endif %}
+    </h1>
+
+    <div class="card border-0 shadow-sm">
+        <div class="card-body">
+            <form method="post">
+                {% csrf_token %}
+
+                {% if modus == "neu" %}
+                <div class="mb-3">
+                    <label class="form-label fw-semibold">Benutzername <span class="text-danger">*</span></label>
+                    <input type="text" name="username" class="form-control {% if fehler.username %}is-invalid{% endif %}"
+                           value="{{ post.username|default:'' }}" autocomplete="off">
+                    {% if fehler.username %}<div class="invalid-feedback">{{ fehler.username }}</div>{% endif %}
+                </div>
+                {% endif %}
+
+                <div class="row g-3 mb-3">
+                    <div class="col">
+                        <label class="form-label fw-semibold">Vorname</label>
+                        <input type="text" name="vorname" class="form-control"
+                               value="{{ ziel.first_name|default:post.vorname|default:'' }}">
+                    </div>
+                    <div class="col">
+                        <label class="form-label fw-semibold">Nachname</label>
+                        <input type="text" name="nachname" class="form-control"
+                               value="{{ ziel.last_name|default:post.nachname|default:'' }}">
+                    </div>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label fw-semibold">E-Mail</label>
+                    <input type="email" name="email" class="form-control"
+                           value="{{ ziel.email|default:post.email|default:'' }}">
+                </div>
+
+                {% if modus == "neu" %}
+                <div class="mb-3">
+                    <label class="form-label fw-semibold">Passwort <span class="text-danger">*</span></label>
+                    <input type="password" name="passwort" class="form-control {% if fehler.passwort %}is-invalid{% endif %}"
+                           autocomplete="new-password">
+                    {% if fehler.passwort %}<div class="invalid-feedback">{{ fehler.passwort }}</div>{% endif %}
+                    <div class="form-text">Mindestens 8 Zeichen.</div>
+                </div>
+                {% endif %}
+
+                <div class="mb-3">
+                    <label class="form-label fw-semibold">Rolle</label>
+                    <select name="rolle" class="form-select">
+                        <option value="" {% if not aktuelle_rolle and not post.rolle %}selected{% endif %}>Antragsteller (kein Zugriff auf Editor)</option>
+                        <option value="Bearbeiter" {% if aktuelle_rolle == "Bearbeiter" or post.rolle == "Bearbeiter" %}selected{% endif %}>Bearbeiter</option>
+                        <option value="Administratoren" {% if aktuelle_rolle == "Administratoren" or post.rolle == "Administratoren" %}selected{% endif %}>Administrator</option>
+                    </select>
+                </div>
+
+                {% if modus == "bearbeiten" %}
+                <div class="mb-3">
+                    <label class="form-label fw-semibold">Abteilung</label>
+                    <input type="text" name="abteilung" class="form-control"
+                           value="{{ profil.abteilung|default:'' }}">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label fw-semibold">Telefon</label>
+                    <input type="text" name="telefon" class="form-control"
+                           value="{{ profil.telefon|default:'' }}">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label fw-semibold">Status</label>
+                    <div class="form-check form-switch mt-1">
+                        <input class="form-check-input" type="checkbox" name="aktiv" value="1"
+                               id="aktiv-check" {% if ziel.is_active %}checked{% endif %}>
+                        <label class="form-check-label" for="aktiv-check">Benutzer aktiv</label>
+                    </div>
+                </div>
+                {% endif %}
+
+                <div class="d-flex gap-2 mt-4">
+                    <button type="submit" class="btn btn-sm" style="background:#1a4d2e;color:#fff;">Speichern</button>
+                    <a href="{% url 'core:benutzer_liste' %}" class="btn btn-sm btn-outline-secondary">Abbrechen</a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+</div>
+{% endblock %}

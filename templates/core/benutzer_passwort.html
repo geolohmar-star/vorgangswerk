@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+
+{% block title %}Passwort setzen – Vorgangswerk{% endblock %}
+
+{% block content %}
+<div class="container py-4" style="max-width:500px;">
+
+    <h1 class="h3 fw-bold mb-4" style="color:#1a4d2e;">
+        Passwort für „{{ ziel.get_full_name|default:ziel.username }}"
+    </h1>
+
+    <div class="card border-0 shadow-sm">
+        <div class="card-body">
+            <form method="post">
+                {% csrf_token %}
+                <div class="mb-3">
+                    <label class="form-label fw-semibold">Neues Passwort <span class="text-danger">*</span></label>
+                    <input type="password" name="passwort"
+                           class="form-control {% if fehler.passwort %}is-invalid{% endif %}"
+                           autocomplete="new-password">
+                    {% if fehler.passwort %}<div class="invalid-feedback">{{ fehler.passwort }}</div>{% endif %}
+                    <div class="form-text">Mindestens 8 Zeichen.</div>
+                </div>
+                <div class="d-flex gap-2">
+                    <button type="submit" class="btn btn-sm btn-warning">Passwort setzen</button>
+                    <a href="{% url 'core:benutzer_liste' %}" class="btn btn-sm btn-outline-secondary">Abbrechen</a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+</div>
+{% endblock %}
