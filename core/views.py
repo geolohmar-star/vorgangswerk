@@ -205,7 +205,7 @@ def benutzer_neu(request):
             from core.models import audit
             audit(request, aktion="erstellt", app="core", objekt_typ="User",
                   objekt_id=str(user.pk), beschreibung=f"Benutzer angelegt: {username}")
-            messages.success(request, f"Benutzer „{username}" angelegt.")
+            messages.success(request, f'Benutzer "{username}" angelegt.')
             return redirect("core:benutzer_liste")
     return render(request, "core/benutzer_form.html", {"fehler": fehler, "modus": "neu", "post": request.POST})
 
@@ -269,7 +269,7 @@ def benutzer_passwort(request, pk):
             from core.models import audit
             audit(request, aktion="geaendert", app="core", objekt_typ="User",
                   objekt_id=str(ziel.pk), beschreibung=f"Passwort gesetzt: {ziel.username}")
-            messages.success(request, f"Passwort für „{ziel.username}" gesetzt.")
+            messages.success(request, f'Passwort für "{ziel.username}" gesetzt.')
             return redirect("core:benutzer_liste")
     return render(request, "core/benutzer_passwort.html", {"ziel": ziel, "fehler": fehler})
 
