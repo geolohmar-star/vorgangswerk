@@ -166,8 +166,32 @@
                 var warnung = document.getElementById("qrcode-warnung-oeffentlich");
                 if (warnung) warnung.style.display = istOeffentlich ? "none" : "";
                 var iframeEl = document.getElementById("qrcode-iframe");
-                if (iframeEl && url) {
-                    iframeEl.value = '<iframe src="' + url + '?embed=1" width="100%" height="600" frameborder="0" style="border:none;"></iframe>';
+                var snippetEl = document.getElementById("qrcode-snippet");
+                if (url) {
+                    var embedUrl = url + "?embed=1";
+                    if (iframeEl) {
+                        iframeEl.value = '<iframe src="' + embedUrl + '" width="100%" height="600" frameborder="0" style="border:none; display:block;"></iframe>';
+                    }
+                    if (snippetEl) {
+                        snippetEl.value = [
+                            '<!-- Vorgangswerk Formular-Einbettung -->',
+                            '<div id="vw-form-container" style="width:100%;">',
+                            '  <iframe id="vw-iframe"',
+                            '    src="' + embedUrl + '"',
+                            '    width="100%" height="600"',
+                            '    frameborder="0" style="border:none; display:block;">',
+                            '  </iframe>',
+                            '</div>',
+                            '<script>',
+                            'window.addEventListener("message", function(e) {',
+                            '  if (e.data && e.data.type === "vorgangswerk:abgeschlossen") {',
+                            '    // Antrag abgeschlossen – hier eigene Logik einfügen',
+                            '    console.log("Antrag eingereicht:", e.data.vorgangsnummer);',
+                            '  }',
+                            '});',
+                            '<\/script>'
+                        ].join('\n');
+                    }
                 }
                 qrcodeModal.show();
             });
@@ -201,6 +225,23 @@
                             setTimeout(function () { iframeKopiBtn.textContent = "\uD83D\uDCCB"; }, 1500);
                         } catch (e2) {
                             iframeEl.select();
+                        }
+                    }
+                });
+            }
+
+            // Vollständiges Snippet kopieren
+            var snippetKopiBtn = document.getElementById("btn-snippet-kopieren");
+            if (snippetKopiBtn) {
+                snippetKopiBtn.addEventListener("click", function () {
+                    var snippetEl = document.getElementById("qrcode-snippet");
+                    if (snippetEl && snippetEl.value) {
+                        try {
+                            navigator.clipboard.writeText(snippetEl.value);
+                            snippetKopiBtn.textContent = "\u2713";
+                            setTimeout(function () { snippetKopiBtn.textContent = "\uD83D\uDCCB"; }, 1500);
+                        } catch (e2) {
+                            snippetEl.select();
                         }
                     }
                 });

@@ -1139,14 +1139,24 @@ Was ist die Hauptstadt von Deutschland?;Berlin;München;Hamburg;Köln;Berlin ist
                     </div>
                 </div>
                 <div class="mb-3">
-                    <label class="form-label fw-semibold small">Einbettungs-Code (iframe)</label>
+                    <label class="form-label fw-semibold small">Einfache Einbettung (iframe)</label>
                     <div class="input-group">
                         <textarea class="form-control form-control-sm font-monospace"
                                   id="qrcode-iframe" rows="3" readonly></textarea>
                         <button class="btn btn-outline-secondary btn-sm" id="btn-iframe-kopieren"
                                 type="button" title="Code kopieren">&#128203;</button>
                     </div>
-                    <div class="form-text">Formular erscheint ohne Vorgangswerk-Header.</div>
+                    <div class="form-text">Schnell einbinden – einfach in den HTML-Quellcode einfügen.</div>
+                </div>
+                <div class="mb-1">
+                    <label class="form-label fw-semibold small">Vollständiger Einbettungs-Code (mit Event-Handler)</label>
+                    <div class="input-group">
+                        <textarea class="form-control form-control-sm font-monospace"
+                                  id="qrcode-snippet" rows="8" readonly></textarea>
+                        <button class="btn btn-outline-secondary btn-sm" id="btn-snippet-kopieren"
+                                type="button" title="Code kopieren">&#128203;</button>
+                    </div>
+                    <div class="form-text">Enthält PostMessage-Handler – reagiert wenn der Antrag abgeschlossen wird.</div>
                 </div>
             </div>
             <div class="modal-footer">
