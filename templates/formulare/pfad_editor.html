@@ -322,10 +322,10 @@ html, body { overflow: hidden; height: 100%; }
                         </optgroup>
                     </select>
                 </div>
-                <div class="mb-3">
-                    <label class="form-label fw-semibold">Bezeichnung <span class="text-danger">*</span></label>
+                <div class="mb-3" id="bezeichnung-row">
+                    <label class="form-label fw-semibold" id="bezeichnung-label">Bezeichnung <span class="text-danger">*</span></label>
                     <input type="text" class="form-control" id="feld-label" placeholder="z.B. Vorname">
-                    <small class="text-muted d-flex align-items-center gap-2 flex-wrap">
+                    <small class="text-muted d-flex align-items-center gap-2 flex-wrap" id="feld-id-vorschau-wrap">
                         <span>Feld-ID: <code id="feld-id-vorschau"></code></span>
                         <span id="fim-id-anzeige" style="display:none;">
                             &nbsp;|&nbsp; FIM: <code id="fim-id-vorschau" class="text-primary"></code>
@@ -334,6 +334,13 @@ html, body { overflow: hidden; height: 100%; }
                         </span>
                     </small>
                     <input type="hidden" id="feld-fim-id">
+                </div>
+                <!-- Feld-ID (explizit, nur bei bool) -->
+                <div class="mb-3" id="bool-id-row" style="display:none;">
+                    <label class="form-label fw-semibold">Feld-ID <span class="text-danger">*</span></label>
+                    <input type="text" class="form-control font-monospace" id="feld-bool-feld-id"
+                           placeholder="z.B. datenschutz_akzeptiert">
+                    <small class="text-muted">Kurzbezeichnung ohne Leerzeichen, wird in Auswertungen verwendet.</small>
                 </div>
                 <div class="mb-3">
                     <label class="form-label fw-semibold">Hilfetext</label>
@@ -748,6 +755,13 @@ html, body { overflow: hidden; height: 100%; }
                 <div class="form-check mt-1" id="versteckt-row">
                     <input class="form-check-input" type="checkbox" id="feld-versteckt">
                     <label class="form-check-label" for="feld-versteckt">Feld verstecken (Wert wird trotzdem gespeichert)</label>
+                </div>
+                <div class="mt-3 pt-2 border-top" id="zeige-wenn-row">
+                    <label class="form-label fw-semibold small text-muted mb-1">Nur anzeigen wenn …</label>
+                    <select class="form-select form-select-sm" id="feld-zeige-wenn">
+                        <option value="">— immer anzeigen —</option>
+                    </select>
+                    <small class="text-muted">Feld erscheint nur, wenn das gewählte Ja/Nein-Feld aktiviert ist.</small>
                 </div>
             </div>
             <div class="modal-footer">
