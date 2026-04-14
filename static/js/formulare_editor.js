@@ -203,7 +203,6 @@
                     }
                 });
             }
-        }
 
             // iframe-Code kopieren
             var iframeKopiBtn = document.getElementById("btn-iframe-kopieren");
