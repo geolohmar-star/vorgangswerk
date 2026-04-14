@@ -67,8 +67,8 @@ html, body { overflow: hidden; height: 100%; }
                 style="top:100%;z-index:1060;display:none;max-height:260px;overflow-y:auto;min-width:320px;left:0;"></ul>
         </div>
         {% if pfad and pfad.kuerzel %}
-        <button id="btn-qrcode" class="btn btn-sm btn-outline-success" title="Öffentliche URL anzeigen">
-            &#9641; URL
+        <button id="btn-qrcode" class="btn btn-sm btn-outline-success" title="Öffentliche URL, QR-Code und Einbettungs-Snippet">
+            &#9641; URL / Einbetten
         </button>
         {% endif %}
         <div class="ms-auto d-flex gap-2">
@@ -1140,8 +1140,13 @@ Was ist die Hauptstadt von Deutschland?;Berlin;München;Hamburg;Köln;Berlin ist
                 </div>
                 <div class="mb-3">
                     <label class="form-label fw-semibold small">Einbettungs-Code (iframe)</label>
-                    <textarea class="form-control form-control-sm font-monospace"
-                              id="qrcode-iframe" rows="3" readonly></textarea>
+                    <div class="input-group">
+                        <textarea class="form-control form-control-sm font-monospace"
+                                  id="qrcode-iframe" rows="3" readonly></textarea>
+                        <button class="btn btn-outline-secondary btn-sm" id="btn-iframe-kopieren"
+                                type="button" title="Code kopieren">&#128203;</button>
+                    </div>
+                    <div class="form-text">Formular erscheint ohne Vorgangswerk-Header.</div>
                 </div>
             </div>
             <div class="modal-footer">
