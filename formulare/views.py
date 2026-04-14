@@ -32,7 +32,7 @@ from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.template.loader import render_to_string
 from django.utils import timezone
-from django.views.decorators.http import require_POST
+from django.views.decorators.http import require_GET, require_POST
 from django.views.decorators.clickjacking import xframe_options_exempt
 
 from .models import AntrDatei, AntrPfad, AntrSchritt, AntrSitzung, AntrTransition, AntrVersion
@@ -596,6 +596,15 @@ def _validiere_schritt(schritt, post_data, vorige_daten=None, files_data=None, s
             if pflicht and not wert:
                 fehler.append(f'"{feld.get("label", feld_id)}" – Bitte wählen Sie eine Antwort.')
             daten[feld_id] = wert
+            continue
+        elif typ == "gemeindekennzahl":
+            ags = post_data.get(feld_id, "").strip()
+            if pflicht and (len(ags) != 8 or not ags.isdigit()):
+                fehler.append(f'"{feld.get("label", feld_id)}" muss eine 8-stellige Gemeindekennzahl sein.')
+            daten[feld_id] = ags
+            daten[f"{feld_id}_gemeinde"] = post_data.get(f"{feld_id}_gemeinde", "").strip()
+            daten[f"{feld_id}_kreis"]    = post_data.get(f"{feld_id}_kreis",    "").strip()
+            daten[f"{feld_id}_land"]     = post_data.get(f"{feld_id}_land",     "").strip()
             continue
         elif typ == "zahlung":
             wert = post_data.get(feld_id, "").strip()
@@ -2542,3 +2551,71 @@ def webhook_testen(request, pk):
     zustellen(wh, payload, "webhook.test")
     messages.info(request, f"Test-Ping an {wh.url} gesendet. Ergebnis im Log.")
     return redirect("formulare:webhook_log", pk=pk)
+
+
+# ---------------------------------------------------------------------------
+# AGS-Lookup
+# ---------------------------------------------------------------------------
+
+@require_GET
+def ags_suche(request):
+    """
+    Gibt Gemeinde, Kreis und Bundesland für einen AGS zurück.
+
+    Sucht zuerst in der lokalen JSON-Datei (ags_daten.json).
+    Falls nicht vorhanden, wird Wikidata SPARQL als Fallback abgefragt.
+    Bundesland wird immer aus dem 2-stelligen Präfix abgeleitet.
+    """
+    from .ags_lookup import suche, BUNDESLAENDER
+    ags = request.GET.get("ags", "").strip().zfill(8)
+    if not ags or not ags.isdigit() or len(ags) != 8:
+        return JsonResponse({"fehler": "Ungültiger AGS."}, status=400)
+
+    ergebnis = suche(ags)
+
+    # Falls Gemeinde fehlt → Wikidata-Echtzeit-Lookup
+    if not ergebnis["gemeinde"]:
+        ergebnis = _ags_wikidata_lookup(ags, ergebnis)
+
+    return JsonResponse(ergebnis)
+
+
+def _ags_wikidata_lookup(ags: str, fallback: dict) -> dict:
+    """Fragt Wikidata nach einem einzelnen AGS-Eintrag."""
+    import urllib.parse
+    import urllib.request
+    query = f"""
+SELECT ?gemName ?kreisName ?bundeslandName WHERE {{
+  ?gem wdt:P439 "{ags}".
+  ?gem rdfs:label ?gemName. FILTER(LANG(?gemName) = 'de')
+  OPTIONAL {{
+    ?gem wdt:P131 ?kreis.
+    ?kreis rdfs:label ?kreisName. FILTER(LANG(?kreisName) = 'de')
+    OPTIONAL {{
+      ?kreis wdt:P131 ?bl.
+      ?bl wdt:P31 wd:Q1221156.
+      ?bl rdfs:label ?bundeslandName. FILTER(LANG(?bundeslandName) = 'de')
+    }}
+  }}
+}} LIMIT 1
+"""
+    try:
+        params = urllib.parse.urlencode({"query": query, "format": "json"})
+        url = f"https://query.wikidata.org/sparql?{params}"
+        req = urllib.request.Request(url, headers={
+            "User-Agent": "VorgangsWerk/1.0 AGS-Lookup",
+            "Accept": "application/sparql-results+json",
+        })
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            daten = json.loads(resp.read())
+        treffer = daten.get("results", {}).get("bindings", [])
+        if treffer:
+            b = treffer[0]
+            return {
+                "gemeinde": b.get("gemName",      {}).get("value", fallback["gemeinde"]),
+                "kreis":    b.get("kreisName",    {}).get("value", fallback["kreis"]),
+                "land":     b.get("bundeslandName",{}).get("value", fallback["land"]),
+            }
+    except Exception:
+        pass
+    return fallback

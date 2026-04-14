@@ -1250,6 +1250,12 @@
             if (t === "kfz")              return '<input type="text" class="' + cls + '" placeholder="HH-AB 1234" maxlength="12">';
             if (t === "steuernummer")     return '<input type="text" class="' + cls + '" placeholder="123/456/78901" maxlength="20">';
             if (t === "mitarbeiternummer") return '<input type="text" class="' + cls + '" placeholder="12345" maxlength="20" inputmode="numeric">';
+            if (t === "gemeindekennzahl") return '<div class="row g-1">'
+                + '<div class="col-5"><input type="text" class="form-control form-control-sm" placeholder="05374008 (AGS)" maxlength="8"></div>'
+                + '<div class="col-7"><input type="text" class="form-control form-control-sm bg-light" placeholder="Gemeinde (auto)" readonly></div>'
+                + '<div class="col-6"><input type="text" class="form-control form-control-sm bg-light" placeholder="Kreis (auto)" readonly></div>'
+                + '<div class="col-6"><input type="text" class="form-control form-control-sm bg-light" placeholder="Bundesland (auto)" readonly></div>'
+                + '</div>';
             if (t === "zahlung") {
                 var zBetrag = feld.betrag_fest ? feld.betrag_fest.toFixed(2) + "\u00a0EUR" : "–";
                 var zMeth = (feld.methoden || ["stripe_karte"]);
@@ -1555,7 +1561,7 @@
         var ohneLabel = ["trennlinie", "leerblock", "zusammenfassung", "einwilligung", "quizhinweis", "quizergebnis", "quizpool"];
         var ohneHilfe = ["trennlinie", "leerblock", "bool", "abschnitt", "textblock", "berechnung",
                          "zusammenfassung", "signatur", "gruppe", "link", "pdf_email", "einwilligung", "systemfeld",
-                         "quizfrage", "quizhinweis", "quizergebnis", "quizpool"];
+                         "quizfrage", "quizhinweis", "quizergebnis", "quizpool", "gemeindekennzahl"];
         // Regex-Validierung nur bei freien Texteingaben sinnvoll
         var mitRegex = ["text", "mehrzeil", "telefon", "steuernummer", "kfz", "mitarbeiternummer",
                         "iban", "bic", "plz", "email", "zahl", "uhrzeit", "iban"];

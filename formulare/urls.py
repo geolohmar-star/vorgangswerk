@@ -45,6 +45,8 @@ urlpatterns = [
     path("webhooks/<int:pk>/testen/", views.webhook_testen, name="webhook_testen"),
     # Auswertung
     path("auswertung/<int:pk>/", views.pfad_auswertung, name="pfad_auswertung"),
+    # AGS-Lookup
+    path("ags/", views.ags_suche, name="ags_suche"),
 ]
 
 # ---------------------------------------------------------------------------

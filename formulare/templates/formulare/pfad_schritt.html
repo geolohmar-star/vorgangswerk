@@ -303,6 +303,53 @@
                            {% if pflicht %}required{% endif %}>
                 </div>
 
+                {% elif typ == "gemeindekennzahl" %}
+                {% with gem_key=id|add:"_gemeinde" kreis_key=id|add:"_kreis" land_key=id|add:"_land" %}
+                <div class="col-12">
+                    <fieldset>
+                        <legend class="form-label fw-semibold">
+                            {{ label }}{% if pflicht %} <span class="text-danger" aria-hidden="true">*</span>{% endif %}
+                        </legend>
+                        <div class="row g-2">
+                            <div class="col-md-4">
+                                <label class="form-label small" for="f-{{ id }}">Gemeindekennzahl (AGS)</label>
+                                <div class="input-group">
+                                    <input type="text" class="form-control ags-eingabe" name="{{ id }}" id="f-{{ id }}"
+                                           placeholder="z.B. 05374008" maxlength="8" inputmode="numeric"
+                                           pattern="[0-9]{8}"
+                                           value="{{ vorwerte|get_item:id }}"
+                                           data-ags-ziel="{{ id }}"
+                                           {% if pflicht %}required{% endif %}>
+                                    <a href="https://www.statistikportal.de/de/gemeindeverzeichnis"
+                                       target="_blank" rel="noopener"
+                                       class="btn btn-outline-secondary btn-sm" title="AGS nachschlagen">&#128269;</a>
+                                </div>
+                                <small class="text-muted">8-stelliger Amtlicher Gemeindeschlüssel</small>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label small" for="f-{{ id }}_gemeinde">Gemeinde</label>
+                                <input type="text" class="form-control ags-gemeinde" name="{{ id }}_gemeinde" id="f-{{ id }}_gemeinde"
+                                       placeholder="wird automatisch gefüllt"
+                                       value="{{ vorwerte|get_item:gem_key }}">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label small" for="f-{{ id }}_kreis">Kreis</label>
+                                <input type="text" class="form-control ags-kreis" name="{{ id }}_kreis" id="f-{{ id }}_kreis"
+                                       placeholder="wird automatisch gefüllt"
+                                       value="{{ vorwerte|get_item:kreis_key }}">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label small" for="f-{{ id }}_land">Bundesland</label>
+                                <input type="text" class="form-control ags-land" name="{{ id }}_land" id="f-{{ id }}_land"
+                                       placeholder="wird automatisch gefüllt"
+                                       value="{{ vorwerte|get_item:land_key }}"
+                                       readonly>
+                            </div>
+                        </div>
+                    </fieldset>
+                </div>
+                {% endwith %}
+
                 {% elif typ == "mitarbeiternummer" %}
                 <div class="{% if feld.breite == 50 %}col-md-6{% elif feld.breite == 25 %}col-md-3{% elif feld.breite == 75 %}col-md-9{% else %}col-12{% endif %}">
                     <label class="form-label fw-semibold" for="f-{{ id }}">
@@ -1079,6 +1126,41 @@ function zahlung_demo_bestaetigen(feldId) {
         _aktualisiere();
         document.addEventListener("change", _aktualisiere);
         document.addEventListener("input", _aktualisiere);
+    });
+}());
+</script>
+
+<script>
+// AGS-Lookup – füllt Gemeinde, Kreis, Land automatisch
+(function () {
+    "use strict";
+    var AGS_URL = "{% url 'formulare:ags_suche' %}";
+
+    function lookup(eingabe) {
+        var ags = eingabe.value.trim();
+        var ziel = eingabe.dataset.agsZiel;
+        if (!ziel) return;
+        var gemEl   = document.getElementById("f-" + ziel + "_gemeinde");
+        var kreisEl = document.getElementById("f-" + ziel + "_kreis");
+        var landEl  = document.getElementById("f-" + ziel + "_land");
+        if (ags.length !== 8 || !/^\d{8}$/.test(ags)) return;
+        fetch(AGS_URL + "?ags=" + encodeURIComponent(ags))
+            .then(function(r){ return r.json(); })
+            .then(function(d){
+                if (gemEl)   gemEl.value   = d.gemeinde || "";
+                if (kreisEl) kreisEl.value = d.kreis    || "";
+                if (landEl)  landEl.value  = d.land     || "";
+            })
+            .catch(function(){});
+    }
+
+    document.addEventListener("DOMContentLoaded", function () {
+        document.querySelectorAll(".ags-eingabe").forEach(function(el) {
+            el.addEventListener("blur",  function(){ lookup(el); });
+            el.addEventListener("input", function(){
+                if (el.value.length === 8) lookup(el);
+            });
+        });
     });
 }());
 </script>
