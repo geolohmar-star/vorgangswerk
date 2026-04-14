@@ -135,6 +135,7 @@ Verfügbare Feldtypen:
 - email: E-Mail-Adresse
 - telefon: Telefonnummer
 - plz: Postleitzahl (5 Stellen)
+- gemeindekennzahl: 8-stelliger Amtlicher Gemeindeschlüssel (AGS) – füllt automatisch Gemeinde, Kreis und Bundesland aus. Verwende diesen Typ immer wenn das Formular nach "Gemeindekennzahl", "AGS", "Amtlicher Gemeindeschlüssel" fragt ODER wenn Felder für Gemeinde + Kreis + Bundesland zusammen vorkommen (z.B. "Gemeinde, Kreis, Land der bisherigen Hauptwohnung"). Das Feld mit id z.B. "wohnort_ags" erzeugt automatisch die Unterfelder wohnort_ags_gemeinde, wohnort_ags_kreis, wohnort_ags_land – diese brauchst du NICHT separat anzulegen.
 - radio: Einfachauswahl (Pflicht: "optionen": ["Option A", "Option B"])
 - checkboxen: Mehrfachauswahl (Pflicht: "optionen": ["Option A", "Option B"])
 - bool: Einzelne Checkbox (ja/nein)
@@ -158,6 +159,7 @@ Wichtige Regeln:
 - Verwende sprechende, einzigartige IDs (z.B. "vorname", "geburtsdatum", "kfz_kennzeichen")
 - Markiere echte Pflichtfelder mit pflicht:true
 - Füge bekannte FIM-IDs hinzu: F60000003=Vorname, F60000004=Nachname/Name, F60000022=Straße, F60000024=PLZ, F60000025=Ort, F60000030=E-Mail, F60000031=Telefon, F60000060=Datum
+- Wenn ein Formular nach Gemeindekennzahl / AGS fragt oder Felder für "Gemeinde + Kreis + Bundesland" kombiniert enthält: verwende typ "gemeindekennzahl" statt mehrerer text-Felder. Lege KEINE separaten Felder für Gemeinde, Kreis oder Bundesland an – das Feld füllt diese automatisch.
 - Der letzte Schritt (ist_ende:true) enthält ein "zusammenfassung"-Feld und optional "signatur"
 - Ohne visuelle Gruppen: 3-8 Schritte nach Themen, pos_y +150 pro Schritt
 
