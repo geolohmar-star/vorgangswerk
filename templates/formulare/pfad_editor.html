@@ -231,6 +231,15 @@ html, body { overflow: hidden; height: 100%; }
                         style="display:none;" title="Ausgewählte Felder in neuen Schritt auslagern">
                     &#9993; Schritt teilen
                 </button>
+                <div class="d-inline-flex gap-1 align-items-center" id="btn-schritt-verschieben-wrap" style="display:none !important;">
+                    <button type="button" class="btn btn-outline-info" id="btn-schritt-verschieben"
+                            title="Ausgewählte Felder in bestehenden Schritt verschieben">
+                        &#8594; Verschieben
+                    </button>
+                    <select class="form-select form-select-sm" id="verschieben-ziel" style="max-width:180px;">
+                        <option value="">— Zielschritt —</option>
+                    </select>
+                </div>
                 <button type="button" class="btn btn-primary" id="btn-schritt-speichern">Speichern</button>
             </div>
         </div>

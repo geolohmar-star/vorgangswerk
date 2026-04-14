@@ -704,6 +704,61 @@
             });
         }
 
+        // Felder in bestehenden Schritt verschieben
+        var verschBtn = document.getElementById("btn-schritt-verschieben");
+        if (verschBtn) {
+            verschBtn.addEventListener("click", function () {
+                var zielId = document.getElementById("verschieben-ziel").value;
+                if (!zielId) { alert("Bitte einen Zielschritt auswählen."); return; }
+
+                // Checkboxen einblenden falls noch nicht aktiv
+                var felder = document.getElementById("schritt-felder-liste").querySelectorAll("li[data-feld-idx]");
+                var cbs = document.getElementById("schritt-felder-liste").querySelectorAll(".teilen-cb");
+                if (cbs.length === 0) {
+                    felder.forEach(function (li) {
+                        var wrap = document.createElement("span");
+                        wrap.className = "teilen-cb-wrap me-2";
+                        var cb = document.createElement("input");
+                        cb.type = "checkbox";
+                        cb.className = "form-check-input teilen-cb";
+                        cb.dataset.idx = li.dataset.feldIdx;
+                        wrap.appendChild(cb);
+                        li.insertBefore(wrap, li.firstChild);
+                    });
+                    verschBtn.textContent = "\u2714 Auswahl verschieben";
+                    verschBtn.classList.add("btn-info");
+                    verschBtn.classList.remove("btn-outline-info");
+                    return;
+                }
+
+                // Bestätigen: markierte Felder verschieben
+                var ausgewaehlt = [];
+                document.getElementById("schritt-felder-liste").querySelectorAll(".teilen-cb:checked")
+                    .forEach(function (cb) { ausgewaehlt.push(parseInt(cb.dataset.idx, 10)); });
+
+                if (ausgewaehlt.length === 0) { alert("Bitte mindestens ein Feld ankreuzen."); return; }
+                if (ausgewaehlt.length === schritteFelder.length) {
+                    alert("Nicht alle Felder verschieben – mindestens eines muss im aktuellen Schritt bleiben.");
+                    return;
+                }
+
+                var verschoben = ausgewaehlt.map(function (i) { return schritteFelder[i]; });
+                var verbleibend = schritteFelder.filter(function (_, i) { return ausgewaehlt.indexOf(i) === -1; });
+
+                // Aktuellen Schritt aktualisieren
+                schritte[editNodeId].felder_json = JSON.parse(JSON.stringify(verbleibend));
+                nodes.update({ id: editNodeId, label: knotenLabel(schritte[editNodeId]), color: knotenFarbe(schritte[editNodeId]) });
+
+                // Felder an Zielschritt anhängen
+                var ziel = schritte[zielId];
+                var zielFelder = JSON.parse(JSON.stringify(ziel.felder_json || []));
+                ziel.felder_json = zielFelder.concat(verschoben);
+                nodes.update({ id: zielId, label: knotenLabel(ziel), color: knotenFarbe(ziel) });
+
+                schrittModal.hide();
+            });
+        }
+
         // PDF-Scanner
         var scannerModalEl = document.getElementById("scanner-modal");
         if (scannerModalEl) {
@@ -969,7 +1024,7 @@
         document.getElementById("tab-btn-felder").classList.toggle("active", !istTest);
         document.getElementById("tab-btn-test").classList.toggle("active", istTest);
         // Speichern/Teilen/Duplizieren im Footer ausblenden beim Test
-        ["btn-schritt-speichern", "btn-schritt-duplizieren", "btn-schritt-teilen"].forEach(function (id) {
+        ["btn-schritt-speichern", "btn-schritt-duplizieren", "btn-schritt-teilen", "btn-schritt-verschieben-wrap"].forEach(function (id) {
             var el = document.getElementById(id);
             if (el) el.style.visibility = istTest ? "hidden" : "";
         });
@@ -979,8 +1034,24 @@
     function _aktualisiereTeilenButton() {
         var btn = document.getElementById("btn-schritt-teilen");
         if (!btn) return;
-        // Nur anzeigen wenn Schritt besteht und mehr als 1 Feld hat
-        btn.style.display = (editNodeId && schritteFelder.length > 1) ? "" : "none";
+        var zeigeButtons = editNodeId && schritteFelder.length > 1;
+        btn.style.display = zeigeButtons ? "" : "none";
+        // Verschieben-Wrap: nur wenn mind. 2 andere Schritte existieren
+        var verschWrap = document.getElementById("btn-schritt-verschieben-wrap");
+        var andereSchritte = Object.keys(schritte).filter(function(id) { return id !== editNodeId; });
+        if (verschWrap) verschWrap.style.display = (zeigeButtons && andereSchritte.length > 0) ? "" : "none";
+        // Ziel-Dropdown befüllen
+        var zielSel = document.getElementById("verschieben-ziel");
+        if (zielSel) {
+            zielSel.innerHTML = '<option value="">— Zielschritt —</option>';
+            andereSchritte.forEach(function(id) {
+                var s = schritte[id];
+                var opt = document.createElement("option");
+                opt.value = id;
+                opt.textContent = s.titel || id;
+                zielSel.appendChild(opt);
+            });
+        }
         // Teilen-Modus zuruecksetzen falls aktiv
         if (!btn._teilenAktiv) return;
         btn._teilenAktiv = false;
