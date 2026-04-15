@@ -1173,7 +1173,7 @@ def pfad_editor(request, pk=None):
     workflow_templates = WorkflowTemplate.objects.filter(ist_aktiv=True).order_by("name")
     return render(request, "formulare/pfad_editor.html", {
         "pfad": pfad,
-        "bank_variablen_json": _json.dumps(bank_variablen, ensure_ascii=False),
+        "bank_variablen": bank_variablen,
         "workflow_templates": workflow_templates,
     })
 

@@ -419,14 +419,14 @@
                     </div>
                     {% endif %}
                     {% endwith %}
-                    <div class="border rounded bg-white" style="touch-action:none; cursor:crosshair; display:inline-block;">
+                    <div class="border rounded bg-white" style="display:inline-block; max-width:100%;">
                         <canvas id="sig-canvas-{{ id }}" width="500" height="150"
                                 data-sig-id="{{ id }}"
                                 role="img"
                                 aria-labelledby="sig-label-{{ id }}"
                                 aria-describedby="sig-hinweis-{{ id }}"
                                 tabindex="0"
-                                style="display:block; max-width:100%;"></canvas>
+                                style="display:block; max-width:100%; touch-action:none; user-select:none; cursor:crosshair;"></canvas>
                     </div>
                     <div class="mt-1">
                         <button type="button" class="btn btn-sm btn-outline-secondary"

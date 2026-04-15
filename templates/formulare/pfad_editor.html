@@ -1241,8 +1241,8 @@ Was ist die Hauptstadt von Deutschland?;Berlin;München;Hamburg;Köln;Berlin ist
 <script src="{% static 'js/sortable.min.js' %}"></script>
 <script src="{% static 'js/fim_felder.js' %}"></script>
 <script src="{% static 'js/formulare_editor.js' %}"></script>
-{% if bank_variablen_json %}
-{{ bank_variablen_json|json_script:"bank-variablen-data" }}
+{% if bank_variablen %}
+{{ bank_variablen|json_script:"bank-variablen-data" }}
 <script>
 (function () {
     var data = JSON.parse(document.getElementById("bank-variablen-data").textContent || "[]");

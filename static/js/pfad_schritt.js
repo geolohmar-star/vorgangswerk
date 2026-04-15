@@ -370,20 +370,21 @@ document.addEventListener("DOMContentLoaded", function () {
             letzterY = p.y;
         }
 
-        function stopZeichnen(e) {
+        function stopZeichnen() {
             if (!zeichnet) return;
             zeichnet = false;
             // PNG als base64 in Hidden-Input schreiben
             if (hidden) hidden.value = canvas.toDataURL("image/png");
         }
 
-        canvas.addEventListener("mousedown", startZeichnen);
-        canvas.addEventListener("mousemove", weiterZeichnen);
-        canvas.addEventListener("mouseup", stopZeichnen);
+        canvas.addEventListener("mousedown",  startZeichnen);
+        canvas.addEventListener("mousemove",  weiterZeichnen);
+        canvas.addEventListener("mouseup",    stopZeichnen);
         canvas.addEventListener("mouseleave", stopZeichnen);
         canvas.addEventListener("touchstart", startZeichnen, { passive: false });
-        canvas.addEventListener("touchmove", weiterZeichnen, { passive: false });
-        canvas.addEventListener("touchend", stopZeichnen);
+        canvas.addEventListener("touchmove",  weiterZeichnen, { passive: false });
+        canvas.addEventListener("touchend",   stopZeichnen);
+        canvas.addEventListener("touchcancel",stopZeichnen);
 
         // Loeschen-Button
         var clearBtn = document.querySelector("[data-sig-clear='" + id + "']");
