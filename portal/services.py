@@ -15,12 +15,81 @@ import json
 import logging
 import re
 import html
+from typing import Any
 
 import anthropic
 from django.conf import settings
 from django.utils import timezone
+from pydantic import BaseModel, model_validator, field_validator
 
 from .models import FormularAnalyse
+
+
+# ---------------------------------------------------------------------------
+# Pydantic-Modelle für KI-Output-Validierung
+# ---------------------------------------------------------------------------
+
+class FeldDefinition(BaseModel):
+    """Ein einzelnes Formularfeld – extra-Felder (typ-spezifisch) bleiben erhalten."""
+    id: str = ""
+    typ: str = "text"
+    label: str = ""
+    pflicht: bool = False
+    pdf_ausblenden: bool = False
+    versteckt: bool = False
+    fim_id: str = ""
+    hilfetext: str = ""
+
+    model_config = {"extra": "allow"}  # typ-spezifische Felder (optionen, text, ...) durchreichen
+
+
+class TransitionDefinition(BaseModel):
+    von: str
+    zu: str
+    bedingung: str = ""
+    label: str = ""
+    reihenfolge: int = 0
+
+    @field_validator("von", "zu", mode="before")
+    @classmethod
+    def leere_strings_abfangen(cls, v: Any) -> str:
+        return str(v) if v is not None else ""
+
+
+class SchrittDefinition(BaseModel):
+    node_id: str
+    titel: str = "Schritt"
+    ist_start: bool = False
+    ist_ende: bool = False
+    pos_x: int = 300
+    pos_y: int = 80
+    pdf_gruppe: str = ""
+    loop_bezeichnung: str = ""
+    loop_titel_feld: str = ""
+    felder_json: list[FeldDefinition] = []
+
+    model_config = {"extra": "ignore"}
+
+
+class PfadDefinition(BaseModel):
+    name: str
+    beschreibung: str = ""
+    kuerzel: str = ""
+    leika_schluessel: str = ""
+    schritte: list[SchrittDefinition]
+    transitionen: list[TransitionDefinition] = []
+
+    model_config = {"extra": "ignore"}
+
+    @model_validator(mode="after")
+    def erzeuge_transitionen_wenn_leer(self) -> "PfadDefinition":
+        """Lineare Kette erzeugen wenn die KI keine Transitionen geliefert hat."""
+        if not self.transitionen and len(self.schritte) > 1:
+            self.transitionen = [
+                TransitionDefinition(von=self.schritte[i].node_id, zu=self.schritte[i + 1].node_id, reihenfolge=i)
+                for i in range(len(self.schritte) - 1)
+            ]
+        return self
 
 logger = logging.getLogger("vorgangswerk.portal")
 
@@ -195,44 +264,34 @@ Falls das PDF ein Test, eine Prüfung oder eine Einweisung mit Wissensfragen ist
 Antworte AUSSCHLIESSLICH mit dem JSON-Objekt. Kein Text davor oder danach."""
 
 
-def _parse_json_antwort(antwort: str) -> dict:
-    """Extrahiert und validiert das JSON aus der Claude-Antwort.
+def _parse_json_antwort(antwort: str) -> PfadDefinition:
+    """Extrahiert, repariert und validiert den KI-Output als PfadDefinition.
 
-    Nutzt json_repair fuer robuste Verarbeitung von LLM-Ausgaben
-    (unescapte Zeichen, trailing commas, fehlende Kommas etc.).
+    json_repair korrigiert LLM-typische Fehler (trailing commas, unescapte
+    Zeichen, fehlende Kommas). Pydantic validiert Struktur und Typen,
+    setzt Defaults und erzeugt ggf. lineare Transitionen.
     """
     from json_repair import repair_json
+    from pydantic import ValidationError
 
     antwort = antwort.strip()
 
-    # Codeblock entfernen falls vorhanden
+    # Markdown-Codeblock entfernen falls vorhanden
     if antwort.startswith("```"):
         antwort = re.sub(r"^```(?:json)?\n?", "", antwort)
         antwort = re.sub(r"\n?```$", "", antwort.strip())
 
-    # Direkt versuchen
+    # JSON parsen – mit Reparatur als Fallback
     try:
-        daten = json.loads(antwort)
+        roh = json.loads(antwort)
     except json.JSONDecodeError:
-        # json_repair repariert alle gaengigen LLM-JSON-Fehler
-        repariert = repair_json(antwort, return_objects=False)
-        daten = json.loads(repariert)
+        roh = json.loads(repair_json(antwort, return_objects=False))
 
-    # Pflichtfelder prüfen
-    assert "name" in daten, "name fehlt"
-    assert "schritte" in daten, "schritte fehlt"
-    assert isinstance(daten["schritte"], list) and len(daten["schritte"]) > 0
-    # transitionen ist optional – bei fehlendem Feld lineare Kette erzeugen
-    if "transitionen" not in daten or not isinstance(daten["transitionen"], list):
-        schritte = daten["schritte"]
-        daten["transitionen"] = [
-            {"von": schritte[i].get("node_id", schritte[i].get("id", f"s{i+1:02d}")),
-             "zu":  schritte[i + 1].get("node_id", schritte[i + 1].get("id", f"s{i+2:02d}")),
-             "bedingung": "", "label": "", "reihenfolge": i}
-            for i in range(len(schritte) - 1)
-        ]
-
-    return daten
+    # Pydantic-Validierung
+    try:
+        return PfadDefinition.model_validate(roh)
+    except ValidationError as e:
+        raise ValueError(f"KI-Antwort ungültig: {e}") from e
 
 
 # ---------------------------------------------------------------------------
@@ -295,11 +354,11 @@ def analysiere_formular(analyse_id: int) -> None:
 
         antwort_text = nachricht.content[0].text
 
-        # 3. JSON parsen
-        ergebnis = _parse_json_antwort(antwort_text)
+        # 3. JSON parsen + Pydantic-Validierung
+        pfad_def = _parse_json_antwort(antwort_text)
 
-        # 4. Ergebnis speichern
-        analyse.ergebnis_json = ergebnis
+        # 4. Ergebnis speichern (als dict für JSONField)
+        analyse.ergebnis_json = pfad_def.model_dump()
         analyse.status = FormularAnalyse.STATUS_FERTIG
         analyse.fertig_am = timezone.now()
         analyse.save(update_fields=["ergebnis_json", "status", "fertig_am"])
@@ -324,46 +383,50 @@ def importiere_pfad_aus_analyse(analyse: FormularAnalyse) -> int:
     """
     from formulare.models import AntrPfad, AntrSchritt, AntrTransition
 
-    daten = analyse.ergebnis_json
+    pfad_def = PfadDefinition.model_validate(analyse.ergebnis_json)
+
     pfad = AntrPfad.objects.create(
-        name=daten.get("name", analyse.dateiname),
-        beschreibung=daten.get("beschreibung", ""),
-        kuerzel=daten.get("kuerzel", "")[:10],
-        leika_schluessel=daten.get("leika_schluessel", "")[:20],
+        name=pfad_def.name,
+        beschreibung=pfad_def.beschreibung,
+        kuerzel=pfad_def.kuerzel[:10],
+        leika_schluessel=pfad_def.leika_schluessel[:20],
         aktiv=True,
-        oeffentlich=False,  # Erstmal nicht öffentlich
+        oeffentlich=False,
     )
 
     schritt_map = {}
-    for sd in daten.get("schritte", []):
-        felder = sd.pop("felder_json", [])
+    for sd in pfad_def.schritte:
+        felder_dicts = [
+            f.model_dump(exclude_defaults=True)
+            for f in sd.felder_json
+        ]
         obj = AntrSchritt.objects.create(
             pfad=pfad,
-            felder_json=felder,
-            node_id=sd.get("node_id", ""),
-            titel=sd.get("titel", ""),
-            ist_start=sd.get("ist_start", False),
-            ist_ende=sd.get("ist_ende", False),
-            pos_x=sd.get("pos_x", 300),
-            pos_y=sd.get("pos_y", 80),
-            pdf_gruppe=sd.get("pdf_gruppe", ""),
-            loop_bezeichnung=sd.get("loop_bezeichnung", ""),
-            loop_titel_feld=sd.get("loop_titel_feld", ""),
+            felder_json=felder_dicts,
+            node_id=sd.node_id,
+            titel=sd.titel,
+            ist_start=sd.ist_start,
+            ist_ende=sd.ist_ende,
+            pos_x=sd.pos_x,
+            pos_y=sd.pos_y,
+            pdf_gruppe=sd.pdf_gruppe,
+            loop_bezeichnung=sd.loop_bezeichnung,
+            loop_titel_feld=sd.loop_titel_feld,
         )
         schritt_map[obj.node_id] = obj
 
-    for td in daten.get("transitionen", []):
-        von = schritt_map.get(td.get("von", ""))
-        zu = schritt_map.get(td.get("zu", ""))
+    for td in pfad_def.transitionen:
+        von = schritt_map.get(td.von)
+        zu = schritt_map.get(td.zu)
         if not von or not zu:
             continue
         AntrTransition.objects.create(
             pfad=pfad,
             von_schritt=von,
             zu_schritt=zu,
-            bedingung=td.get("bedingung", ""),
-            label=td.get("label", ""),
-            reihenfolge=td.get("reihenfolge", 0),
+            bedingung=td.bedingung,
+            label=td.label,
+            reihenfolge=td.reihenfolge,
         )
 
     analyse.status = FormularAnalyse.STATUS_IMPORTIERT
