@@ -441,8 +441,15 @@ def _baue_zusammenfassung(sitzung):
         return _zeilen(gesammelte, sitzung.besuchte_schritte)
 
     # Loop-Bezeichnung aus gesammelte_daten (wird beim Loop-Trigger gespeichert)
+    # Fallback: alle Schritte des Pfads durchsuchen (für ältere Sitzungen)
     loop_bezeichnung = gesammelte.get("__loop_bezeichnung__", "")
     loop_titel_feld = gesammelte.get("__loop_titel_feld__", "")
+    if not loop_bezeichnung:
+        for schritt in sitzung.pfad.schritte.all():
+            if schritt.loop_bezeichnung:
+                loop_bezeichnung = schritt.loop_bezeichnung
+                loop_titel_feld = schritt.loop_titel_feld or ""
+                break
 
     zusammenfassung = []
     for nr, iteration_daten in enumerate(_loop_iterationen(gesammelte), start=1):
