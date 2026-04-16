@@ -186,6 +186,8 @@ _KEINE_ANZEIGE = {
     "zusammenfassung", "pdf_email",
     # Quiz-Ergebnisfeld hat keinen Eintrag in der Zusammenfassung
     "quizergebnis",
+    # Systemfelder (loop_zaehler etc.) sind interne Steuerfelder
+    "systemfeld",
 }
 _DATEI_PRAEFX = "__datei__"
 
@@ -438,16 +440,9 @@ def _baue_zusammenfassung(sitzung):
     if durchlauf_count == 0:
         return _zeilen(gesammelte, sitzung.besuchte_schritte)
 
-    # Loop-Bezeichnung und Titelfeld aus dem ersten besuchten Schritt lesen
-    loop_bezeichnung = ""
-    loop_titel_feld = ""
-    if sitzung.besuchte_schritte:
-        try:
-            erster_schritt = sitzung.pfad.schritte.get(node_id=sitzung.besuchte_schritte[0])
-            loop_bezeichnung = erster_schritt.loop_bezeichnung or ""
-            loop_titel_feld = erster_schritt.loop_titel_feld or ""
-        except AntrSchritt.DoesNotExist:
-            pass
+    # Loop-Bezeichnung aus gesammelte_daten (wird beim Loop-Trigger gespeichert)
+    loop_bezeichnung = gesammelte.get("__loop_bezeichnung__", "")
+    loop_titel_feld = gesammelte.get("__loop_titel_feld__", "")
 
     zusammenfassung = []
     for nr, iteration_daten in enumerate(_loop_iterationen(gesammelte), start=1):
@@ -1842,6 +1837,11 @@ def pfad_schritt(request, sitzung_pk):
             for k in [k for k in sitzung.gesammelte_daten if not k.startswith("__")]:
                 del sitzung.gesammelte_daten[k]
             sitzung.gesammelte_daten["__loop_durchlauf"] = durchlauf + 1
+            # Loop-Bezeichnung aus dem auslösenden Schritt merken
+            if schritt.loop_bezeichnung and "__loop_bezeichnung__" not in sitzung.gesammelte_daten:
+                sitzung.gesammelte_daten["__loop_bezeichnung__"] = schritt.loop_bezeichnung
+            if schritt.loop_titel_feld and "__loop_titel_feld__" not in sitzung.gesammelte_daten:
+                sitzung.gesammelte_daten["__loop_titel_feld__"] = schritt.loop_titel_feld
             ziel_idx = sitzung.besuchte_schritte.index(naechster.node_id)
             besucht_liste = sitzung.besuchte_schritte[: ziel_idx + 1]
         else:
@@ -2394,6 +2394,10 @@ def antrag_oeffentlich_schritt(request, sitzung_pk):
             for k in [k for k in sitzung.gesammelte_daten if not k.startswith("__")]:
                 del sitzung.gesammelte_daten[k]
             sitzung.gesammelte_daten["__loop_durchlauf"] = durchlauf + 1
+            if schritt.loop_bezeichnung and "__loop_bezeichnung__" not in sitzung.gesammelte_daten:
+                sitzung.gesammelte_daten["__loop_bezeichnung__"] = schritt.loop_bezeichnung
+            if schritt.loop_titel_feld and "__loop_titel_feld__" not in sitzung.gesammelte_daten:
+                sitzung.gesammelte_daten["__loop_titel_feld__"] = schritt.loop_titel_feld
             ziel_idx = sitzung.besuchte_schritte.index(naechster.node_id)
             besucht_liste = sitzung.besuchte_schritte[: ziel_idx + 1]
         else:
