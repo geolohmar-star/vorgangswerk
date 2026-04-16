@@ -312,6 +312,19 @@
                         </legend>
                         <div class="row g-2">
                             <div class="col-md-4">
+                                <label class="form-label small" for="f-{{ id }}_plz_suche">PLZ</label>
+                                <input type="text" class="form-control plz-suche-eingabe" id="f-{{ id }}_plz_suche"
+                                       placeholder="z.B. 80331" maxlength="5" inputmode="numeric"
+                                       data-ags-ziel="{{ id }}">
+                                <small class="text-muted">PLZ eingeben → Gemeinde wird gesucht</small>
+                            </div>
+                            <div class="col-md-8 d-none" id="plz-treffer-{{ id }}">
+                                <label class="form-label small" for="plz-select-{{ id }}">Gemeinde auswählen</label>
+                                <select class="form-select" id="plz-select-{{ id }}" data-ags-ziel="{{ id }}">
+                                    <option value="">— bitte wählen —</option>
+                                </select>
+                            </div>
+                            <div class="col-md-4">
                                 <label class="form-label small" for="f-{{ id }}">Gemeindekennzahl (AGS)</label>
                                 <div class="input-group">
                                     <input type="text" class="form-control ags-eingabe" name="{{ id }}" id="f-{{ id }}"
@@ -1153,6 +1166,76 @@ function zahlung_demo_bestaetigen(feldId) {
 (function () {
     "use strict";
     var AGS_URL = "{% url 'formulare:ags_suche' %}";
+    var PLZ_API  = "https://openplzapi.org/de/Localities";
+
+    function plzLookup(eingabe) {
+        var plz  = eingabe.value.trim();
+        var ziel = eingabe.dataset.agsZiel;
+        if (!ziel || plz.length !== 5 || !/^\d{5}$/.test(plz)) return;
+
+        fetch(PLZ_API + "?postalCode=" + plz + "&page=1&pageSize=50")
+            .then(function(r) { return r.json(); })
+            .then(function(treffer) {
+                if (!Array.isArray(treffer) || treffer.length === 0) return;
+
+                // Deduplizieren nach Gemeinde-Key (AGS)
+                // t.name = Ortsteil/Locality, mun.name = Gemeinde
+                var unique = {};
+                treffer.forEach(function(t) {
+                    var mun = t.municipality || {};
+                    var key = mun.key;
+                    if (key && !unique[key]) {
+                        unique[key] = {
+                            ags:      key,
+                            name:     mun.name || t.name || "",
+                            ortsteil: t.name   || "",
+                            kreis:    (t.district    || {}).name || "",
+                            land:     (t.federalState|| {}).name || ""
+                        };
+                    }
+                });
+                var liste = Object.keys(unique).map(function(k) { return unique[k]; });
+                if (liste.length === 0) return;
+
+                var agsEingabe = document.querySelector(".ags-eingabe[data-ags-ziel='" + ziel + "']");
+                var trefferDiv = document.getElementById("plz-treffer-" + ziel);
+                var trefferSel = document.getElementById("plz-select-" + ziel);
+
+                function fuelleAgs(eintrag, mitOrtsteil) {
+                    if (agsEingabe) {
+                        agsEingabe.value = eintrag.ags;
+                        lookup(agsEingabe);
+                    }
+                    var prefix = ziel.replace(/_gkz$/, "");
+                    // PLZ in benachbartes {prefix}_plz-Feld schreiben
+                    var plzFeld = document.querySelector("input[name='" + prefix + "_plz']");
+                    if (plzFeld && !plzFeld.dataset.userEdited) plzFeld.value = plz;
+                    // Ortsteil nur bei eindeutigem Treffer mitschreiben
+                    if (mitOrtsteil && eintrag.ortsteil) {
+                        var ortsteilFeld = document.querySelector("input[name='" + prefix + "_ortsteil']");
+                        if (ortsteilFeld && !ortsteilFeld.dataset.userEdited) ortsteilFeld.value = eintrag.ortsteil;
+                    }
+                    if (trefferDiv) trefferDiv.classList.add("d-none");
+                }
+
+                if (liste.length === 1) {
+                    fuelleAgs(liste[0], true);
+                } else {
+                    if (trefferSel) {
+                        trefferSel.innerHTML = '<option value="">— Gemeinde auswählen —</option>';
+                        liste.sort(function(a,b){ return a.name.localeCompare(b.name, "de"); });
+                        liste.forEach(function(e) {
+                            var opt = document.createElement("option");
+                            opt.value = JSON.stringify(e);
+                            opt.textContent = e.name + (e.kreis ? " (" + e.kreis + ")" : "");
+                            trefferSel.appendChild(opt);
+                        });
+                    }
+                    if (trefferDiv) trefferDiv.classList.remove("d-none");
+                }
+            })
+            .catch(function(){});
+    }
 
     function lookup(eingabe) {
         var ags = eingabe.value.trim();
@@ -1202,6 +1285,32 @@ function zahlung_demo_bestaetigen(feldId) {
                 var gemFeld = document.getElementById("f-" + ziel + "_gemeinde");
                 if (!gemFeld || !gemFeld.value.trim()) lookup(el);
             }
+        });
+
+        document.querySelectorAll(".plz-suche-eingabe").forEach(function(el) {
+            el.addEventListener("input", function(){ if (el.value.length === 5) plzLookup(el); });
+            el.addEventListener("blur",  function(){ if (el.value.length === 5) plzLookup(el); });
+        });
+
+        document.querySelectorAll("[id^='plz-select-']").forEach(function(sel) {
+            sel.addEventListener("change", function() {
+                if (!sel.value) return;
+                var eintrag;
+                try { eintrag = JSON.parse(sel.value); } catch(e) { return; }
+                var ziel2 = sel.dataset.agsZiel;
+                var agsEingabe2 = document.querySelector(".ags-eingabe[data-ags-ziel='" + ziel2 + "']");
+                if (agsEingabe2) {
+                    agsEingabe2.value = eintrag.ags;
+                    lookup(agsEingabe2);
+                }
+                // PLZ aus Such-Feld in benachbartes {prefix}_plz-Feld schreiben
+                var prefix2 = ziel2.replace(/_gkz$/, "");
+                var plzSuche2 = document.querySelector(".plz-suche-eingabe[data-ags-ziel='" + ziel2 + "']");
+                var plzFeld2  = document.querySelector("input[name='" + prefix2 + "_plz']");
+                if (plzFeld2 && plzSuche2 && !plzFeld2.dataset.userEdited) plzFeld2.value = plzSuche2.value;
+                var trefferDiv2 = document.getElementById("plz-treffer-" + ziel2);
+                if (trefferDiv2) trefferDiv2.classList.add("d-none");
+            });
         });
 
         // Autofill-Felder: user-edited Flag setzen + allgemeine Quell-Aktualisierung
