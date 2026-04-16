@@ -1269,6 +1269,85 @@ def pfad_editor_laden(request, pk):
     })
 
 
+# ---------------------------------------------------------------------------
+# Pydantic-Modelle für Editor-Payload-Validierung
+# ---------------------------------------------------------------------------
+
+from pydantic import BaseModel as _PydanticBase, field_validator as _field_validator
+from typing import Any as _Any
+
+
+class _EditorFeld(_PydanticBase):
+    model_config = {"extra": "allow"}
+    id: str = ""
+    typ: str = "text"
+    label: str = ""
+    pflicht: bool = False
+    pdf_ausblenden: bool = False
+
+
+class _EditorSchritt(_PydanticBase):
+    model_config = {"extra": "ignore"}
+    node_id: str
+    titel: str = "Schritt"
+    felder_json: list[_EditorFeld] = []
+    ist_start: bool = False
+    ist_ende: bool = False
+    pos_x: int = 200
+    pos_y: int = 200
+    loop_bezeichnung: str = ""
+    loop_titel_feld: str = ""
+    pdf_gruppe: str = ""
+
+
+class _EditorTransition(_PydanticBase):
+    model_config = {"extra": "ignore"}
+    von: str
+    zu: str
+    bedingung: str = ""
+    label: str = ""
+    reihenfolge: int = 0
+
+
+class _EditorPayload(_PydanticBase):
+    model_config = {"extra": "ignore"}
+    pk: int | None = None
+    name: str
+    beschreibung: str = ""
+    aktiv: bool = True
+    oeffentlich: bool = False
+    kuerzel: str = ""
+    variablen: dict = {}
+    workflow_template_id: int | None = None
+    benachrichtigung_email: str = ""
+    leika_schluessel: str = ""
+    schritte: list[_EditorSchritt] = []
+    transitionen: list[_EditorTransition] = []
+
+    @_field_validator("kuerzel", mode="before")
+    @classmethod
+    def _kuerzel_norm(cls, v: _Any) -> str:
+        return str(v or "").strip().upper()[:6]
+
+    @_field_validator("workflow_template_id", mode="before")
+    @classmethod
+    def _wf_tid_norm(cls, v: _Any) -> int | None:
+        if v in (None, "", "null"):
+            return None
+        try:
+            return int(v)
+        except (ValueError, TypeError):
+            return None
+
+    @_field_validator("name", mode="before")
+    @classmethod
+    def _name_nicht_leer(cls, v: _Any) -> str:
+        v = str(v or "").strip()
+        if not v:
+            raise ValueError("Name ist Pflichtfeld")
+        return v
+
+
 @require_POST
 @login_required
 def pfad_editor_speichern(request):
@@ -1276,91 +1355,70 @@ def pfad_editor_speichern(request):
     if not _ist_editor(request.user):
         return JsonResponse({"ok": False, "fehler": "Kein Zugriff"}, status=403)
     try:
-        daten = json.loads(request.body)
-    except json.JSONDecodeError:
-        return JsonResponse({"ok": False, "fehler": "Ungueltige JSON-Daten"}, status=400)
+        payload = _EditorPayload.model_validate_json(request.body)
+    except (ValueError, Exception) as e:
+        return JsonResponse({"ok": False, "fehler": str(e)}, status=400)
 
-    pk = daten.get("pk")
-    name = daten.get("name", "").strip()
-    if not name:
-        return JsonResponse({"ok": False, "fehler": "Name ist Pflichtfeld"}, status=400)
-
-    kuerzel = daten.get("kuerzel", "").strip().upper()[:6]
-    oeffentlich = bool(daten.get("oeffentlich", False))
-    benachrichtigung_email = daten.get("benachrichtigung_email", "").strip()
-    leika_schluessel = daten.get("leika_schluessel", "").strip()
-    wf_tid = daten.get("workflow_template_id") or None
-    if wf_tid:
-        try:
-            wf_tid = int(wf_tid)
-        except (ValueError, TypeError):
-            wf_tid = None
-
-    if pk:
-        pfad = get_object_or_404(AntrPfad, pk=pk)
-        pfad.name = name
-        pfad.beschreibung = daten.get("beschreibung", "")
-        pfad.aktiv = daten.get("aktiv", True)
-        pfad.oeffentlich = oeffentlich
-        pfad.kuerzel = kuerzel
-        pfad.variablen_json = daten.get("variablen", {}) or {}
-        pfad.workflow_template_id = wf_tid
-        pfad.benachrichtigung_email = benachrichtigung_email
-        pfad.leika_schluessel = leika_schluessel
+    if payload.pk:
+        pfad = get_object_or_404(AntrPfad, pk=payload.pk)
+        pfad.name = payload.name
+        pfad.beschreibung = payload.beschreibung
+        pfad.aktiv = payload.aktiv
+        pfad.oeffentlich = payload.oeffentlich
+        pfad.kuerzel = payload.kuerzel
+        pfad.variablen_json = payload.variablen
+        pfad.workflow_template_id = payload.workflow_template_id
+        pfad.benachrichtigung_email = payload.benachrichtigung_email
+        pfad.leika_schluessel = payload.leika_schluessel
         pfad.save()
         pfad.transitionen.all().delete()
         pfad.schritte.all().delete()
     else:
         pfad = AntrPfad.objects.create(
-            name=name,
-            beschreibung=daten.get("beschreibung", ""),
-            aktiv=daten.get("aktiv", True),
-            oeffentlich=oeffentlich,
-            kuerzel=kuerzel,
-            variablen_json=daten.get("variablen", {}) or {},
-            workflow_template_id=wf_tid,
-            benachrichtigung_email=benachrichtigung_email,
-            leika_schluessel=leika_schluessel,
+            name=payload.name,
+            beschreibung=payload.beschreibung,
+            aktiv=payload.aktiv,
+            oeffentlich=payload.oeffentlich,
+            kuerzel=payload.kuerzel,
+            variablen_json=payload.variablen,
+            workflow_template_id=payload.workflow_template_id,
+            benachrichtigung_email=payload.benachrichtigung_email,
+            leika_schluessel=payload.leika_schluessel,
             erstellt_von=request.user,
         )
 
-    # Schritte anlegen
     schritt_map = {}
-    for s in daten.get("schritte", []):
-        node_id = s.get("node_id", "")
-        if not node_id:
-            continue
+    for s in payload.schritte:
         obj = AntrSchritt.objects.create(
             pfad=pfad,
-            node_id=node_id,
-            titel=s.get("titel", "Schritt"),
-            felder_json=s.get("felder_json", []),
-            ist_start=s.get("ist_start", False),
-            ist_ende=s.get("ist_ende", False),
-            pos_x=s.get("pos_x", 200),
-            pos_y=s.get("pos_y", 200),
-            loop_bezeichnung=s.get("loop_bezeichnung", ""),
-            loop_titel_feld=s.get("loop_titel_feld", ""),
-            pdf_gruppe=s.get("pdf_gruppe", ""),
+            node_id=s.node_id,
+            titel=s.titel,
+            felder_json=[f.model_dump(exclude_defaults=True) for f in s.felder_json],
+            ist_start=s.ist_start,
+            ist_ende=s.ist_ende,
+            pos_x=s.pos_x,
+            pos_y=s.pos_y,
+            loop_bezeichnung=s.loop_bezeichnung,
+            loop_titel_feld=s.loop_titel_feld,
+            pdf_gruppe=s.pdf_gruppe,
         )
-        schritt_map[node_id] = obj
+        schritt_map[s.node_id] = obj
 
-    # Transitionen anlegen
-    for t in daten.get("transitionen", []):
-        von = schritt_map.get(t.get("von"))
-        zu = schritt_map.get(t.get("zu"))
+    for t in payload.transitionen:
+        von = schritt_map.get(t.von)
+        zu = schritt_map.get(t.zu)
         if not von or not zu:
             continue
         AntrTransition.objects.create(
             pfad=pfad,
             von_schritt=von,
             zu_schritt=zu,
-            bedingung=t.get("bedingung", ""),
-            label=t.get("label", ""),
-            reihenfolge=t.get("reihenfolge", 0),
+            bedingung=t.bedingung,
+            label=t.label,
+            reihenfolge=t.reihenfolge,
         )
 
-    _pfad_version_anlegen(pfad, request.user, daten)
+    _pfad_version_anlegen(pfad, request.user, payload.model_dump())
     return JsonResponse({"ok": True, "pk": pfad.pk, "name": pfad.name})
 
 
