@@ -1838,10 +1838,22 @@ def pfad_schritt(request, sitzung_pk):
         if naechster.node_id in sitzung.besuchte_schritte:
             durchlauf = sitzung.gesammelte_daten.get("__loop_durchlauf", 0)
             praeffix = f"__loop_{durchlauf}__"
+            ziel_idx = sitzung.besuchte_schritte.index(naechster.node_id)
+            # Felder der Pre-Loop-Schritte (vor dem Loop-Start) nicht archivieren
+            pre_loop_felder = set()
+            for node_id in sitzung.besuchte_schritte[:ziel_idx]:
+                try:
+                    pre_schritt = sitzung.pfad.schritte.get(node_id=node_id)
+                    for f in pre_schritt.felder():
+                        if f.get("id"):
+                            pre_loop_felder.add(f["id"])
+                except AntrSchritt.DoesNotExist:
+                    pass
             for k, v in list(sitzung.gesammelte_daten.items()):
-                if not k.startswith("__"):
+                if not k.startswith("__") and k not in pre_loop_felder:
                     sitzung.gesammelte_daten[praeffix + k] = v
-            for k in [k for k in sitzung.gesammelte_daten if not k.startswith("__")]:
+            for k in [k for k in sitzung.gesammelte_daten
+                      if not k.startswith("__") and k not in pre_loop_felder]:
                 del sitzung.gesammelte_daten[k]
             sitzung.gesammelte_daten["__loop_durchlauf"] = durchlauf + 1
             # Loop-Bezeichnung aus dem auslösenden Schritt merken
@@ -1849,7 +1861,6 @@ def pfad_schritt(request, sitzung_pk):
                 sitzung.gesammelte_daten["__loop_bezeichnung__"] = schritt.loop_bezeichnung
             if schritt.loop_titel_feld and "__loop_titel_feld__" not in sitzung.gesammelte_daten:
                 sitzung.gesammelte_daten["__loop_titel_feld__"] = schritt.loop_titel_feld
-            ziel_idx = sitzung.besuchte_schritte.index(naechster.node_id)
             besucht_liste = sitzung.besuchte_schritte[: ziel_idx + 1]
         else:
             besucht_liste = sitzung.besuchte_schritte + [naechster.node_id]
@@ -2395,17 +2406,27 @@ def antrag_oeffentlich_schritt(request, sitzung_pk):
         if naechster.node_id in sitzung.besuchte_schritte:
             durchlauf = sitzung.gesammelte_daten.get("__loop_durchlauf", 0)
             praeffix = f"__loop_{durchlauf}__"
+            ziel_idx = sitzung.besuchte_schritte.index(naechster.node_id)
+            pre_loop_felder = set()
+            for node_id in sitzung.besuchte_schritte[:ziel_idx]:
+                try:
+                    pre_schritt = sitzung.pfad.schritte.get(node_id=node_id)
+                    for f in pre_schritt.felder():
+                        if f.get("id"):
+                            pre_loop_felder.add(f["id"])
+                except AntrSchritt.DoesNotExist:
+                    pass
             for k, v in list(sitzung.gesammelte_daten.items()):
-                if not k.startswith("__"):
+                if not k.startswith("__") and k not in pre_loop_felder:
                     sitzung.gesammelte_daten[praeffix + k] = v
-            for k in [k for k in sitzung.gesammelte_daten if not k.startswith("__")]:
+            for k in [k for k in sitzung.gesammelte_daten
+                      if not k.startswith("__") and k not in pre_loop_felder]:
                 del sitzung.gesammelte_daten[k]
             sitzung.gesammelte_daten["__loop_durchlauf"] = durchlauf + 1
             if schritt.loop_bezeichnung and "__loop_bezeichnung__" not in sitzung.gesammelte_daten:
                 sitzung.gesammelte_daten["__loop_bezeichnung__"] = schritt.loop_bezeichnung
             if schritt.loop_titel_feld and "__loop_titel_feld__" not in sitzung.gesammelte_daten:
                 sitzung.gesammelte_daten["__loop_titel_feld__"] = schritt.loop_titel_feld
-            ziel_idx = sitzung.besuchte_schritte.index(naechster.node_id)
             besucht_liste = sitzung.besuchte_schritte[: ziel_idx + 1]
         else:
             besucht_liste = sitzung.besuchte_schritte + [naechster.node_id]
