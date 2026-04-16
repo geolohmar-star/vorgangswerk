@@ -464,23 +464,12 @@ def _baue_zusammenfassung(sitzung):
                 loop_titel_feld = schritt.loop_titel_feld or ""
                 break
 
-    # Pre-Loop-Schritte identifizieren: alles vor dem ersten wiederholten node_id
-    seen = set()
-    loop_start_node_id = None
-    for node_id in sitzung.besuchte_schritte:
-        if node_id in seen:
-            loop_start_node_id = node_id
-            break
-        seen.add(node_id)
-
-    if loop_start_node_id:
-        ziel_idx = sitzung.besuchte_schritte.index(loop_start_node_id)
-        pre_loop_node_ids = sitzung.besuchte_schritte[:ziel_idx]
-        # Deduplizierte loop node_ids (Reihenfolge des ersten Auftretens beibehalten)
-        loop_node_ids = list(dict.fromkeys(sitzung.besuchte_schritte[ziel_idx:]))
-    else:
-        pre_loop_node_ids = []
-        loop_node_ids = sitzung.besuchte_schritte
+    # Pre-Loop-Node-IDs wurden beim Loop-Feuern gespeichert
+    pre_loop_node_ids = gesammelte.get("__pre_loop_node_ids__", [])
+    pre_loop_set = set(pre_loop_node_ids)
+    loop_node_ids = list(dict.fromkeys(
+        n for n in sitzung.besuchte_schritte if n not in pre_loop_set
+    ))
 
     zusammenfassung = []
     # Pre-Loop-Felder zuerst (z.B. Nachname, der vor dem Loop abgefragt wurde)
@@ -1898,6 +1887,9 @@ def pfad_schritt(request, sitzung_pk):
                 sitzung.gesammelte_daten["__loop_bezeichnung__"] = schritt.loop_bezeichnung
             if schritt.loop_titel_feld and "__loop_titel_feld__" not in sitzung.gesammelte_daten:
                 sitzung.gesammelte_daten["__loop_titel_feld__"] = schritt.loop_titel_feld
+            # Pre-Loop-Node-IDs einmalig speichern (werden beim Kürzen sonst verloren)
+            if "__pre_loop_node_ids__" not in sitzung.gesammelte_daten:
+                sitzung.gesammelte_daten["__pre_loop_node_ids__"] = sitzung.besuchte_schritte[:ziel_idx]
             besucht_liste = sitzung.besuchte_schritte[: ziel_idx + 1]
         else:
             besucht_liste = sitzung.besuchte_schritte + [naechster.node_id]
@@ -2464,6 +2456,9 @@ def antrag_oeffentlich_schritt(request, sitzung_pk):
                 sitzung.gesammelte_daten["__loop_bezeichnung__"] = schritt.loop_bezeichnung
             if schritt.loop_titel_feld and "__loop_titel_feld__" not in sitzung.gesammelte_daten:
                 sitzung.gesammelte_daten["__loop_titel_feld__"] = schritt.loop_titel_feld
+            # Pre-Loop-Node-IDs einmalig speichern (werden beim Kürzen sonst verloren)
+            if "__pre_loop_node_ids__" not in sitzung.gesammelte_daten:
+                sitzung.gesammelte_daten["__pre_loop_node_ids__"] = sitzung.besuchte_schritte[:ziel_idx]
             besucht_liste = sitzung.besuchte_schritte[: ziel_idx + 1]
         else:
             besucht_liste = sitzung.besuchte_schritte + [naechster.node_id]
