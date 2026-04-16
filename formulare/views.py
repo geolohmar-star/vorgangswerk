@@ -150,9 +150,11 @@ def _pruefe_bedingung(bedingung, gesammelte_daten):
     werte = {}
     for k, v in gesammelte_daten.items():
         try:
-            werte["_F_" + k] = float(str(v).replace(",", ".")) if v not in ("", None) else ""
+            val = float(str(v).replace(",", ".")) if v not in ("", None) else ""
         except (ValueError, TypeError):
-            werte["_F_" + k] = str(v) if v is not None else ""
+            val = str(v) if v is not None else ""
+        werte["_F_" + k] = val  # für {{var}}-Syntax in Bedingungen
+        werte[k] = val           # für bare Variablennamen (weitere_person == 'ja')
     try:
         tree = ast.parse(ausdruck, mode="eval")
         ergebnis = _ast_eval(tree.body, werte)
