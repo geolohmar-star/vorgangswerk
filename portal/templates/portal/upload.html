@@ -96,7 +96,7 @@
                                 <tr>
                                     <td><span class="badge fw-normal px-2" style="background:#1a6fc4;color:#fff;">■ Blau</span></td>
                                     <td>Loop (Wiederholung)</td>
-                                    <td>Text im Rechteck: <code>LOOP: Kind</code></td>
+                                    <td>Text im Rechteck: <code>LOOP: Kind</code> oder nur <code>Kind</code></td>
                                     <td>Mehrere Kinder, Bewohner, Fahrzeuge</td>
                                 </tr>
                                 <tr>
@@ -120,14 +120,14 @@
                                 <tr>
                                     <td><span class="badge fw-normal px-2" style="background:#ffc107;color:#000;">■ Gelb</span></td>
                                     <td>Feld aufteilen</td>
-                                    <td><code>SPLIT: PLZ, Gemeinde, Ort</code></td>
+                                    <td><code>SPLIT: PLZ, Gemeinde, Ort</code> oder automatisch</td>
                                     <td>Kombiniertes Feld in Einzelfelder trennen</td>
                                 </tr>
                                 <tr>
                                     <td><span class="badge fw-normal px-2" style="background:#0dcaf0;color:#000;">■ Türkis</span></td>
                                     <td>Auto-Fill</td>
-                                    <td><code>AUTOFILL: {{variable}}</code></td>
-                                    <td>Gemeinde aus GKZ-Feld vorausfüllen</td>
+                                    <td><code>AUTOFILL: variable</code> oder automatisch bei GKZ</td>
+                                    <td>Feld aus anderem Feld vorausfüllen</td>
                                 </tr>
                             </tbody>
                         </table>
@@ -135,7 +135,7 @@
 
                     <!-- LOOP -->
                     <h6 class="fw-semibold">&#128309; Blau – Loop (wiederholende Eingaben)</h6>
-                    <p class="text-muted">Umrahme Felder die mehrfach ausgefüllt werden können (z.B. mehrere Kinder oder Bewohner) mit einem blauen Rechteck. Beschrifte es mit <code>LOOP: Bezeichnung</code>.</p>
+                    <p class="text-muted">Umrahme Felder die mehrfach ausgefüllt werden können (z.B. mehrere Kinder oder Bewohner) mit einem blauen Rechteck oder blauem Rahmen. Der Text kann <code>LOOP: Bezeichnung</code> oder nur <code>Bezeichnung</code> lauten – blau = Loop.</p>
                     <div class="rounded p-2 mb-3 font-monospace" style="font-size:.75rem;background:#e8f0fe;border:2px solid #1a6fc4;">
                         LOOP: Kind<br>
                         ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄<br>
@@ -207,13 +207,17 @@
                     <!-- AUTOFILL -->
                     <h6 class="fw-semibold">&#128306; Türkis – Auto-Fill aus anderem Feld</h6>
                     <p class="text-muted">
-                        Schreibe <code>AUTOFILL: {{variable}}</code> in ein türkises Rechteck neben einem Feld.
-                        Die KI setzt das Feld so, dass es sich automatisch aus dem angegebenen Wert vorausfüllt –
+                        <strong>Automatisch bei GKZ:</strong> Felder mit Bezeichnung „Gemeinde", „Kreis" oder „Land"
+                        direkt neben einem GKZ-Feld werden automatisch vorausgefüllt – kein Marker nötig.
+                    </p>
+                    <p class="text-muted">
+                        <strong>Explizit für andere Felder:</strong> Schreibe <code>AUTOFILL: variable</code> in ein türkises Rechteck neben dem Feld.
+                        Die KI setzt das Feld so, dass es sich automatisch aus der angegebenen Variable vorausfüllt –
                         der Nutzer kann den Wert noch ändern.
                     </p>
                     <div class="rounded p-2 mb-3 font-monospace" style="font-size:.75rem;background:#cff4fc;border:2px solid #0dcaf0;">
-                        Gemeinde: _______________ <span style="background:#0dcaf0;padding:1px 5px;border-radius:3px;">AUTOFILL: {{neue_gkz_gemeinde}}</span><br>
-                        Kreis: _________________ <span style="background:#0dcaf0;padding:1px 5px;border-radius:3px;">AUTOFILL: {{neue_gkz_kreis}}</span>
+                        Gemeinde: _______________ <span style="background:#0dcaf0;padding:1px 5px;border-radius:3px;">AUTOFILL: neue_gkz_gemeinde</span><br>
+                        Kreis: _________________ <span style="background:#0dcaf0;padding:1px 5px;border-radius:3px;">AUTOFILL: neue_gkz_kreis</span>
                     </div>
 
                     <!-- GKZ-Variablen -->
