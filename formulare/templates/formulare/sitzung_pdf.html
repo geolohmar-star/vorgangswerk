@@ -187,6 +187,8 @@
                                 Unterschrift geleistet
                             {% elif eintrag.typ == "datei" %}
                                 {% if eintrag.wert %}{{ eintrag.wert }}{% else %}(Datei hochgeladen){% endif %}
+                            {% elif eintrag.typ == "datum" %}
+                                {% if eintrag.wert %}{{ eintrag.wert|slice:"8:10" }}.{{ eintrag.wert|slice:"5:7" }}.{{ eintrag.wert|slice:":4" }}{% else %}–{% endif %}
                             {% else %}
                                 {{ eintrag.wert|default:"–" }}
                             {% endif %}
