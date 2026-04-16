@@ -397,6 +397,16 @@
         // Schritt-Modal: Speichern
         document.getElementById("btn-schritt-speichern").addEventListener("click", schrittSpeichern);
 
+        // Aktions-Schritt: Toggle
+        document.getElementById("schritt-ist-aktion").addEventListener("change", function () {
+            document.getElementById("aktion-config").classList.toggle("d-none", !this.checked);
+        });
+
+        // Aktions-Typ: Vorlage-Auswahl ein/ausblenden
+        document.getElementById("schritt-aktion-typ").addEventListener("change", function () {
+            _aktionTypWechseln(this.value, null);
+        });
+
         // Schritt-Modal: Feld hinzufuegen
         document.getElementById("btn-feld-hinzufuegen-schritt").addEventListener("click", function () {
             oeffneFeldModal(null);
@@ -980,6 +990,23 @@
     // Schritt Modal
     // -----------------------------------------------------------------------
 
+    function _aktionTypWechseln(typ, gewaehlteVorlageId) {
+        var vorlageDiv = document.getElementById("aktion-vorlage-auswahl");
+        var istVorlage = typ === "aktion_briefvorlage";
+        vorlageDiv.classList.toggle("d-none", !istVorlage);
+        if (istVorlage) {
+            var sel = document.getElementById("schritt-aktion-vorlage-id");
+            sel.innerHTML = '<option value="">– Vorlage auswählen –</option>';
+            (typeof BRIEFVORLAGEN !== "undefined" ? BRIEFVORLAGEN : []).forEach(function (v) {
+                var opt = document.createElement("option");
+                opt.value = v.id;
+                opt.textContent = v.titel;
+                if (gewaehlteVorlageId && parseInt(gewaehlteVorlageId) === v.id) opt.selected = true;
+                sel.appendChild(opt);
+            });
+        }
+    }
+
     function oeffneSchrittModal(nodeId, canvasPos) {
         editNodeId = nodeId;
         var schritt = nodeId ? schritte[nodeId] : null;
@@ -992,6 +1019,30 @@
         document.getElementById("schritt-pdf-gruppe").value = schritt ? (schritt.pdf_gruppe || "") : "";
         document.getElementById("schritt-loop-bezeichnung").value = schritt ? (schritt.loop_bezeichnung || "") : "";
         document.getElementById("schritt-loop-titel-feld").value = schritt ? (schritt.loop_titel_feld || "") : "";
+
+        // Aktions-Schritt
+        var istAktion = schritt ? !!schritt.ist_aktion : false;
+        document.getElementById("schritt-ist-aktion").checked = istAktion;
+        document.getElementById("aktion-config").classList.toggle("d-none", !istAktion);
+        if (istAktion) {
+            var aktionFeld = (schritt.felder_json || []).find(function (f) {
+                return (f.typ || "").startsWith("aktion_");
+            }) || {};
+            var aktionTyp = aktionFeld.typ || "aktion_email";
+            document.getElementById("schritt-aktion-typ").value = aktionTyp;
+            document.getElementById("schritt-aktion-empfaenger-feld").value = aktionFeld.empfaenger_feld || "";
+            document.getElementById("schritt-aktion-empfaenger-fest").value = aktionFeld.empfaenger_fest || "";
+            document.getElementById("schritt-aktion-betreff").value = aktionFeld.email_betreff || "";
+            document.getElementById("schritt-aktion-nachricht").value = aktionFeld.email_nachricht || "";
+            _aktionTypWechseln(aktionTyp, aktionFeld.vorlage_id || null);
+        } else {
+            document.getElementById("schritt-aktion-typ").value = "aktion_email";
+            document.getElementById("schritt-aktion-empfaenger-feld").value = "";
+            document.getElementById("schritt-aktion-empfaenger-fest").value = "";
+            document.getElementById("schritt-aktion-betreff").value = "";
+            document.getElementById("schritt-aktion-nachricht").value = "";
+            _aktionTypWechseln("aktion_email", null);
+        }
 
         // Temporaere Felder-Liste aufbauen
         schritteFelder = schritt ? JSON.parse(JSON.stringify(schritt.felder_json || [])) : [];
@@ -1079,19 +1130,39 @@
         var pdfGruppe = document.getElementById("schritt-pdf-gruppe").value.trim();
         var loopBezeichnung = document.getElementById("schritt-loop-bezeichnung").value.trim();
         var loopTitelFeld = document.getElementById("schritt-loop-titel-feld").value.trim();
+        var istAktion = document.getElementById("schritt-ist-aktion").checked;
         var modalEl = document.getElementById("schritt-modal");
         var posX = parseFloat(modalEl.dataset.posX || 300);
         var posY = parseFloat(modalEl.dataset.posY || 300);
+
+        // Aktions-Felder aus Formular lesen
+        var aktionFelder = schritteFelder;
+        if (istAktion) {
+            var aktionTyp = document.getElementById("schritt-aktion-typ").value;
+            var aktionFeldObj = {
+                typ: aktionTyp,
+                empfaenger_feld: document.getElementById("schritt-aktion-empfaenger-feld").value.trim(),
+                empfaenger_fest: document.getElementById("schritt-aktion-empfaenger-fest").value.trim(),
+                email_betreff: document.getElementById("schritt-aktion-betreff").value.trim(),
+                email_nachricht: document.getElementById("schritt-aktion-nachricht").value.trim(),
+            };
+            if (aktionTyp === "aktion_briefvorlage") {
+                var vorlageId = document.getElementById("schritt-aktion-vorlage-id").value;
+                if (vorlageId) aktionFeldObj.vorlage_id = parseInt(vorlageId);
+            }
+            aktionFelder = [aktionFeldObj];
+        }
 
         if (editNodeId) {
             // Bestehenden Schritt aktualisieren
             schritte[editNodeId].titel = titel;
             schritte[editNodeId].ist_start = istStart;
             schritte[editNodeId].ist_ende = istEnde;
-            schritte[editNodeId].felder_json = JSON.parse(JSON.stringify(schritteFelder));
+            schritte[editNodeId].felder_json = JSON.parse(JSON.stringify(aktionFelder));
             schritte[editNodeId].pdf_gruppe = pdfGruppe;
             schritte[editNodeId].loop_bezeichnung = loopBezeichnung;
             schritte[editNodeId].loop_titel_feld = loopTitelFeld;
+            schritte[editNodeId].ist_aktion = istAktion;
             nodes.update({
                 id: editNodeId,
                 label: knotenLabel(schritte[editNodeId]),
@@ -1103,7 +1174,7 @@
             var neuerSchritt = {
                 node_id: nodeId,
                 titel: titel,
-                felder_json: JSON.parse(JSON.stringify(schritteFelder)),
+                felder_json: JSON.parse(JSON.stringify(aktionFelder)),
                 ist_start: istStart,
                 ist_ende: istEnde,
                 pos_x: Math.round(posX),
@@ -1111,6 +1182,7 @@
                 pdf_gruppe: pdfGruppe,
                 loop_bezeichnung: loopBezeichnung,
                 loop_titel_feld: loopTitelFeld,
+                ist_aktion: istAktion,
             };
             schritte[nodeId] = neuerSchritt;
             nodes.add({
@@ -1374,6 +1446,7 @@
         document.getElementById("feld-pflicht").checked        = feld ? !!feld.pflicht        : false;
         document.getElementById("feld-pdf-ausblenden").checked = feld ? !!feld.pdf_ausblenden : false;
         document.getElementById("feld-versteckt").checked      = feld ? !!feld.versteckt      : false;
+        document.getElementById("feld-vorausgefuellt").value   = feld ? (feld.vorausgefuellt || "") : "";
         document.getElementById("feld-id-vorschau").textContent = feld ? (feld.id || "") : "";
         // bool: Feld-ID explizit vorbelegen; manuallyEdited-Flag zurücksetzen
         var elBoolFeldId = document.getElementById("feld-bool-feld-id");
@@ -1752,6 +1825,8 @@
             pdf_ausblenden: document.getElementById("feld-pdf-ausblenden").checked,
             versteckt:      document.getElementById("feld-versteckt").checked,
         };
+        var vorausgefuellt = document.getElementById("feld-vorausgefuellt").value.trim();
+        if (vorausgefuellt) feld.vorausgefuellt = vorausgefuellt;
         var fimIdVal = document.getElementById("feld-fim-id").value.trim();
         if (fimIdVal) feld.fim_id = fimIdVal;
         var hilfetext = document.getElementById("feld-hilfetext").value.trim();
@@ -2578,6 +2653,7 @@
                     pdf_gruppe: s.pdf_gruppe || "",
                     loop_bezeichnung: s.loop_bezeichnung || "",
                     loop_titel_feld: s.loop_titel_feld || "",
+                    ist_aktion: !!s.ist_aktion,
                 };
                 nodes.add({
                     id: s.node_id,
@@ -2643,6 +2719,7 @@
                 pdf_gruppe: s.pdf_gruppe || "",
                 loop_bezeichnung: s.loop_bezeichnung || "",
                 loop_titel_feld: s.loop_titel_feld || "",
+                ist_aktion: !!s.ist_aktion,
             };
             nodes.add({
                 id: s.node_id,
@@ -2741,18 +2818,19 @@
     // -----------------------------------------------------------------------
 
     function knotenLabel(schritt) {
-        var prefix = schritt.ist_start ? "[S] " : (schritt.ist_ende ? "[E] " : "");
+        var prefix = schritt.ist_start ? "[S] " : (schritt.ist_ende ? "[E] " : (schritt.ist_aktion ? "⚡ " : ""));
         var KEINE_EINGABE = ["textblock", "abschnitt", "trennlinie", "leerblock", "zusammenfassung", "link"];
         var anzahl = (schritt.felder_json || []).filter(function (f) {
-            return KEINE_EINGABE.indexOf(f.typ) === -1;
+            return KEINE_EINGABE.indexOf(f.typ) === -1 && !(f.typ || "").startsWith("aktion_");
         }).length;
         var suffix = anzahl > 0 ? "\n(" + anzahl + " Feld" + (anzahl !== 1 ? "er" : "") + ")" : "";
         return prefix + schritt.titel + suffix;
     }
 
     function knotenFarbe(schritt) {
-        if (schritt.ist_start) return { background: "#198754", border: "#145c32" };
-        if (schritt.ist_ende)  return { background: "#dc3545", border: "#a12030" };
+        if (schritt.ist_start)  return { background: "#198754", border: "#145c32" };
+        if (schritt.ist_ende)   return { background: "#dc3545", border: "#a12030" };
+        if (schritt.ist_aktion) return { background: "#6f42c1", border: "#4a2c8a" };
         return { background: "#1a4d2e", border: "#12341f" };
     }
 

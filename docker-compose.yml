@@ -60,6 +60,7 @@ services:
       STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
       BUNDID_SP_ENTITY_ID: ${BUNDID_SP_ENTITY_ID:-vorgangswerk}
       BUNDID_IDP_SSO_URL: ${BUNDID_IDP_SSO_URL:-http://localhost:8089/saml}
+      BENTOPDF_URL: ${BENTOPDF_URL:-}
     ports:
       - "8100:8000"
     volumes:

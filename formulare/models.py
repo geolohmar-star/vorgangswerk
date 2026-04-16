@@ -113,6 +113,11 @@ class AntrSchritt(models.Model):
         verbose_name="PDF-Gruppe",
         help_text="Gruppenname für PDF und JSON-Export, z.B. 'Persönliche Daten', 'Wohnort'",
     )
+    ist_aktion = models.BooleanField(
+        default=False,
+        verbose_name="Aktions-Schritt",
+        help_text="Wird automatisch ausgeführt – unsichtbar für den Antragsteller",
+    )
     node_id = models.CharField(max_length=50, verbose_name="Node-ID")
     pfad = models.ForeignKey(
         AntrPfad, on_delete=models.CASCADE, related_name="schritte"

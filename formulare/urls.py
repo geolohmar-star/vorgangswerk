@@ -47,6 +47,8 @@ urlpatterns = [
     path("auswertung/<int:pk>/", views.pfad_auswertung, name="pfad_auswertung"),
     # AGS-Lookup
     path("ags/", views.ags_suche, name="ags_suche"),
+    # OO-Konvertierung: temporärer Download-Endpunkt für Cache-basierte DOCX-Dateien
+    path("api/oo-conv-download/<str:conv_key>/", views.oo_conv_download, name="oo_conv_download"),
 ]
 
 # ---------------------------------------------------------------------------

@@ -63,82 +63,199 @@
             </div>
         </div>
 
-        <!-- Anleitung: PDF für Gruppen & Verzweigungen vorbereiten -->
+        <!-- Anleitung: PDF vorbereiten -->
         <div class="card mt-3">
-            <div class="card-header py-2" style="cursor:pointer;" data-bs-toggle="collapse" data-bs-target="#anleitung-gruppen">
+            <div class="card-header py-2" style="cursor:pointer;" data-bs-toggle="collapse" data-bs-target="#anleitung-marker">
                 <div class="d-flex align-items-center justify-content-between">
-                    <h6 class="mb-0 fw-semibold">&#128218; Tipp: PDF für Gruppen &amp; Verzweigungen vorbereiten</h6>
+                    <h6 class="mb-0 fw-semibold">&#127775; PDF für die KI vorbereiten – Farb-Marker &amp; Auto-Fill</h6>
                     <span class="text-muted small">aufklappen &#8595;</span>
                 </div>
             </div>
-            <div class="collapse" id="anleitung-gruppen">
+            <div class="collapse" id="anleitung-marker">
                 <div class="card-body p-4 small">
+
                     <p class="text-muted mb-3">
-                        Mit ein paar einfachen Markierungen im PDF erkennt die KI automatisch
-                        welche Abschnitte zusammengehören und wie das Formular verzweigt werden soll.
+                        Mit farbigen Rechtecken im PDF steuerst du wie die KI das Formular strukturiert.
+                        Füge sie mit einem PDF-Editor ein (z.B. LibreOffice Draw, Adobe Acrobat, BentoPDF).
+                        Verwende <strong>gefüllte Flächen oder Rahmen mit Text</strong> – keine unsichtbaren Kommentare.
                     </p>
 
-                    <h6 class="fw-semibold">1. Gruppen einrahmen</h6>
-                    <p class="text-muted">
-                        Umrahme zusammengehörige Felder mit einem farbigen Rechteck (z.B. rot).
-                        Jeder Rahmen wird zu einem eigenen Schritt im Pfad.
-                    </p>
-                    <div class="bg-light rounded p-3 mb-3 font-monospace" style="font-size:.78rem;">
-                        ┌─────────────────────────────┐<br>
-                        │ ☐ Rinderhaltung &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;│<br>
-                        │ Kälber: ___ &nbsp;Mastrinder: ___│<br>
-                        │ Milchkühe: ___ &nbsp;Summe: ___  │<br>
-                        └─────────────────────────────┘
+                    <!-- Farbtabelle -->
+                    <h6 class="fw-semibold mb-2">Farbkonvention auf einen Blick</h6>
+                    <div class="table-responsive mb-4">
+                        <table class="table table-sm table-bordered mb-0" style="font-size:.8rem;">
+                            <thead class="table-light">
+                                <tr>
+                                    <th style="width:18%">Farbe</th>
+                                    <th style="width:22%">Bedeutung</th>
+                                    <th>Beschriftung</th>
+                                    <th style="width:28%">Beispiel</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td><span class="badge fw-normal px-2" style="background:#1a6fc4;color:#fff;">■ Blau</span></td>
+                                    <td>Loop (Wiederholung)</td>
+                                    <td>Text im Rechteck: <code>LOOP: Kind</code></td>
+                                    <td>Mehrere Kinder, Bewohner, Fahrzeuge</td>
+                                </tr>
+                                <tr>
+                                    <td><span class="badge fw-normal px-2" style="background:#198754;color:#fff;">■ Grün</span></td>
+                                    <td>PDF-Gruppe</td>
+                                    <td>Text im Rechteck: <code>GRUPPE: Wohnort</code></td>
+                                    <td>Abschnittsüberschrift im Antrag-PDF</td>
+                                </tr>
+                                <tr>
+                                    <td><span class="badge fw-normal px-2" style="background:#dc3545;color:#fff;">■ Rot + Text</span></td>
+                                    <td>Verzweigung</td>
+                                    <td>Zahl im Rechteck: <code>3</code>, <code>4</code>, …</td>
+                                    <td>Wahlweise Abschnitte (Tierhaltungsarten)</td>
+                                </tr>
+                                <tr>
+                                    <td><span class="badge fw-normal px-2" style="background:#dc3545;color:#fff;">■ Rot ohne Text</span></td>
+                                    <td>Ignorieren</td>
+                                    <td>Einfach ausmalen, ggf. <code>X</code></td>
+                                    <td>„Für amtliche Zwecke", interne Felder</td>
+                                </tr>
+                                <tr>
+                                    <td><span class="badge fw-normal px-2" style="background:#ffc107;color:#000;">■ Gelb</span></td>
+                                    <td>Feld aufteilen</td>
+                                    <td><code>SPLIT: PLZ, Gemeinde, Ort</code></td>
+                                    <td>Kombiniertes Feld in Einzelfelder trennen</td>
+                                </tr>
+                                <tr>
+                                    <td><span class="badge fw-normal px-2" style="background:#0dcaf0;color:#000;">■ Türkis</span></td>
+                                    <td>Auto-Fill</td>
+                                    <td><code>AUTOFILL: {{variable}}</code></td>
+                                    <td>Gemeinde aus GKZ-Feld vorausfüllen</td>
+                                </tr>
+                            </tbody>
+                        </table>
                     </div>
 
-                    <h6 class="fw-semibold">2. Gruppen nummerieren</h6>
-                    <p class="text-muted">
-                        Schreibe eine sichtbare Ziffer in jeden Rahmen (z.B. oben links).
-                        Die Nummer identifiziert die Gruppe eindeutig.
-                    </p>
-                    <div class="bg-light rounded p-3 mb-3 font-monospace" style="font-size:.78rem;">
-                        ┌─────────────────────────────┐<br>
-                        │ <strong>3</strong> &nbsp;Rinderhaltung &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;│<br>
-                        │ Kälber: ___ &nbsp;Mastrinder: ___│<br>
-                        └─────────────────────────────┘<br><br>
-                        ┌─────────────────────────────┐<br>
-                        │ <strong>4</strong> &nbsp;Schweinehaltung &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;│<br>
-                        │ Ferkel: ___ &nbsp;Mastschweine: _│<br>
-                        └─────────────────────────────┘
+                    <!-- LOOP -->
+                    <h6 class="fw-semibold">&#128309; Blau – Loop (wiederholende Eingaben)</h6>
+                    <p class="text-muted">Umrahme Felder die mehrfach ausgefüllt werden können (z.B. mehrere Kinder oder Bewohner) mit einem blauen Rechteck. Beschrifte es mit <code>LOOP: Bezeichnung</code>.</p>
+                    <div class="rounded p-2 mb-3 font-monospace" style="font-size:.75rem;background:#e8f0fe;border:2px solid #1a6fc4;">
+                        LOOP: Kind<br>
+                        ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄<br>
+                        Familienname: _______________<br>
+                        Vorname: ___________________<br>
+                        Geburtsdatum: ______________
+                    </div>
+                    <p class="text-muted">Die KI erzeugt automatisch: Pre-Loop-Schritt → Loop-Body → „Weiteres Kind?"-Schritt → Loop-Trigger.</p>
+
+                    <!-- GRUPPE -->
+                    <h6 class="fw-semibold">&#128994; Grün – PDF-Gruppe (Abschnittsmarkierung)</h6>
+                    <p class="text-muted">Markiere zusammengehörige Felder mit einem grünen Rechteck. Im generierten Antrag-PDF erscheint die Gruppe mit einem Abschnittsheader.</p>
+                    <div class="rounded p-2 mb-3 font-monospace" style="font-size:.75rem;background:#d1e7dd;border:2px solid #198754;">
+                        GRUPPE: Neue Hauptwohnung<br>
+                        ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄<br>
+                        Straße, Hausnummer: _________<br>
+                        PLZ, Ort: __________________
                     </div>
 
-                    <h6 class="fw-semibold">3. Verzweigungsfeld markieren</h6>
-                    <p class="text-muted">
-                        Füge die Nummern aller Gruppen als sichtbare Ziffernreihe bei einer
-                        Abschnittsüberschrift ein. Daraus wird automatisch ein Auswahlfeld –
-                        der Nutzer wählt welche Gruppen für ihn zutreffen.
-                    </p>
-                    <div class="bg-light rounded p-3 mb-3 font-monospace" style="font-size:.78rem;">
-                        D &nbsp;Angaben zur Tierhaltung &nbsp;&nbsp;<strong>3 4 5 6 7 8 9 10</strong>
+                    <!-- VERZWEIGUNG -->
+                    <h6 class="fw-semibold">&#128308; Rot mit Zahl – Verzweigung (wahlweise Abschnitte)</h6>
+                    <p class="text-muted">Schreibe eine Ziffer in jeden wählbaren Abschnitt. Platziere die Ziffernreihe neben der Überschrift die das Auswahlfeld wird.</p>
+                    <div class="rounded p-2 mb-3 font-monospace" style="font-size:.75rem;background:#f8d7da;border:2px solid #dc3545;">
+                        D Angaben zur Tierhaltung &nbsp;&nbsp;<strong>3 4 5 6 7 8 9 10</strong><br><br>
+                        <span style="border:1px solid #dc3545;padding:1px 4px;"><strong>3</strong> Rinderhaltung</span><br>
+                        Kälber: ___ &nbsp;Mastrinder: ___<br><br>
+                        <span style="border:1px solid #dc3545;padding:1px 4px;"><strong>4</strong> Schweinehaltung</span><br>
+                        Ferkel: ___ &nbsp;Mastschweine: ___
                     </div>
 
-                    <h6 class="fw-semibold">Ergebnis</h6>
-                    <p class="text-muted mb-1">Die KI erzeugt automatisch:</p>
-                    <ul class="text-muted mb-0">
-                        <li>Einen Auswahlschritt mit Checkboxen (Ziffern 3–10)</li>
-                        <li>Für jede gewählte Ziffer einen eigenen Schritt</li>
-                        <li>Bedingte Transitionen – nicht gewählte Gruppen werden übersprungen</li>
-                    </ul>
+                    <!-- IGNORIEREN -->
+                    <h6 class="fw-semibold">&#11035; Rot ausgefüllt – Ignorieren</h6>
+                    <p class="text-muted">Male Felder die nicht ins digitale Formular sollen einfach vollflächig rot aus – kein Text nötig. Typisch: „Für amtliche Zwecke", interne Aktenzeichen, Behördenvermerke.</p>
+                    <div class="rounded p-2 mb-3 font-monospace" style="font-size:.75rem;background:#dc3545;color:#fff;">
+                        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<br>
+                        &nbsp;&nbsp;Für amtliche Zwecke &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<br>
+                        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+                    </div>
+
+                    <!-- SPLIT -->
+                    <h6 class="fw-semibold">&#128993; Gelb – Kombiniertes Feld aufteilen</h6>
+                    <p class="text-muted">
+                        Viele Papierformulare fassen mehrere Angaben in einem Feld zusammen (z.B. „PLZ, Gemeinde, Ortsteil").
+                        Markiere solche Felder mit einem gelben Rechteck und schreibe die gewünschten Einzelfelder als Komma-Liste hinein –
+                        die KI erzeugt daraus separate Felder.
+                    </p>
+                    <div class="rounded p-2 mb-2 font-monospace" style="font-size:.75rem;background:#fff3cd;border:2px solid #ffc107;">
+                        SPLIT: PLZ, Gemeinde, Ortsteil<br>
+                        ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄<br>
+                        PLZ, Gemeinde, Ortsteil: ________________________
+                    </div>
+                    <p class="text-muted mb-1">Wird zu:</p>
+                    <div class="rounded p-2 mb-3 font-monospace" style="font-size:.75rem;background:#f8f9fa;border:1px solid #dee2e6;">
+                        PLZ: _______ &nbsp;|&nbsp; Gemeinde: _________________ &nbsp;|&nbsp; Ortsteil: _____________
+                    </div>
+                    <p class="text-muted mb-2">
+                        <strong>Feld zu klein?</strong> Schreibe nur <code>SPLIT 1</code> auf das Feld und platziere die Beschreibung
+                        <code>SPLIT 1: PLZ, Gemeinde, Ortsteil</code> irgendwo mit mehr Platz – die KI verknüpft beides über die Nummer.
+                    </p>
+                    <p class="text-muted mb-2">
+                        <strong>Kein Marker nötig</strong> wenn die Original-Beschriftung bereits eine Komma-Liste enthält
+                        (z.B. „Postleitzahl, Gemeinde, Ortsteil") – die KI erkennt das automatisch.
+                    </p>
+                    <p class="text-muted" style="font-size:.78rem;">
+                        Erkannte Teilfelder: <code>PLZ</code>, <code>Gemeinde</code>, <code>Ort</code>, <code>Ortsteil</code>,
+                        <code>Straße</code>, <code>Hausnummer</code>, <code>Zusatz</code>, <code>Kreis</code>, <code>Land</code>, <code>Staat</code>
+                    </p>
+
+                    <!-- AUTOFILL -->
+                    <h6 class="fw-semibold">&#128306; Türkis – Auto-Fill aus anderem Feld</h6>
+                    <p class="text-muted">
+                        Schreibe <code>AUTOFILL: {{variable}}</code> in ein türkises Rechteck neben einem Feld.
+                        Die KI setzt das Feld so, dass es sich automatisch aus dem angegebenen Wert vorausfüllt –
+                        der Nutzer kann den Wert noch ändern.
+                    </p>
+                    <div class="rounded p-2 mb-3 font-monospace" style="font-size:.75rem;background:#cff4fc;border:2px solid #0dcaf0;">
+                        Gemeinde: _______________ <span style="background:#0dcaf0;padding:1px 5px;border-radius:3px;">AUTOFILL: {{neue_gkz_gemeinde}}</span><br>
+                        Kreis: _________________ <span style="background:#0dcaf0;padding:1px 5px;border-radius:3px;">AUTOFILL: {{neue_gkz_kreis}}</span>
+                    </div>
+
+                    <!-- GKZ-Variablen -->
+                    <h6 class="fw-semibold mt-3">Verfügbare Variablen aus Gemeindekennzahl-Feldern</h6>
+                    <p class="text-muted mb-2">
+                        Wenn ein Schritt ein <strong>Gemeindekennzahl-Feld</strong> (AGS) mit der ID z.B. <code>neue_gkz</code> enthält,
+                        stehen diese Variablen in allen folgenden Schritten zur Verfügung:
+                    </p>
+                    <div class="table-responsive mb-3">
+                        <table class="table table-sm table-bordered mb-0" style="font-size:.8rem;">
+                            <thead class="table-light">
+                                <tr><th>Variable</th><th>Inhalt</th><th>Beispiel</th></tr>
+                            </thead>
+                            <tbody>
+                                <tr><td><code>{{neue_gkz}}</code></td><td>AGS-Code (8-stellig)</td><td><code>05374008</code></td></tr>
+                                <tr><td><code>{{neue_gkz_gemeinde}}</code></td><td>Gemeindename</td><td><code>Lohmar</code></td></tr>
+                                <tr><td><code>{{neue_gkz_kreis}}</code></td><td>Kreis / Landkreis</td><td><code>Rhein-Sieg-Kreis</code></td></tr>
+                                <tr><td><code>{{neue_gkz_land}}</code></td><td>Bundesland</td><td><code>Nordrhein-Westfalen</code></td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <p class="text-muted" style="font-size:.78rem;">
+                        Schema: <code>{{[feld_id]_gemeinde}}</code>, <code>{{[feld_id]_kreis}}</code>, <code>{{[feld_id]_land}}</code> –
+                        funktioniert für jedes GKZ-Feld unabhängig von seiner ID.
+                    </p>
 
                     <div class="alert alert-light border mt-3 mb-0 py-2" style="font-size:.78rem;">
-                        <strong>Hinweis:</strong> Verwende einen PDF-Editor um Rahmen und Nummern einzufügen.
-                        Nur sichtbarer Text und Formen – keine Kommentar-Popups.
+                        <strong>Werkzeuge:</strong> PDF-Editor mit Rechteck-Funktion und Farbwahl genügt.
+                        Empfohlen: LibreOffice Draw, Adobe Acrobat, Foxit, BentoPDF.
+                        Nur sichtbare Formen – keine unsichtbaren Kommentar-Popups.
                         <div class="mt-2 d-flex gap-2 flex-wrap">
-                            <a href="{% static 'docs/muster_gruppenformular.pdf' %}" target="_blank" class="btn btn-sm btn-outline-secondary">
+                            <a href="{% static 'docs/muster_vorbereitetes_formular.pdf' %}" target="_blank" class="btn btn-sm btn-outline-secondary">
                                 &#128462; Muster-PDF herunterladen
                             </a>
                             {% if bentopdf_url %}
                             <a href="{{ bentopdf_url }}" target="_blank" class="btn btn-sm btn-outline-primary">
-                                &#128295; PDF-Werkzeuge öffnen
+                                &#128295; BentoPDF öffnen
                             </a>
                             {% endif %}
                         </div>
                     </div>
+
                 </div>
             </div>
         </div>

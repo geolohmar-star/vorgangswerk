@@ -201,6 +201,56 @@ html, body { overflow: hidden; height: 100%; }
                     </div>
                 </div>
 
+                <!-- Aktions-Schritt -->
+                <div class="mb-2 mt-2">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="schritt-ist-aktion">
+                        <label class="form-check-label fw-semibold" for="schritt-ist-aktion">
+                            ⚡ Aktions-Schritt
+                            <span class="text-muted fw-normal small">(automatisch, unsichtbar für Antragsteller)</span>
+                        </label>
+                    </div>
+                </div>
+                <div id="aktion-config" class="d-none border rounded p-2 mb-2 bg-light">
+                    <div class="mb-2">
+                        <label class="form-label small text-muted mb-1">Aktions-Typ</label>
+                        <select class="form-select form-select-sm" id="schritt-aktion-typ">
+                            <option value="aktion_email">E-Mail senden (freier Text)</option>
+                            <option value="aktion_briefvorlage">Briefvorlage befüllen + senden (DOCX)</option>
+                        </select>
+                    </div>
+                    <div id="aktion-vorlage-auswahl" class="mb-2 d-none">
+                        <label class="form-label small text-muted mb-1">Briefvorlage</label>
+                        <select class="form-select form-select-sm" id="schritt-aktion-vorlage-id">
+                            <option value="">– Vorlage auswählen –</option>
+                        </select>
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label small text-muted mb-1">Empfänger-Feld
+                            <span class="text-muted fw-normal">(z.B. <code>{{email}}</code>)</span>
+                        </label>
+                        <input type="text" class="form-control form-control-sm" id="schritt-aktion-empfaenger-feld"
+                               placeholder="{{email}}">
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label small text-muted mb-1">Feste Empfänger
+                            <span class="text-muted fw-normal">(kommagetrennt)</span>
+                        </label>
+                        <input type="text" class="form-control form-control-sm" id="schritt-aktion-empfaenger-fest"
+                               placeholder="amt@gemeinde.de, archiv@gemeinde.de">
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label small text-muted mb-1">E-Mail-Betreff</label>
+                        <input type="text" class="form-control form-control-sm" id="schritt-aktion-betreff"
+                               placeholder="Ihre Bestätigung – {{pfad_name}}">
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label small text-muted mb-1">E-Mail-Text</label>
+                        <textarea class="form-control form-control-sm" id="schritt-aktion-nachricht"
+                                  rows="3" placeholder="Sehr geehrte Damen und Herren, …"></textarea>
+                    </div>
+                </div>
+
                 <hr>
                 <div class="d-flex justify-content-between align-items-center mb-2">
                     <div class="btn-group btn-group-sm" id="schritt-tab-gruppe">
@@ -792,6 +842,14 @@ html, body { overflow: hidden; height: 100%; }
                     <input class="form-check-input" type="checkbox" id="feld-versteckt">
                     <label class="form-check-label" for="feld-versteckt">Feld verstecken (Wert wird trotzdem gespeichert)</label>
                 </div>
+                <div class="mt-2" id="vorausgefuellt-row">
+                    <label class="form-label small text-muted mb-1">Vorausgefüllt aus
+                        <span class="text-muted fw-normal">(z.B. <code>{{neue_gkz_gemeinde}}</code>)</span>
+                    </label>
+                    <input type="text" class="form-control form-control-sm" id="feld-vorausgefuellt"
+                           placeholder="{{variable}} – wird vorbelegt, Nutzer kann ändern">
+                    <div class="form-text" style="font-size:0.75em;">Türkis-Marker im PDF: <code>AUTOFILL: {{variable}}</code></div>
+                </div>
                 <div class="mt-3 pt-2 border-top" id="zeige-wenn-row">
                     <label class="form-label fw-semibold small text-muted mb-1">Nur anzeigen wenn …</label>
                     <select class="form-select form-select-sm" id="feld-zeige-wenn">
@@ -1267,6 +1325,9 @@ Was ist die Hauptstadt von Deutschland?;Berlin;München;Hamburg;Köln;Berlin ist
 <script src="{% static 'js/sortable.min.js' %}"></script>
 <script src="{% static 'js/fim_felder.js' %}"></script>
 <script src="{% static 'js/formulare_editor.js' %}"></script>
+<script>
+const BRIEFVORLAGEN = {{ briefvorlagen_json|safe }};
+</script>
 {% if bank_variablen %}
 {{ bank_variablen|json_script:"bank-variablen-data" }}
 <script>

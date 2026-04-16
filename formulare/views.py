@@ -221,6 +221,30 @@ def _variablen_werte(pfad):
     return {name: info.get("wert", "") for name, info in (pfad.variablen_json or {}).items()}
 
 
+def _wende_vorausgefuellt_an(felder_json: list, gesammelte_daten: dict) -> None:
+    """Belegt Felder mit vorausgefuellt-Attribut vor, wenn noch kein Wert gespeichert ist.
+
+    Verändert gesammelte_daten in-place: setzt {feld_id} auf den substituierten Wert
+    wenn das Feld noch keinen Nutzerwert hat. Der Nutzer kann den Wert überschreiben.
+
+    Beispiel: vorausgefuellt = "{{neue_gkz_gemeinde}}" → Wert aus gesammelte_daten["neue_gkz_gemeinde"]
+    """
+    for feld in felder_json:
+        vorlage = feld.get("vorausgefuellt", "")
+        if not vorlage:
+            continue
+        fid = feld.get("id", "")
+        if not fid or fid in gesammelte_daten:
+            continue  # schon vom Nutzer ausgefüllt → nicht überschreiben
+        wert = re.sub(
+            r"\{\{(\w+)\}\}",
+            lambda m: str(gesammelte_daten.get(m.group(1), "")),
+            vorlage,
+        )
+        if wert:
+            gesammelte_daten[fid] = wert
+
+
 def _substituiere_system_vars(felder_json, pfad):
     """Ersetzt {{kuerzel}} und Pfad-Variablen in Textblock-Feldern."""
     kuerzel = pfad.kuerzel or ""
@@ -779,6 +803,172 @@ def _validiere_schritt(schritt, post_data, vorige_daten=None, files_data=None, s
 
 
 # ---------------------------------------------------------------------------
+# Aktions-Schritte: automatisch ausgeführte Workflow-Aktionen
+# ---------------------------------------------------------------------------
+
+def _ist_aktions_schritt(schritt) -> bool:
+    """Prüft ob ein Schritt ein automatisch ausgeführter Aktions-Schritt ist."""
+    return any(f.get("typ", "").startswith("aktion_") for f in schritt.felder())
+
+
+def _konvertiere_docx_zu_pdf(docx_bytes: bytes) -> bytes | None:
+    """Konvertiert DOCX-Bytes zu PDF.
+
+    Primär: OnlyOffice ConversionAPI (DOCX → PDF, originalgetreu).
+    Fallback: python-docx → HTML → WeasyPrint (einfaches Layout).
+    Gibt None zurück wenn beide Wege scheitern.
+    """
+    import io, json as _json, tempfile, urllib.request as urlreq
+    from django.conf import settings as conf
+
+    oo_int = (getattr(conf, "ONLYOFFICE_INTERNAL_URL", "") or getattr(conf, "ONLYOFFICE_URL", "")).rstrip("/")
+
+    # 1. OnlyOffice ConversionAPI
+    if oo_int:
+        try:
+            # Datei temporär über einen internen WOPI-ähnlichen Endpunkt bereitstellen.
+            # Einfachster Weg: Datei base64-kodiert direkt im Payload – OO unterstützt
+            # aber nur URL-basierte Konvertierung. Daher: temporäre Datei in-memory
+            # als multipart hochladen und URL übergeben.
+            # Alternativer Ansatz: wir nutzen den bereits vorhandenen
+            # workflow._docx_zu_pdf-Weg wenn OO nicht erreichbar ist.
+            import base64 as _b64
+            from korrespondenz.views import _oo_jwt
+            secret = getattr(conf, "ONLYOFFICE_JWT_SECRET", "")
+            # OO ConvertService braucht eine abrufbare URL für die Quelldatei.
+            # Wir umgehen das Problem, indem wir direkt den Fallback-Weg nehmen
+            # wenn kein base_url gesetzt ist (lokale Konvertierung).
+            base_url = getattr(conf, "WOPI_BASE_URL", getattr(conf, "VORGANGSWERK_BASE_URL", "")).rstrip("/")
+            if base_url:
+                # Datei temporär speichern und als einmaligen Download-Key anbieten
+                import hashlib, time
+                conv_key = f"conv-aktion-{hashlib.md5(docx_bytes).hexdigest()[:8]}-{int(time.time())}"
+                # Wir nutzen einen temporären In-Memory-Store über den Django-Cache
+                from django.core.cache import cache
+                cache.set(f"oo_conv_{conv_key}", docx_bytes, timeout=120)
+                dl_url = f"{base_url}/formulare/api/oo-conv-download/{conv_key}/"
+                payload = {"async": False, "filetype": "docx", "key": conv_key,
+                           "outputtype": "pdf", "url": dl_url}
+                headers = {"Content-Type": "application/json"}
+                if secret:
+                    headers["Authorization"] = f"Bearer {_oo_jwt(payload)}"
+                req = urlreq.Request(
+                    f"{oo_int}/ConvertService.ashx",
+                    data=_json.dumps(payload).encode(),
+                    headers=headers, method="POST",
+                )
+                with urlreq.urlopen(req, timeout=30) as resp:
+                    result = _json.loads(resp.read())
+                pdf_url = result.get("fileUrl", "")
+                if pdf_url:
+                    if getattr(conf, "ONLYOFFICE_URL", ""):
+                        pdf_url = pdf_url.replace(
+                            getattr(conf, "ONLYOFFICE_URL", "").rstrip("/"), oo_int, 1)
+                    dl_req = urlreq.Request(pdf_url)
+                    if secret:
+                        import jwt as pyjwt
+                        dl_req.add_header("Authorization",
+                            f"Bearer {pyjwt.encode({'url': pdf_url}, secret, algorithm='HS256')}")
+                    with urlreq.urlopen(dl_req, timeout=30) as r:
+                        return r.read()
+        except Exception as exc:
+            logger.warning("OO-Konvertierung fehlgeschlagen, nutze Fallback: %s", exc)
+
+    # 2. Fallback: python-docx → HTML → WeasyPrint
+    try:
+        from workflow.views import _docx_zu_pdf as _wf_docx_zu_pdf
+
+        class _FakeBrief:
+            """Minimales Brief-Objekt für _docx_zu_pdf-Signatur."""
+            betreff = ""
+
+        return _wf_docx_zu_pdf(docx_bytes, _FakeBrief())
+    except Exception as exc:
+        logger.error("Fallback-PDF-Konvertierung fehlgeschlagen: %s", exc)
+        return None
+
+
+def _fuehre_aktionen_aus(schritt, sitzung) -> None:
+    """Führt alle Aktions-Felder eines Aktions-Schritts aus."""
+    from django.core.mail import EmailMessage as DjangoEmailMessage
+    gesammelt = sitzung.gesammelte_daten
+
+    def _substituiere(text: str) -> str:
+        return re.sub(r"\{\{(\w+)\}\}", lambda m: str(gesammelt.get(m.group(1), "")), text or "")
+
+    def _empfaenger_liste(feld) -> list:
+        empfaenger = []
+        for adr in (feld.get("empfaenger_fest") or "").split(","):
+            adr = adr.strip()
+            if adr and "@" in adr:
+                empfaenger.append(adr)
+        feld_ref = (feld.get("empfaenger_feld") or "").strip()
+        if feld_ref:
+            m = re.match(r"\{\{(\w+)\}\}", feld_ref)
+            if m:
+                wert = str(gesammelt.get(m.group(1), ""))
+                if wert and "@" in wert:
+                    empfaenger.append(wert)
+        if sitzung.user and sitzung.user.email:
+            empfaenger.append(sitzung.user.email)
+        elif sitzung.email_anonym:
+            empfaenger.append(sitzung.email_anonym)
+        return list(dict.fromkeys(empfaenger))
+
+    for feld in schritt.felder():
+        typ = feld.get("typ", "")
+        if not typ.startswith("aktion_"):
+            continue
+
+        empfaenger = _empfaenger_liste(feld)
+        if not empfaenger:
+            logger.warning("Aktions-Schritt %s: kein Empfänger", schritt.node_id)
+            continue
+
+        vorgangsnummer = sitzung.vorgangsnummer or f"ANT-{sitzung.pk:05d}"
+        betreff = _substituiere(feld.get("email_betreff") or f"Ihre Bestätigung – {sitzung.pfad.name}")
+        nachricht = _substituiere(feld.get("email_nachricht") or (
+            f"Anbei erhalten Sie Ihre Bestätigung für den Vorgang '{sitzung.pfad.name}'.\n\n"
+            f"Vorgangsnummer: {vorgangsnummer}"
+        ))
+
+        try:
+            mail = DjangoEmailMessage(subject=betreff, body=nachricht, to=empfaenger)
+
+            if typ == "aktion_briefvorlage":
+                vorlage_id = feld.get("vorlage_id")
+                if vorlage_id:
+                    try:
+                        from korrespondenz.models import Briefvorlage
+                        from korrespondenz.views import _fuelle_vorlage
+                        vorlage = Briefvorlage.objects.get(pk=vorlage_id)
+                        platzhalter = dict(gesammelt)
+                        platzhalter.setdefault("vorgangsnummer", vorgangsnummer)
+                        platzhalter.setdefault("pfad_name", sitzung.pfad.name)
+                        if sitzung.abgeschlossen_am:
+                            platzhalter.setdefault("antrag_datum",
+                                sitzung.abgeschlossen_am.strftime("%d.%m.%Y"))
+                        ausgefuellt = _fuelle_vorlage(bytes(vorlage.inhalt), platzhalter)
+                        # DOCX → PDF via OnlyOffice ConversionAPI (Fallback: WeasyPrint)
+                        pdf_bytes = _konvertiere_docx_zu_pdf(ausgefuellt)
+                        if pdf_bytes:
+                            dateiname = f"Bescheinigung-{vorgangsnummer}.pdf"
+                            mail.attach(dateiname, pdf_bytes, "application/pdf")
+                        else:
+                            dateiname = f"Bescheinigung-{vorgangsnummer}.docx"
+                            mail.attach(dateiname, ausgefuellt,
+                                "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+                    except Exception as exc:
+                        logger.error("aktion_briefvorlage: Vorlage %s befüllen fehlgeschlagen: %s",
+                                     vorlage_id, exc)
+
+            mail.send()
+            logger.info("Aktions-Schritt %s: E-Mail an %s gesendet", schritt.node_id, empfaenger)
+        except Exception as exc:
+            logger.error("Aktions-Schritt %s: E-Mail fehlgeschlagen: %s", schritt.node_id, exc)
+
+
+# ---------------------------------------------------------------------------
 # E-Mail: PDF nach Abschluss versenden
 # ---------------------------------------------------------------------------
 
@@ -1215,10 +1405,19 @@ def pfad_editor(request, pk=None):
     import json as _json
     from workflow.models import WorkflowTemplate
     workflow_templates = WorkflowTemplate.objects.filter(ist_aktiv=True).order_by("name")
+    briefvorlagen = []
+    try:
+        from korrespondenz.models import Briefvorlage
+        briefvorlagen = list(
+            Briefvorlage.objects.filter(ist_aktiv=True).order_by("titel").values("id", "titel")
+        )
+    except Exception:
+        pass
     return render(request, "formulare/pfad_editor.html", {
         "pfad": pfad,
         "bank_variablen": bank_variablen,
         "workflow_templates": workflow_templates,
+        "briefvorlagen_json": json.dumps(briefvorlagen, ensure_ascii=False),
     })
 
 
@@ -1239,6 +1438,7 @@ def pfad_editor_laden(request, pk):
             "loop_bezeichnung": s.loop_bezeichnung or "",
             "loop_titel_feld":  s.loop_titel_feld or "",
             "pdf_gruppe":       s.pdf_gruppe or "",
+            "ist_aktion":       s.ist_aktion,
         }
         for s in pfad.schritte.all()
     ]
@@ -1298,6 +1498,7 @@ class _EditorSchritt(_PydanticBase):
     loop_bezeichnung: str = ""
     loop_titel_feld: str = ""
     pdf_gruppe: str = ""
+    ist_aktion: bool = False
 
 
 class _EditorTransition(_PydanticBase):
@@ -1401,6 +1602,7 @@ def pfad_editor_speichern(request):
             loop_bezeichnung=s.loop_bezeichnung,
             loop_titel_feld=s.loop_titel_feld,
             pdf_gruppe=s.pdf_gruppe,
+            ist_aktion=s.ist_aktion,
         )
         schritt_map[s.node_id] = obj
 
@@ -1826,6 +2028,7 @@ def pfad_schritt(request, sitzung_pk):
 
     felder_render = _substituiere_system_vars(schritt.felder(), sitzung.pfad)
     felder_render = _expandiere_quizpool(felder_render, sitzung)
+    _wende_vorausgefuellt_an(felder_render, sitzung.gesammelte_daten)
     ctx = _schritt_kontext(sitzung, schritt)
 
     # Bank-Variablen einfügen (überschreiben keine Nutzereingaben)
@@ -1954,6 +2157,17 @@ def pfad_schritt(request, sitzung_pk):
             besucht_liste = sitzung.besuchte_schritte[: ziel_idx + 1]
         else:
             besucht_liste = sitzung.besuchte_schritte + [naechster.node_id]
+
+        # Aktions-Schritte automatisch durchlaufen (max. 10 Schritte)
+        for _ in range(10):
+            if not _ist_aktions_schritt(naechster):
+                break
+            _fuehre_aktionen_aus(naechster, sitzung)
+            aktions_transition = _naechster_schritt(naechster, sitzung.gesammelte_daten)
+            if aktions_transition is None:
+                break
+            naechster = aktions_transition.zu_schritt
+            besucht_liste = besucht_liste + [naechster.node_id]
 
         sitzung.aktueller_schritt = naechster
         sitzung.besuchte_schritte = besucht_liste
@@ -2406,6 +2620,7 @@ def antrag_oeffentlich_schritt(request, sitzung_pk):
 
     felder_render = _substituiere_system_vars(schritt.felder(), sitzung.pfad)
     felder_render = _expandiere_quizpool(felder_render, sitzung)
+    _wende_vorausgefuellt_an(felder_render, sitzung.gesammelte_daten)
 
     # Bank-Variablen einfügen (überschreiben keine Nutzereingaben)
     _bankverbindungen_pub = []
@@ -2523,6 +2738,18 @@ def antrag_oeffentlich_schritt(request, sitzung_pk):
             besucht_liste = sitzung.besuchte_schritte[: ziel_idx + 1]
         else:
             besucht_liste = sitzung.besuchte_schritte + [naechster.node_id]
+
+        # Aktions-Schritte automatisch durchlaufen (max. 10 Schritte)
+        for _ in range(10):
+            if not _ist_aktions_schritt(naechster):
+                break
+            _fuehre_aktionen_aus(naechster, sitzung)
+            aktions_transition = _naechster_schritt(naechster, sitzung.gesammelte_daten)
+            if aktions_transition is None:
+                break
+            naechster = aktions_transition.zu_schritt
+            besucht_liste = besucht_liste + [naechster.node_id]
+
         sitzung.aktueller_schritt = naechster
         sitzung.besuchte_schritte = besucht_liste
         sitzung.save(update_fields=[
@@ -2725,6 +2952,19 @@ def webhook_testen(request, pk):
 # ---------------------------------------------------------------------------
 # AGS-Lookup
 # ---------------------------------------------------------------------------
+
+def oo_conv_download(request, conv_key):
+    """Temporärer Download-Endpunkt: liefert DOCX aus Cache für OO-Konvertierung."""
+    from django.core.cache import cache
+    from django.http import HttpResponse
+    data = cache.get(f"oo_conv_{conv_key}")
+    if data is None:
+        return HttpResponse(status=404)
+    return HttpResponse(
+        data,
+        content_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    )
+
 
 @require_GET
 def ags_suche(request):

@@ -37,6 +37,7 @@ class FeldDefinition(BaseModel):
     pflicht: bool = False
     pdf_ausblenden: bool = False
     versteckt: bool = False
+    vorausgefuellt: str = ""
     fim_id: str = ""
     hilfetext: str = ""
 
@@ -165,10 +166,19 @@ Technische AcroForm-Feldnamen aus dem Dokument (zur Orientierung):
 
 ## Marker-Konvention im PDF
 
-Das PDF kann handschriftlich oder digital mit folgenden Markierungen vorbereitet sein:
+Das PDF kann mit farbigen Markierungen (Rechtecke oder beschriftete Flächen) vorbereitet sein.
+**WICHTIG:** Diese Farbmarkierungen sind Strukturierungsanweisungen an dich – kein Formularinhalt. Suche aktiv nach farbigen Annotierungen, auch wenn sie klein oder am Rand platziert sind.
 
-### LOOP-Marker (Rechteck mit "LOOP: Name")
-Felder innerhalb eines "LOOP: Kind"- oder "LOOP: Bewohner"-Rahmens sind wiederholende Eingaben.
+Farbcode:
+- **BLAU** (hellblauer Hintergrund, dunkle Schrift) → LOOP-Marker
+- **GRÜN** (grüner Hintergrund, weiße oder dunkle Schrift) → GRUPPE-Marker
+- **ROT mit Text** (roter Hintergrund, weiße Schrift, mit Zahl oder Beschriftung) → Verzweigungs-/Entscheidungsweg-Marker
+- **ROT ausgefüllt ohne Text** (vollflächig rote Fläche, kein lesbarer Text, ggf. mit "X") → IGNORIEREN: alle darunter liegenden Felder weglassen
+- **TÜRKIS/CYAN** (türkiser Hintergrund, dunkle Schrift) → AUTOFILL-Marker
+- **GELB** (gelber Hintergrund, schwarze Schrift) → SPLIT-Marker: kombiniertes Feld in separate Einzelfelder aufteilen
+
+### LOOP-Marker (blauer Rahmen/Fläche mit "LOOP: Name")
+Felder innerhalb eines blauen "LOOP: Kind"- oder "LOOP: Bewohner"-Rahmens sind wiederholende Eingaben.
 So baust du die Struktur:
 1. Einen Schritt für die Felder VOR dem Loop (Pre-Loop, z.B. Familienname) – normale Felder, pdf_gruppe setzen.
 2. Einen Schritt für die Loop-Felder (z.B. "Kind-Daten") mit pdf_gruppe = Loop-Name, node_id z.B. "s_loop_body".
@@ -181,12 +191,54 @@ Schritt-Attribute für Loop-Schritte:
 - "loop_titel_feld": "vorname" (Feld-ID dessen Wert als Untertitel erscheint, nur am Loop-Trigger-Schritt)
 - "pdf_gruppe": "Kinder" (an Loop-Body- und Weiter-Schritt)
 
-### GRUPPE-Marker (Rechteck mit "GRUPPE: Name")
-Alle Felder im markierten Bereich gehören zur gleichen PDF-Gruppe.
-Setze am jeweiligen Schritt: "pdf_gruppe": "Name" (z.B. "Wohnort", "Persönliche Daten").
+### GRUPPE-Marker (grüner Rahmen/Fläche) – universeller Schritt-Marker
+Grün ist der allgemeine Marker für einen Schritt im Formular. Jeder grüne Marker = ein eigener Schritt.
 
-### Entscheidungswege (Rechteck mit Zahl)
-1. Jede visuell abgegrenzte Gruppe bekommt einen EIGENEN Schritt. Die Gruppennummer (z.B. "3", "4", "5") steht sichtbar im oder am Rahmen.
+Formate:
+- `GRUPPE: Wohnort` → Schritt mit Titel "Wohnort", Reihenfolge aus Position im PDF
+- `GRUPPE: 2 · Neue Hauptwohnung` → Schritt mit Titel "Neue Hauptwohnung", Reihenfolge = 2 (bindend, überschreibt Position)
+- `GRUPPE: 3` → Schritt ohne expliziten Titel, Reihenfolge = 3 (Titel aus Feldinhalt ableiten)
+
+Reihenfolge-Regeln:
+1. Haben alle Marker eine Nummer → sortiere strikt nach Nummer, ignoriere physische Position
+2. Haben nur manche Marker eine Nummer → nummerierte Schritte zuerst in Nummer-Reihenfolge, unnummerierte danach nach Position
+3. Kein Marker hat eine Nummer → Reihenfolge aus Position im PDF (oben→unten, Seite 1 vor Seite 2)
+
+Setze am jeweiligen Schritt: `"pdf_gruppe": "Name"` und `"titel": "Name"`.
+
+### SPLIT-Marker (gelber Rahmen/Fläche) – drei Varianten
+
+**Variante A – direkt:** Gelber Marker mit Komma-Liste direkt am Feld: `SPLIT: PLZ, Gemeinde, Ortsteil`
+
+**Variante B – Referenznummer:** Ist das Feld zu klein für die Beschriftung, schreibe nur `SPLIT 1` (oder `SPLIT 2`, `SPLIT 3` …) in den gelben Marker am Feld. Platziere dann irgendwo auf der Seite einen zweiten gelben Marker mit der Auflösung: `SPLIT 1: PLZ, Gemeinde, Ortsteil`. Die KI verknüpft beide Marker über die Nummer.
+
+**Variante C – automatisch aus Feldbezeichnung:** Enthält die Original-Feldbeschriftung selbst eine Komma-Liste bekannter Teilfelder (z.B. „Postleitzahl, Gemeinde, Ortsteil" oder „Straße, Hausnummer, Zusatz"), teile das Feld auch ohne Marker automatisch auf. Diese Erkennung gilt nur für bekannte Adress-Begriffe – bei unklaren Komma-Listen lieber als ein Feld belassen.
+
+Aufteilung – Teilfelder und ihre Attribute:
+- "PLZ" / "Postleitzahl" → `typ: "text"`, `id: "[prefix]_plz"`, fim_id: "F60000024"
+- "Gemeinde" / "Ort" / "Stadt" → `typ: "text"`, `id: "[prefix]_gemeinde"`, fim_id: "F60000025"
+- "Ortsteil" → `typ: "text"`, `id: "[prefix]_ortsteil"`, pflicht: false
+- "Straße" / "Straße, Hausnummer" → `typ: "text"`, `id: "[prefix]_strasse"`, fim_id: "F60000022"
+- "Hausnummer" / "Haus-Nr." → `typ: "text"`, `id: "[prefix]_hausnummer"`
+- "Zusatz" / "Adresszusatz" → `typ: "text"`, `id: "[prefix]_zusatz"`, pflicht: false
+- "Kreis" / "Landkreis" → `typ: "text"`, `id: "[prefix]_kreis"`
+- "Land" / "Bundesland" / "Staat" → `typ: "text"`, `id: "[prefix]_land"`
+Ohne Marker und ohne erkennbare Adress-Kombo: kombiniertes Feld als einzelnes Textfeld belassen.
+
+### AUTOFILL-Marker (türkiser Rahmen/Fläche mit "AUTOFILL: {{variable}}")
+Erkennst du einen türkisen Marker wie "AUTOFILL: {{neue_gkz_gemeinde}}" neben einem Feld, setze am Feld das Attribut:
+`"vorausgefuellt": "{{neue_gkz_gemeinde}}"` (exakt so wie im Marker angegeben).
+Der Wert wird beim Anzeigen automatisch aus einem anderen Feld vorbelegt – der Nutzer kann ihn ändern.
+Typische Verwendung: Gemeinde/Ort aus Gemeindekennzahl-Feld übernehmen.
+- `{{gkz_feld_id_gemeinde}}` → Gemeindename aus GKZ-Feld
+- `{{gkz_feld_id_kreis}}` → Kreis aus GKZ-Feld
+- `{{gkz_feld_id_land}}` → Bundesland aus GKZ-Feld
+
+### IGNORIEREN-Marker (vollflächig rote Fläche, kein Text oder nur "X")
+Erkennst du einen vollflächig ausgefüllten roten Block ohne lesbaren Inhalt (oder mit einem "X"), überspringe alle Felder die darunter liegen oder damit überdeckt sind vollständig – sie werden nicht als Formularfelder erfasst. Typische Verwendung: amtliche Vermerke, Behördenfelder ("Für amtliche Zwecke"), Aktenzeichen die intern vergeben werden, irrelevante Abschnitte.
+
+### Entscheidungswege (roter Rahmen mit Zahl oder Beschriftung)
+1. Jede visuell abgegrenzte Gruppe bekommt einen EIGENEN Schritt. Die Gruppennummer (z.B. "3", "4", "5") steht sichtbar im oder am roten Rahmen.
 2. Eine Ziffernreihe im Abschnitts-Header (z.B. "3 4 5 6 7 8 9 10") ist das AUSWAHLFELD: Erstelle daraus ein checkboxen-Feld mit den Ziffern als Optionen und einem passenden label.
 3. Der Schritt mit diesem Auswahlfeld ist der Verzweigungsschritt (node_id: "s_auswahl").
 4. Jede Transition vom Auswahlschritt zu einem Gruppenschritt erhält eine Bedingung: {{{{auswahl_feld_id}}}} == 'N'.
@@ -246,6 +298,7 @@ Erstelle eine JSON-Pfad-Definition mit exakt dieser Struktur:
 ## Feld-Attribute
 - "pflicht": true/false – Pflichtfeld
 - "pdf_ausblenden": true – Feld erscheint nicht in der PDF-Zusammenfassung (z.B. Loop-Steuerungsfelder wie "Weiteres Kind?")
+- "vorausgefuellt": "{{variable}}" – Feld wird automatisch aus einer anderen Feldvariablen vorbelegt (Nutzer kann ändern); nur setzen wenn türkiser AUTOFILL-Marker vorhanden
 
 ## Quiz-Erkennung
 Falls das PDF ein Test, eine Prüfung oder eine Einweisung mit Wissensfragen ist:
