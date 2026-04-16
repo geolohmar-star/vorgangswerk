@@ -94,14 +94,37 @@ Seiten: {seitenanzahl}
 Technische AcroForm-Feldnamen aus dem Dokument (zur Orientierung):
 {felder_str}
 
-Visuelle Gruppen → eigene Schritte:
-Falls im PDF Bereiche durch farbige Rahmen (z.B. rote Rechtecke) oder andere visuelle Abgrenzungen gruppiert sind, gilt:
+## Marker-Konvention im PDF
+
+Das PDF kann handschriftlich oder digital mit folgenden Markierungen vorbereitet sein:
+
+### LOOP-Marker (Rechteck mit "LOOP: Name")
+Felder innerhalb eines "LOOP: Kind"- oder "LOOP: Bewohner"-Rahmens sind wiederholende Eingaben.
+So baust du die Struktur:
+1. Einen Schritt für die Felder VOR dem Loop (Pre-Loop, z.B. Familienname) – normale Felder, pdf_gruppe setzen.
+2. Einen Schritt für die Loop-Felder (z.B. "Kind-Daten") mit pdf_gruppe = Loop-Name, node_id z.B. "s_loop_body".
+3. Einen Schritt "Weiteres [Name]?" mit einem radio-Feld (optionen: ["ja","nein"]), pdf_ausblenden: true gesetzt (erscheint nicht in PDF).
+4. Einen Loop-Trigger-Schritt mit loop_bezeichnung = Loop-Name (z.B. "Kind"), loop_titel_feld = erstes Namensfeld im Loop (z.B. "vorname"), und einem systemfeld (systemwert: "loop_zaehler").
+5. Transitionen: Loop-Body → Weiter-Schritt → (ja) → Loop-Trigger → Loop-Body; (nein) → Abschluss.
+
+Schritt-Attribute für Loop-Schritte:
+- "loop_bezeichnung": "Kind" (nur am Loop-Trigger-Schritt)
+- "loop_titel_feld": "vorname" (Feld-ID dessen Wert als Untertitel erscheint, nur am Loop-Trigger-Schritt)
+- "pdf_gruppe": "Kinder" (an Loop-Body- und Weiter-Schritt)
+
+### GRUPPE-Marker (Rechteck mit "GRUPPE: Name")
+Alle Felder im markierten Bereich gehören zur gleichen PDF-Gruppe.
+Setze am jeweiligen Schritt: "pdf_gruppe": "Name" (z.B. "Wohnort", "Persönliche Daten").
+
+### Entscheidungswege (Rechteck mit Zahl)
 1. Jede visuell abgegrenzte Gruppe bekommt einen EIGENEN Schritt. Die Gruppennummer (z.B. "3", "4", "5") steht sichtbar im oder am Rahmen.
-2. Eine Ziffernreihe im Abschnitts-Header (z.B. "3 4 5 6 7 8 9 10" neben einer Abschnittsüberschrift) ist das AUSWAHLFELD: Erstelle daraus ein checkboxen-Feld mit den Ziffern als Optionen (z.B. optionen: ["3", "4", "5", "6", "7", "8", "9", "10"]) und einem label wie "Welche Tierhaltungen sind anzumelden?".
+2. Eine Ziffernreihe im Abschnitts-Header (z.B. "3 4 5 6 7 8 9 10") ist das AUSWAHLFELD: Erstelle daraus ein checkboxen-Feld mit den Ziffern als Optionen und einem passenden label.
 3. Der Schritt mit diesem Auswahlfeld ist der Verzweigungsschritt (node_id: "s_auswahl").
-4. Jede Transition vom Auswahlschritt zu einem Gruppenschritt erhält eine Bedingung: {{{{auswahl_feld_id}}}} == 'N' wobei N die Gruppennummer ist (Syntax exakt so, mit doppelt geschweiften Klammern).
-5. Alle Gruppenschritte münden in denselben Abschluss-Schritt. Verwende reihenfolge-Werte 0,1,2,...
+4. Jede Transition vom Auswahlschritt zu einem Gruppenschritt erhält eine Bedingung: {{{{auswahl_feld_id}}}} == 'N'.
+5. Alle Gruppenschritte münden in denselben Abschluss-Schritt.
 6. pos_x der Gruppenschritte: 600, pos_y staffeln (80, 230, 380, ...). Auswahlschritt: pos_x=300. Abschluss: pos_x=1000, pos_y=80.
+
+## JSON-Struktur
 
 Erstelle eine JSON-Pfad-Definition mit exakt dieser Struktur:
 {{
@@ -117,6 +140,9 @@ Erstelle eine JSON-Pfad-Definition mit exakt dieser Struktur:
       "ist_ende": false,
       "pos_x": 300,
       "pos_y": 80,
+      "pdf_gruppe": "",
+      "loop_bezeichnung": "",
+      "loop_titel_feld": "",
       "felder_json": [
         {{"id": "eindeutige_feld_id", "typ": "text", "label": "Feldbeschriftung", "pflicht": true, "fim_id": "F60000003"}}
       ]
@@ -127,7 +153,7 @@ Erstelle eine JSON-Pfad-Definition mit exakt dieser Struktur:
   ]
 }}
 
-Verfügbare Feldtypen:
+## Verfügbare Feldtypen
 - text: Einzeiliges Textfeld
 - mehrzeil: Mehrzeiliges Textfeld
 - zahl: Zahlenfeld
@@ -135,7 +161,7 @@ Verfügbare Feldtypen:
 - email: E-Mail-Adresse
 - telefon: Telefonnummer
 - plz: Postleitzahl (5 Stellen)
-- gemeindekennzahl: 8-stelliger Amtlicher Gemeindeschlüssel (AGS) – füllt automatisch Gemeinde, Kreis und Bundesland aus. Verwende diesen Typ immer wenn das Formular nach "Gemeindekennzahl", "AGS", "Amtlicher Gemeindeschlüssel" fragt ODER wenn Felder für Gemeinde + Kreis + Bundesland zusammen vorkommen (z.B. "Gemeinde, Kreis, Land der bisherigen Hauptwohnung"). Das Feld mit id z.B. "wohnort_ags" erzeugt automatisch die Unterfelder wohnort_ags_gemeinde, wohnort_ags_kreis, wohnort_ags_land – diese brauchst du NICHT separat anzulegen.
+- gemeindekennzahl: 8-stelliger AGS – füllt automatisch Gemeinde, Kreis und Bundesland aus. Verwende diesen Typ immer wenn das Formular nach "Gemeindekennzahl", "AGS" fragt ODER wenn Felder für Gemeinde + Kreis + Bundesland zusammen vorkommen. Lege KEINE separaten Felder für Gemeinde, Kreis oder Bundesland an.
 - radio: Einfachauswahl (Pflicht: "optionen": ["Option A", "Option B"])
 - checkboxen: Mehrfachauswahl (Pflicht: "optionen": ["Option A", "Option B"])
 - bool: Einzelne Checkbox (ja/nein)
@@ -143,23 +169,26 @@ Verfügbare Feldtypen:
 - einwilligung: Zustimmungstext (Pflicht: "text": "Ich stimme zu...")
 - textblock: Informationstext (Pflicht: "text": "Hinweistext...")
 - abschnitt: Abschnittsüberschrift (Pflicht: "text": "Überschrift")
+- systemfeld: Internes Steuerungsfeld, nicht vom Nutzer ausfüllbar (Pflicht: "systemwert": "loop_zaehler"). Nur für Loop-Trigger-Schritte.
 - zusammenfassung: Zusammenfassung aller Angaben (genau einmal im letzten Schritt)
 - quizfrage: Multiple-Choice-Frage (Pflicht: "antwort_typ": "single"|"multiple", "antworten": [{{"text": "...", "korrekt": true|false}}], optional "erklaerung": "...", "punkte": 1)
 - quizergebnis: Auswertungsfeld (Pflicht: "bewertungsmodell": "prozent", "bestanden_ab": 50) – genau einmal im letzten Schritt statt zusammenfassung
 
-Quiz-Erkennung:
-Falls das PDF ein Test, eine Prüfung, ein Fragebogen oder eine Einweisung mit Wissensfragen ist:
-1. Jede Frage mit Antwortoptionen (a/b/c/d, 1/2/3/4 oder Checkboxen) wird als quizfrage erfasst.
-2. Die korrekte Antwort markierst du mit "korrekt": true (bei single-choice genau eine, bei multiple mehrere).
-3. Gruppiere 5-10 Fragen pro Schritt (nicht alle in einen Schritt).
-4. Der letzte Schritt enthält ein quizergebnis-Feld statt zusammenfassung.
-5. Falls keine korrekten Antworten erkennbar sind, setze bei der plausibelsten Option "korrekt": true und füge "erklaerung": "Bitte korrekte Antworten prüfen" hinzu.
+## Feld-Attribute
+- "pflicht": true/false – Pflichtfeld
+- "pdf_ausblenden": true – Feld erscheint nicht in der PDF-Zusammenfassung (z.B. Loop-Steuerungsfelder wie "Weiteres Kind?")
 
-Wichtige Regeln:
+## Quiz-Erkennung
+Falls das PDF ein Test, eine Prüfung oder eine Einweisung mit Wissensfragen ist:
+1. Jede Frage mit Antwortoptionen wird als quizfrage erfasst.
+2. Die korrekte Antwort markierst du mit "korrekt": true.
+3. Gruppiere 5-10 Fragen pro Schritt.
+4. Der letzte Schritt enthält ein quizergebnis-Feld statt zusammenfassung.
+
+## Wichtige Regeln
 - Verwende sprechende, einzigartige IDs (z.B. "vorname", "geburtsdatum", "kfz_kennzeichen")
 - Markiere echte Pflichtfelder mit pflicht:true
-- Füge bekannte FIM-IDs hinzu: F60000003=Vorname, F60000004=Nachname/Name, F60000022=Straße, F60000024=PLZ, F60000025=Ort, F60000030=E-Mail, F60000031=Telefon, F60000060=Datum
-- Wenn ein Formular nach Gemeindekennzahl / AGS fragt oder Felder für "Gemeinde + Kreis + Bundesland" kombiniert enthält: verwende typ "gemeindekennzahl" statt mehrerer text-Felder. Lege KEINE separaten Felder für Gemeinde, Kreis oder Bundesland an – das Feld füllt diese automatisch.
+- FIM-IDs: F60000003=Vorname, F60000004=Nachname, F60000022=Straße, F60000024=PLZ, F60000025=Ort, F60000030=E-Mail, F60000031=Telefon, F60000060=Datum
 - Der letzte Schritt (ist_ende:true) enthält ein "zusammenfassung"-Feld und optional "signatur"
 - Ohne visuelle Gruppen: 3-8 Schritte nach Themen, pos_y +150 pro Schritt
 
@@ -317,6 +346,9 @@ def importiere_pfad_aus_analyse(analyse: FormularAnalyse) -> int:
             ist_ende=sd.get("ist_ende", False),
             pos_x=sd.get("pos_x", 300),
             pos_y=sd.get("pos_y", 80),
+            pdf_gruppe=sd.get("pdf_gruppe", ""),
+            loop_bezeichnung=sd.get("loop_bezeichnung", ""),
+            loop_titel_feld=sd.get("loop_titel_feld", ""),
         )
         schritt_map[obj.node_id] = obj
 
