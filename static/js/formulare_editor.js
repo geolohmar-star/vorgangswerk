@@ -989,6 +989,7 @@
         document.getElementById("schritt-titel").value = schritt ? schritt.titel : "";
         document.getElementById("schritt-ist-start").checked = schritt ? !!schritt.ist_start : false;
         document.getElementById("schritt-ist-ende").checked = schritt ? !!schritt.ist_ende : false;
+        document.getElementById("schritt-pdf-gruppe").value = schritt ? (schritt.pdf_gruppe || "") : "";
         document.getElementById("schritt-loop-bezeichnung").value = schritt ? (schritt.loop_bezeichnung || "") : "";
         document.getElementById("schritt-loop-titel-feld").value = schritt ? (schritt.loop_titel_feld || "") : "";
 
@@ -1075,6 +1076,7 @@
 
         var istStart = document.getElementById("schritt-ist-start").checked;
         var istEnde = document.getElementById("schritt-ist-ende").checked;
+        var pdfGruppe = document.getElementById("schritt-pdf-gruppe").value.trim();
         var loopBezeichnung = document.getElementById("schritt-loop-bezeichnung").value.trim();
         var loopTitelFeld = document.getElementById("schritt-loop-titel-feld").value.trim();
         var modalEl = document.getElementById("schritt-modal");
@@ -1087,6 +1089,7 @@
             schritte[editNodeId].ist_start = istStart;
             schritte[editNodeId].ist_ende = istEnde;
             schritte[editNodeId].felder_json = JSON.parse(JSON.stringify(schritteFelder));
+            schritte[editNodeId].pdf_gruppe = pdfGruppe;
             schritte[editNodeId].loop_bezeichnung = loopBezeichnung;
             schritte[editNodeId].loop_titel_feld = loopTitelFeld;
             nodes.update({
@@ -1105,6 +1108,7 @@
                 ist_ende: istEnde,
                 pos_x: Math.round(posX),
                 pos_y: Math.round(posY),
+                pdf_gruppe: pdfGruppe,
                 loop_bezeichnung: loopBezeichnung,
                 loop_titel_feld: loopTitelFeld,
             };

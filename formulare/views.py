@@ -371,11 +371,24 @@ def _baue_zusammenfassung(sitzung):
 
     def _zeilen(daten_dict, besuchte):
         zeilen = []
+        aktuelle_gruppe = None
         for schritt_node_id in besuchte:
             try:
                 schritt = sitzung.pfad.schritte.get(node_id=schritt_node_id)
             except AntrSchritt.DoesNotExist:
                 continue
+            # Gruppenheader einfügen wenn pdf_gruppe sich ändert
+            gruppe = schritt.pdf_gruppe or ""
+            if gruppe and gruppe != aktuelle_gruppe:
+                # Prüfen ob dieser Schritt überhaupt sichtbare Felder mit Daten liefert
+                hat_daten = any(
+                    daten_dict.get(f.get("id", "")) not in ("", None)
+                    for f in _anzeigefelder(schritt)
+                    if not f.get("id", "").startswith("__")
+                )
+                if hat_daten:
+                    zeilen.append({"label": gruppe, "wert": "", "typ": "_gruppe"})
+                    aktuelle_gruppe = gruppe
             for feld in _anzeigefelder(schritt):
                 feld_id = feld.get("id", "")
                 if feld_id.startswith("__"):
@@ -451,14 +464,36 @@ def _baue_zusammenfassung(sitzung):
                 loop_titel_feld = schritt.loop_titel_feld or ""
                 break
 
+    # Pre-Loop-Schritte identifizieren: alles vor dem ersten wiederholten node_id
+    seen = set()
+    loop_start_node_id = None
+    for node_id in sitzung.besuchte_schritte:
+        if node_id in seen:
+            loop_start_node_id = node_id
+            break
+        seen.add(node_id)
+
+    if loop_start_node_id:
+        ziel_idx = sitzung.besuchte_schritte.index(loop_start_node_id)
+        pre_loop_node_ids = sitzung.besuchte_schritte[:ziel_idx]
+        # Deduplizierte loop node_ids (Reihenfolge des ersten Auftretens beibehalten)
+        loop_node_ids = list(dict.fromkeys(sitzung.besuchte_schritte[ziel_idx:]))
+    else:
+        pre_loop_node_ids = []
+        loop_node_ids = sitzung.besuchte_schritte
+
     zusammenfassung = []
+    # Pre-Loop-Felder zuerst (z.B. Nachname, der vor dem Loop abgefragt wurde)
+    if pre_loop_node_ids:
+        zusammenfassung.extend(_zeilen(gesammelte, pre_loop_node_ids))
+
     for nr, iteration_daten in enumerate(_loop_iterationen(gesammelte), start=1):
         bezeichnung = loop_bezeichnung or "Eintrag"
         label = f"{nr}. {bezeichnung}"
         if loop_titel_feld and iteration_daten.get(loop_titel_feld):
             label += f" – {iteration_daten[loop_titel_feld]}"
         zusammenfassung.append({"label": label, "wert": "", "typ": "_loop_header"})
-        zusammenfassung.extend(_zeilen(iteration_daten, sitzung.besuchte_schritte))
+        zusammenfassung.extend(_zeilen(iteration_daten, loop_node_ids))
     return zusammenfassung
 
 
@@ -1211,6 +1246,7 @@ def pfad_editor_laden(request, pk):
             "pos_y":           s.pos_y,
             "loop_bezeichnung": s.loop_bezeichnung or "",
             "loop_titel_feld":  s.loop_titel_feld or "",
+            "pdf_gruppe":       s.pdf_gruppe or "",
         }
         for s in pfad.schritte.all()
     ]
@@ -1313,6 +1349,7 @@ def pfad_editor_speichern(request):
             pos_y=s.get("pos_y", 200),
             loop_bezeichnung=s.get("loop_bezeichnung", ""),
             loop_titel_feld=s.get("loop_titel_feld", ""),
+            pdf_gruppe=s.get("pdf_gruppe", ""),
         )
         schritt_map[node_id] = obj
 

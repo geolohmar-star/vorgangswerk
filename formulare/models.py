@@ -108,6 +108,11 @@ class AntrSchritt(models.Model):
         verbose_name="Loop-Titelfeld",
         help_text="Feld-ID dessen Wert als Untertitel erscheint, z.B. 'vorname'",
     )
+    pdf_gruppe = models.CharField(
+        max_length=100, blank=True, default="",
+        verbose_name="PDF-Gruppe",
+        help_text="Gruppenname für PDF und JSON-Export, z.B. 'Persönliche Daten', 'Wohnort'",
+    )
     node_id = models.CharField(max_length=50, verbose_name="Node-ID")
     pfad = models.ForeignKey(
         AntrPfad, on_delete=models.CASCADE, related_name="schritte"

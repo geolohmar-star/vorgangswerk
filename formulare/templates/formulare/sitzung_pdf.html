@@ -79,6 +79,17 @@
             padding: 3px 8px;
             margin-bottom: 4px;
         }
+        .gruppe-header {
+            font-size: 10pt;
+            font-weight: bold;
+            color: #1a4d2e;
+            border-bottom: 2px solid #1a4d2e;
+            padding: 4px 0 2px 0;
+            margin-top: 0.4cm;
+            margin-bottom: 0.1cm;
+            letter-spacing: 0.03em;
+            text-transform: uppercase;
+        }
         .loop-header {
             font-size: 11pt;
             font-weight: bold;
@@ -166,7 +177,9 @@
         </div>
 
         {% for eintrag in zusammenfassung %}
-            {% if eintrag.typ == "_loop_header" %}
+            {% if eintrag.typ == "_gruppe" %}
+            <div class="gruppe-header">{{ eintrag.label }}</div>
+            {% elif eintrag.typ == "_loop_header" %}
             <div class="loop-header">{{ eintrag.label }}</div>
             {% elif eintrag.typ == "_abschnitt" %}
             <div class="abschnitt-titel" style="margin-top:0.4cm;">{{ eintrag.label }}</div>
