@@ -38,6 +38,7 @@ class FeldDefinition(BaseModel):
     pdf_ausblenden: bool = False
     versteckt: bool = False
     vorausgefuellt: str = ""
+    quelle: str = ""
     fim_id: str = ""
     hilfetext: str = ""
 
@@ -170,15 +171,17 @@ Das PDF kann mit farbigen Markierungen (Rechtecke oder beschriftete Flächen) vo
 **WICHTIG:** Diese Farbmarkierungen sind Strukturierungsanweisungen an dich – kein Formularinhalt. Suche aktiv nach farbigen Annotierungen, auch wenn sie klein oder am Rand platziert sind.
 
 Farbcode:
-- **BLAU** (hellblauer Hintergrund, dunkle Schrift) → LOOP-Marker
+- **BLAU** (blauer Hintergrund ODER blauer Rahmen/Border, Fläche oder Umrandung, blaue oder dunkle Schrift) → LOOP-Marker
 - **GRÜN** (grüner Hintergrund, weiße oder dunkle Schrift) → GRUPPE-Marker
 - **ROT mit Text** (roter Hintergrund, weiße Schrift, mit Zahl oder Beschriftung) → Verzweigungs-/Entscheidungsweg-Marker
 - **ROT ausgefüllt ohne Text** (vollflächig rote Fläche, kein lesbarer Text, ggf. mit "X") → IGNORIEREN: alle darunter liegenden Felder weglassen
 - **TÜRKIS/CYAN** (türkiser Hintergrund, dunkle Schrift) → AUTOFILL-Marker
 - **GELB** (gelber Hintergrund, schwarze Schrift) → SPLIT-Marker: kombiniertes Feld in separate Einzelfelder aufteilen
 
-### LOOP-Marker (blauer Rahmen/Fläche mit "LOOP: Name")
-Felder innerhalb eines blauen "LOOP: Kind"- oder "LOOP: Bewohner"-Rahmens sind wiederholende Eingaben.
+### LOOP-Marker (blauer Rahmen oder blaue Fläche)
+Erkennst du einen blauen Rahmen oder eine blaue Fläche um einen Bereich, ist das immer ein LOOP-Marker – egal ob der Text mit "LOOP:" beginnt oder nicht.
+Der Text im blauen Marker gibt den Loop-Namen an: "LOOP: Bewohner" → Name = "Bewohner"; nur "Bewohner" (blau) → Name = "Bewohner". Beginnt der Text nicht mit "LOOP:", nimm den gesamten Text als Loop-Namen.
+Felder innerhalb eines blauen Rahmens/Fläche sind wiederholende Eingaben.
 So baust du die Struktur:
 1. Einen Schritt für die Felder VOR dem Loop (Pre-Loop, z.B. Familienname) – normale Felder, pdf_gruppe setzen.
 2. Einen Schritt für die Loop-Felder (z.B. "Kind-Daten") mit pdf_gruppe = Loop-Name, node_id z.B. "s_loop_body".
@@ -212,27 +215,39 @@ Setze am jeweiligen Schritt: `"pdf_gruppe": "Name"` und `"titel": "Name"`.
 
 **Variante B – Referenznummer:** Ist das Feld zu klein für die Beschriftung, schreibe nur `SPLIT 1` (oder `SPLIT 2`, `SPLIT 3` …) in den gelben Marker am Feld. Platziere dann irgendwo auf der Seite einen zweiten gelben Marker mit der Auflösung: `SPLIT 1: PLZ, Gemeinde, Ortsteil`. Die KI verknüpft beide Marker über die Nummer.
 
-**Variante C – automatisch aus Feldbezeichnung:** Enthält die Original-Feldbeschriftung selbst eine Komma-Liste bekannter Teilfelder (z.B. „Postleitzahl, Gemeinde, Ortsteil" oder „Straße, Hausnummer, Zusatz"), teile das Feld auch ohne Marker automatisch auf. Diese Erkennung gilt nur für bekannte Adress-Begriffe – bei unklaren Komma-Listen lieber als ein Feld belassen.
+**Variante C – automatisch aus Feldbezeichnung (PFLICHT!):** Enthält die Original-Feldbeschriftung eine Komma-Liste mit mindestens zwei der folgenden bekannten Adress-Begriffe, MUSST du das Feld aufteilen – auch ohne gelben Marker:
+Erkannte Begriffe: Postleitzahl, PLZ, Gemeinde, Ort, Stadt, Ortsteil, Straße, Hausnummer, Haus-Nr., Zusatz, Adresszusatz, Kreis, Landkreis, Land, Bundesland
+
+Beispiel Variante C:
+- Feldbezeichnung „Postleitzahl, Gemeinde, Ortsteil (neue Hauptwohnung)" → drei Felder: `neue_plz`, `neue_gemeinde`, `neue_ortsteil`
+- Feldbezeichnung „Straße, Hausnummer, Zusätze (neue Hauptwohnung)" → drei Felder: `neue_strasse`, `neue_hausnummer`, `neue_zusatz`
+- Feldbezeichnung „Postleitzahl, Gemeinde, Kreis, Land (bisherige Wohnung)" → vier Felder: `bisherige_plz`, `bisherige_gemeinde`, `bisherige_kreis`, `bisherige_land`
 
 Aufteilung – Teilfelder und ihre Attribute:
 - "PLZ" / "Postleitzahl" → `typ: "text"`, `id: "[prefix]_plz"`, fim_id: "F60000024"
 - "Gemeinde" / "Ort" / "Stadt" → `typ: "text"`, `id: "[prefix]_gemeinde"`, fim_id: "F60000025"
 - "Ortsteil" → `typ: "text"`, `id: "[prefix]_ortsteil"`, pflicht: false
-- "Straße" / "Straße, Hausnummer" → `typ: "text"`, `id: "[prefix]_strasse"`, fim_id: "F60000022"
+- "Straße" → `typ: "text"`, `id: "[prefix]_strasse"`, fim_id: "F60000022"
 - "Hausnummer" / "Haus-Nr." → `typ: "text"`, `id: "[prefix]_hausnummer"`
-- "Zusatz" / "Adresszusatz" → `typ: "text"`, `id: "[prefix]_zusatz"`, pflicht: false
+- "Zusatz" / "Adresszusatz" / "Zusätze" → `typ: "text"`, `id: "[prefix]_zusatz"`, pflicht: false
 - "Kreis" / "Landkreis" → `typ: "text"`, `id: "[prefix]_kreis"`
 - "Land" / "Bundesland" / "Staat" → `typ: "text"`, `id: "[prefix]_land"`
-Ohne Marker und ohne erkennbare Adress-Kombo: kombiniertes Feld als einzelnes Textfeld belassen.
+Nur wenn die Bezeichnung keine bekannten Adress-Begriffe enthält: als einzelnes Textfeld belassen.
 
-### AUTOFILL-Marker (türkiser Rahmen/Fläche mit "AUTOFILL: {{variable}}")
-Erkennst du einen türkisen Marker wie "AUTOFILL: {{neue_gkz_gemeinde}}" neben einem Feld, setze am Feld das Attribut:
-`"vorausgefuellt": "{{neue_gkz_gemeinde}}"` (exakt so wie im Marker angegeben).
-Der Wert wird beim Anzeigen automatisch aus einem anderen Feld vorbelegt – der Nutzer kann ihn ändern.
-Typische Verwendung: Gemeinde/Ort aus Gemeindekennzahl-Feld übernehmen.
-- `{{gkz_feld_id_gemeinde}}` → Gemeindename aus GKZ-Feld
-- `{{gkz_feld_id_kreis}}` → Kreis aus GKZ-Feld
-- `{{gkz_feld_id_land}}` → Bundesland aus GKZ-Feld
+### AUTOFILL / Feldtyp autofill
+Es gibt zwei Wege ein Feld automatisch vorzubefüllen:
+
+**A – Automatisch (ohne Marker):** Enthält ein Schritt ein GKZ-Feld (typ: gemeindekennzahl) und direkt danach Felder für Gemeinde, Kreis, Land oder PLZ, setze diese Felder als `typ: "autofill"` mit dem passenden `quelle`-Attribut:
+- Gemeinde-Feld neben/nach GKZ-Feld mit ID `neue_gkz` → `{"typ": "autofill", "quelle": "neue_gkz_gemeinde"}`
+- Kreis-Feld → `{"typ": "autofill", "quelle": "neue_gkz_kreis"}`
+- Land-Feld → `{"typ": "autofill", "quelle": "neue_gkz_land"}`
+- PLZ-Feld neben GKZ → `{"typ": "autofill", "quelle": "neue_gkz_plz"}` (falls vorhanden)
+Schema: `{gkz_feld_id}_gemeinde`, `{gkz_feld_id}_kreis`, `{gkz_feld_id}_land`
+
+**B – Explizit (türkiser Marker):** Erkennst du einen türkisen Marker wie "AUTOFILL: neue_gkz_gemeinde" neben einem Feld, setze `"typ": "autofill", "quelle": "neue_gkz_gemeinde"` (ohne `{{}}`-Klammern beim quelle-Wert).
+Der türkise Marker gilt für alle Feldvariablen – nicht nur GKZ. Beispiel: "AUTOFILL: p1_familienname" → Vorname von Person 1 in späteren Schritt übernehmen.
+
+Der Nutzer kann autofill-Werte jederzeit überschreiben.
 
 ### IGNORIEREN-Marker (vollflächig rote Fläche, kein Text oder nur "X")
 Erkennst du einen vollflächig ausgefüllten roten Block ohne lesbaren Inhalt (oder mit einem "X"), überspringe alle Felder die darunter liegen oder damit überdeckt sind vollständig – sie werden nicht als Formularfelder erfasst. Typische Verwendung: amtliche Vermerke, Behördenfelder ("Für amtliche Zwecke"), Aktenzeichen die intern vergeben werden, irrelevante Abschnitte.
@@ -283,6 +298,7 @@ Erstelle eine JSON-Pfad-Definition mit exakt dieser Struktur:
 - telefon: Telefonnummer
 - plz: Postleitzahl (5 Stellen)
 - gemeindekennzahl: 8-stelliger AGS – füllt automatisch Gemeinde, Kreis und Bundesland aus. Verwende diesen Typ immer wenn das Formular nach "Gemeindekennzahl", "AGS" fragt ODER wenn Felder für Gemeinde + Kreis + Bundesland zusammen vorkommen. Lege KEINE separaten Felder für Gemeinde, Kreis oder Bundesland an.
+- autofill: Feld wird automatisch aus einer anderen Feldvariablen vorbelegt (Nutzer kann ändern). Pflicht: "quelle": "feld_id_oder_variable" (z.B. "neue_gkz_gemeinde"). Siehe AUTOFILL-Abschnitt für automatische Erkennung.
 - radio: Einfachauswahl (Pflicht: "optionen": ["Option A", "Option B"])
 - checkboxen: Mehrfachauswahl (Pflicht: "optionen": ["Option A", "Option B"])
 - bool: Einzelne Checkbox (ja/nein)
@@ -311,6 +327,7 @@ Falls das PDF ein Test, eine Prüfung oder eine Einweisung mit Wissensfragen ist
 - Verwende sprechende, einzigartige IDs (z.B. "vorname", "geburtsdatum", "kfz_kennzeichen")
 - Markiere echte Pflichtfelder mit pflicht:true
 - FIM-IDs: F60000003=Vorname, F60000004=Nachname, F60000022=Straße, F60000024=PLZ, F60000025=Ort, F60000030=E-Mail, F60000031=Telefon, F60000060=Datum
+- Enthält ein Feld fim_id F60000022 (Straße) aber der Label lautet "Straße, Hausnummer" oder ähnlich → Variante C anwenden und aufteilen
 - Der letzte Schritt (ist_ende:true) enthält ein "zusammenfassung"-Feld und optional "signatur"
 - Ohne visuelle Gruppen: 3-8 Schritte nach Themen, pos_y +150 pro Schritt
 

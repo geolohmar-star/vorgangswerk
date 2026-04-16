@@ -391,6 +391,24 @@
                     <input type="hidden" name="{{ id }}" id="berechnung-hidden-{{ id }}">
                 </div>
 
+                {% elif typ == "autofill" %}
+                <div class="{% if feld.breite == 50 %}col-md-6{% elif feld.breite == 25 %}col-md-3{% elif feld.breite == 75 %}col-md-9{% else %}col-12{% endif %}">
+                    {% if label %}
+                    <label class="form-label fw-semibold" for="{{ id }}">
+                        {{ label }}{% if pflicht %} <span class="text-danger" aria-hidden="true">*</span>{% endif %}
+                    </label>
+                    {% endif %}
+                    <div class="input-group">
+                        <span class="input-group-text bg-info-subtle text-info" title="Automatisch befüllt – änderbar" aria-hidden="true">&#8594;</span>
+                        <input type="text" class="form-control autofill-feld" id="{{ id }}" name="{{ id }}"
+                               value="{{ vorwerte|get_item:id|default:'' }}"
+                               data-autofill-quelle="{{ feld.quelle }}"
+                               {% if pflicht %}required{% endif %}
+                               placeholder="Wird automatisch befüllt">
+                    </div>
+                    <div class="form-text text-muted" style="font-size:.75em;">Automatisch vorbelegt – du kannst den Wert ändern.</div>
+                </div>
+
                 {% elif typ == "systemfeld" %}
                 <div class="{% if feld.breite == 50 %}col-md-6{% elif feld.breite == 25 %}col-md-3{% elif feld.breite == 75 %}col-md-9{% else %}col-12{% endif %}">
                     {% if label %}
@@ -1150,6 +1168,24 @@ function zahlung_demo_bestaetigen(feldId) {
                 if (gemEl)   gemEl.value   = d.gemeinde || "";
                 if (kreisEl) kreisEl.value = d.kreis    || "";
                 if (landEl)  landEl.value  = d.land     || "";
+                // Autofill-Felder die auf GKZ-Subvariablen zeigen aktualisieren
+                var subWerte = {};
+                subWerte[ziel + "_gemeinde"] = d.gemeinde || "";
+                subWerte[ziel + "_kreis"]    = d.kreis    || "";
+                subWerte[ziel + "_land"]     = d.land     || "";
+                // 1. Explizite autofill-Felder mit data-autofill-quelle
+                document.querySelectorAll(".autofill-feld").forEach(function(af) {
+                    var quelle = af.dataset.autofillQuelle;
+                    if (quelle && subWerte.hasOwnProperty(quelle) && !af.dataset.userEdited) {
+                        af.value = subWerte[quelle];
+                    }
+                });
+                // 2. Fallback: Felder nach Namenskonvention – {ziel ohne _gkz}_{suffix}
+                var prefix = ziel.replace(/_gkz$/, "");
+                [["_gemeinde", d.gemeinde], ["_kreis", d.kreis], ["_land", d.land]].forEach(function(p) {
+                    var el = document.querySelector("input[name='" + prefix + p[0] + "']:not(.ags-gemeinde):not(.ags-kreis):not(.ags-land)");
+                    if (el && p[1] && !el.dataset.userEdited) el.value = p[1];
+                });
             })
             .catch(function(){});
     }
@@ -1167,6 +1203,26 @@ function zahlung_demo_bestaetigen(feldId) {
                 if (!gemFeld || !gemFeld.value.trim()) lookup(el);
             }
         });
+
+        // Autofill-Felder: user-edited Flag setzen + allgemeine Quell-Aktualisierung
+        document.querySelectorAll(".autofill-feld").forEach(function(af) {
+            af.addEventListener("input", function() { af.dataset.userEdited = "1"; });
+        });
+
+        // Autofill aus normalen Feldern (nicht GKZ) – bei Seitenladen einmal aktualisieren
+        function _autofillAktualisieren() {
+            document.querySelectorAll(".autofill-feld").forEach(function(af) {
+                if (af.dataset.userEdited) return;
+                var quelle = af.dataset.autofillQuelle;
+                if (!quelle) return;
+                var quellEl = document.getElementById("f-" + quelle) || document.querySelector("[name='" + quelle + "']");
+                if (quellEl && quellEl.value && !af.value) {
+                    af.value = quellEl.value;
+                }
+            });
+        }
+        _autofillAktualisieren();
+        document.addEventListener("change", _autofillAktualisieren);
     });
 }());
 </script>

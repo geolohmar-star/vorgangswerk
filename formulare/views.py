@@ -222,20 +222,29 @@ def _variablen_werte(pfad):
 
 
 def _wende_vorausgefuellt_an(felder_json: list, gesammelte_daten: dict) -> None:
-    """Belegt Felder mit vorausgefuellt-Attribut vor, wenn noch kein Wert gespeichert ist.
+    """Belegt Felder mit vorausgefuellt-Attribut oder typ=autofill vor.
 
-    Verändert gesammelte_daten in-place: setzt {feld_id} auf den substituierten Wert
+    Verändert gesammelte_daten in-place: setzt {feld_id} auf den Quellwert
     wenn das Feld noch keinen Nutzerwert hat. Der Nutzer kann den Wert überschreiben.
-
-    Beispiel: vorausgefuellt = "{{neue_gkz_gemeinde}}" → Wert aus gesammelte_daten["neue_gkz_gemeinde"]
     """
     for feld in felder_json:
-        vorlage = feld.get("vorausgefuellt", "")
-        if not vorlage:
-            continue
         fid = feld.get("id", "")
         if not fid or fid in gesammelte_daten:
             continue  # schon vom Nutzer ausgefüllt → nicht überschreiben
+
+        # Neuer Feldtyp autofill: quelle = direkter Schlüssel in gesammelte_daten
+        if feld.get("typ") == "autofill":
+            quelle = feld.get("quelle", "")
+            if quelle:
+                wert = gesammelte_daten.get(quelle, "")
+                if wert:
+                    gesammelte_daten[fid] = wert
+            continue
+
+        # Legacy: vorausgefuellt mit {{variable}}-Substitution
+        vorlage = feld.get("vorausgefuellt", "")
+        if not vorlage:
+            continue
         wert = re.sub(
             r"\{\{(\w+)\}\}",
             lambda m: str(gesammelte_daten.get(m.group(1), "")),

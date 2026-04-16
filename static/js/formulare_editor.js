@@ -990,6 +990,37 @@
     // Schritt Modal
     // -----------------------------------------------------------------------
 
+    function _befuelleAutofillQuellenDropdown() {
+        var sel = document.getElementById("autofill-quelle");
+        if (!sel) return;
+        var aktuell = sel.value;
+        while (sel.options.length > 1) sel.remove(1);
+        var skipTypen = ["systemfeld", "zusammenfassung", "quizergebnis", "trennlinie", "abschnitt", "textblock", "autofill"];
+        Object.values(schritte || {}).forEach(function(schritt) {
+            var felder = schritt.felder_json || [];
+            felder.forEach(function(feld) {
+                if (!feld.id) return;
+                var typ = feld.typ || "text";
+                if (skipTypen.indexOf(typ) >= 0) return;
+                if (typ === "gemeindekennzahl") {
+                    var gLabel = feld.label ? " (" + feld.label + ")" : "";
+                    [["_gemeinde","Gemeinde"],["_kreis","Kreis"],["_land","Bundesland"],["_plz","PLZ"]].forEach(function(sub) {
+                        var opt = document.createElement("option");
+                        opt.value = feld.id + sub[0];
+                        opt.textContent = feld.id + sub[0] + " – " + sub[1] + gLabel;
+                        sel.appendChild(opt);
+                    });
+                } else {
+                    var opt = document.createElement("option");
+                    opt.value = feld.id;
+                    opt.textContent = feld.id + (feld.label ? " – " + feld.label : "");
+                    sel.appendChild(opt);
+                }
+            });
+        });
+        if (aktuell) sel.value = aktuell;
+    }
+
     function _aktionTypWechseln(typ, gewaehlteVorlageId) {
         var vorlageDiv = document.getElementById("aktion-vorlage-auswahl");
         var istVorlage = typ === "aktion_briefvorlage";
@@ -1447,6 +1478,8 @@
         document.getElementById("feld-pdf-ausblenden").checked = feld ? !!feld.pdf_ausblenden : false;
         document.getElementById("feld-versteckt").checked      = feld ? !!feld.versteckt      : false;
         document.getElementById("feld-vorausgefuellt").value   = feld ? (feld.vorausgefuellt || "") : "";
+        var elAFQuelle = document.getElementById("autofill-quelle");
+        if (elAFQuelle) elAFQuelle.value = feld ? (feld.quelle || "") : "";
         document.getElementById("feld-id-vorschau").textContent = feld ? (feld.id || "") : "";
         // bool: Feld-ID explizit vorbelegen; manuallyEdited-Flag zurücksetzen
         var elBoolFeldId = document.getElementById("feld-bool-feld-id");
@@ -1707,6 +1740,10 @@
         // Breite nur bei Trennlinie/Zusammenfassung verstecken (kein Sinn ohne Inhalt)
         var ohneBreite = ["trennlinie", "zusammenfassung", "pdf_email", "zahlung"];
         document.getElementById("breite-row").style.display = ohneBreite.indexOf(typ) >= 0 ? "none" : "";
+        // Autofill-Quelle nur bei typ=autofill anzeigen + Dropdown befüllen
+        var autofillRow = document.getElementById("autofill-quelle-row");
+        if (autofillRow) autofillRow.style.display = typ === "autofill" ? "" : "none";
+        if (typ === "autofill") _befuelleAutofillQuellenDropdown();
         // Zahlung: Betrag-Quelle umschalten
         var bqSel = document.getElementById("zahlung-betrag-quelle");
         if (bqSel) {
@@ -1827,6 +1864,10 @@
         };
         var vorausgefuellt = document.getElementById("feld-vorausgefuellt").value.trim();
         if (vorausgefuellt) feld.vorausgefuellt = vorausgefuellt;
+        if (typ === "autofill") {
+            var afQuelle = document.getElementById("autofill-quelle");
+            feld.quelle = afQuelle ? afQuelle.value.trim() : "";
+        }
         var fimIdVal = document.getElementById("feld-fim-id").value.trim();
         if (fimIdVal) feld.fim_id = fimIdVal;
         var hilfetext = document.getElementById("feld-hilfetext").value.trim();
