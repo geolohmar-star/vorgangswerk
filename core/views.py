@@ -347,6 +347,11 @@ def ueber(request):
     return render(request, "core/ueber.html", {"stats": stats})
 
 
+def anleitung(request):
+    """Bebilderte Anleitung: Formular-Editor + OnlyOffice-Vorlage."""
+    return render(request, "core/anleitung.html")
+
+
 def roadmap(request):
     """Innovationsboard – Roadmap und nutzbare Standards."""
     from .models import RoadmapEintrag

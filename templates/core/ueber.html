@@ -269,18 +269,17 @@
   {# Anleitung Download #}
   <div class="card border-0 shadow-sm mb-4">
     <div class="card-body d-flex align-items-center gap-3">
-      <div class="fs-2"><i class="bi bi-file-earmark-pdf-fill text-danger"></i></div>
+      <div class="fs-2"><i class="bi bi-book-half text-primary"></i></div>
       <div class="flex-grow-1">
-        <div class="fw-bold mb-1">Schritt-für-Schritt-Anleitung (PDF)</div>
+        <div class="fw-bold mb-1">Schritt-für-Schritt-Anleitung</div>
         <div class="text-muted small">
-          Formular erstellen · Workflow aufbauen · OnlyOffice-Vorlage integrieren –
-          als druckfertige Anleitung zum Mitnehmen.
+          Formular erstellen · Bedingungen &amp; Loops · OnlyOffice-Vorlage integrieren –
+          bebilderte Online-Anleitung für Sachbearbeiter/innen.
         </div>
       </div>
-      <a href="{% static 'docs/vorgangswerk-anleitung.pdf' %}"
-         download="Vorgangswerk-Anleitung.pdf"
-         class="btn btn-danger text-nowrap">
-        <i class="bi bi-download me-1"></i> PDF herunterladen
+      <a href="{% url 'core:anleitung' %}"
+         class="btn btn-primary text-nowrap">
+        <i class="bi bi-arrow-right-circle me-1"></i> Anleitung öffnen
       </a>
     </div>
   </div>

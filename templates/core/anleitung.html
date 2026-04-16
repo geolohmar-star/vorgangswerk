@@ -1,0 +1,781 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}Anleitung – Formular-Editor &amp; Briefvorlagen{% endblock %}
+
+{% block content %}
+<div class="container py-5" style="max-width:900px;">
+
+  {# Kopf #}
+  <nav aria-label="breadcrumb" class="mb-4">
+    <ol class="breadcrumb">
+      <li class="breadcrumb-item"><a href="{% url 'core:ueber' %}">Über Vorgangswerk</a></li>
+      <li class="breadcrumb-item active">Anleitung</li>
+    </ol>
+  </nav>
+
+  <h1 class="fw-bold mb-1">Schritt-für-Schritt-Anleitung</h1>
+  <p class="lead text-muted mb-5">
+    Formular-Editor &amp; automatische Briefvorlage mit OnlyOffice –
+    für Sachbearbeiterinnen und Sachbearbeiter ohne Programmierkenntnisse.
+  </p>
+
+  {# Inhaltsverzeichnis #}
+  <div class="card border-0 bg-light mb-5">
+    <div class="card-body">
+      <h6 class="fw-bold mb-3">&#128196; Inhalt dieser Anleitung</h6>
+      <div class="row g-0">
+        <div class="col-md-6">
+          <p class="fw-semibold small mb-1">Teil 1 – Formular-Editor</p>
+          <ol class="small mb-3">
+            <li><a href="#s1" class="text-decoration-none">Überblick und Einstieg</a></li>
+            <li><a href="#s2" class="text-decoration-none">Schritte anlegen</a></li>
+            <li><a href="#s3" class="text-decoration-none">Felder hinzufügen</a></li>
+            <li><a href="#s4" class="text-decoration-none">Übergänge (Transitionen)</a></li>
+            <li><a href="#s5" class="text-decoration-none">Bedingte Verzweigungen – Wenn/Dann</a></li>
+            <li><a href="#s6" class="text-decoration-none">Wiederholungen (Loops)</a></li>
+            <li><a href="#s7" class="text-decoration-none">Gemeindekennzahl-Feld &amp; PLZ-Suche</a></li>
+            <li><a href="#s8" class="text-decoration-none">Autofill – Felder automatisch befüllen</a></li>
+            <li><a href="#s9" class="text-decoration-none">Formular testen</a></li>
+            <li><a href="#s10" class="text-decoration-none">Export &amp; Import</a></li>
+          </ol>
+        </div>
+        <div class="col-md-6">
+          <p class="fw-semibold small mb-1">Teil 2 – OnlyOffice-Briefvorlage</p>
+          <ol class="small mb-0" start="11">
+            <li><a href="#s11" class="text-decoration-none">Wie funktioniert die automatische Rückantwort?</a></li>
+            <li><a href="#s12" class="text-decoration-none">Vorlage in OnlyOffice erstellen</a></li>
+            <li><a href="#s13" class="text-decoration-none">Platzhalter einfügen</a></li>
+            <li><a href="#s14" class="text-decoration-none">Vorlage hochladen &amp; verknüpfen</a></li>
+            <li><a href="#s15" class="text-decoration-none">Aktions-Schritt im Formular einrichten</a></li>
+          </ol>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {# ═══════════════════════════════════════════════════════════ #}
+  <h2 class="fw-bold border-bottom pb-2 mb-4">Teil 1 – Formular-Editor</h2>
+
+  {# 1 Überblick #}
+  <div id="s1" class="mb-5">
+    <h4 class="fw-bold">1. Überblick und Einstieg</h4>
+    <p>Der Formular-Editor ist ein visueller Graph-Editor – ähnlich einem Flussdiagramm.
+    Jeder <strong>Kasten (Schritt)</strong> entspricht einer Seite im Formular,
+    jede <strong>Linie (Transition)</strong> zeigt den Weg zum nächsten Schritt.
+    </p>
+
+    {# Editor-Mockup #}
+    <div class="border rounded-3 bg-light p-4 mb-3 position-relative" style="min-height:220px;">
+      <div class="text-muted small mb-3 fw-semibold">&#128247; Formular-Editor – Gesamtansicht</div>
+      <div class="d-flex gap-3 flex-wrap">
+        <div class="card border-success border-2 shadow-sm" style="width:130px;">
+          <div class="card-header bg-success text-white small py-1 px-2 text-center">START &#9654;</div>
+          <div class="card-body p-2 text-center">
+            <div class="small fw-semibold">Neue Hauptwohnung</div>
+            <div class="text-muted" style="font-size:0.7rem;">8 Felder</div>
+          </div>
+        </div>
+        <div class="d-flex align-items-center text-muted">&#10230;</div>
+        <div class="card border shadow-sm" style="width:130px;">
+          <div class="card-header bg-secondary text-white small py-1 px-2 text-center">Schritt</div>
+          <div class="card-body p-2 text-center">
+            <div class="small fw-semibold">Bisherige Wohnung</div>
+            <div class="text-muted" style="font-size:0.7rem;">9 Felder</div>
+          </div>
+        </div>
+        <div class="d-flex align-items-center text-muted">&#10230;</div>
+        <div class="card border shadow-sm" style="width:130px;">
+          <div class="card-header bg-secondary text-white small py-1 px-2 text-center">Schritt</div>
+          <div class="card-body p-2 text-center">
+            <div class="small fw-semibold">Weitere Wohnungen?</div>
+            <div class="text-muted" style="font-size:0.7rem;">1 Feld</div>
+          </div>
+        </div>
+        <div class="d-flex align-items-center text-muted">&#10230;</div>
+        <div class="card border-danger border-2 shadow-sm" style="width:130px;">
+          <div class="card-header bg-danger text-white small py-1 px-2 text-center">ENDE &#9632;</div>
+          <div class="card-body p-2 text-center">
+            <div class="small fw-semibold">Abschluss &amp; Unterschrift</div>
+            <div class="text-muted" style="font-size:0.7rem;">3 Felder</div>
+          </div>
+        </div>
+      </div>
+      <div class="mt-3 text-muted" style="font-size:0.75rem;">
+        &#128464; Schritte können per Maus verschoben werden · Doppelklick öffnet die Bearbeitung
+      </div>
+    </div>
+
+    <div class="alert alert-info small mb-0">
+      <strong>So öffnen Sie den Editor:</strong>
+      Menü → <em>Formulare</em> → Formular in der Liste auswählen → Button <strong>„Bearbeiten"</strong>.
+      Der Editor öffnet sich als Vollbild-Graph im Browser.
+    </div>
+  </div>
+
+  {# 2 Schritte anlegen #}
+  <div id="s2" class="mb-5">
+    <h4 class="fw-bold">2. Schritte anlegen</h4>
+    <p>Jeder Schritt entspricht einer Seite, die der Antragsteller ausfüllt.
+    Planen Sie zunächst auf Papier welche Themen logisch zusammengehören.</p>
+
+    <div class="border rounded-3 bg-light p-4 mb-3">
+      <div class="text-muted small mb-3 fw-semibold">&#128247; Schritt anlegen – Werkzeugleiste oben rechts</div>
+      <div class="d-flex gap-2 align-items-center flex-wrap">
+        <span class="badge bg-primary fs-6 px-3 py-2">+ Schritt</span>
+        <span class="text-muted small">← Klick auf diesen Button fügt einen neuen Schritt in der Mitte des Editors ein</span>
+      </div>
+      <hr>
+      <div class="text-muted small mb-2 fw-semibold">Schritt-Dialog (öffnet sich per Doppelklick auf den Schritt):</div>
+      <div class="card border shadow-sm" style="max-width:420px;">
+        <div class="card-header bg-primary text-white small py-2">Schritt bearbeiten</div>
+        <div class="card-body">
+          <div class="mb-2">
+            <label class="form-label small fw-semibold mb-1">Titel des Schritts</label>
+            <input type="text" class="form-control form-control-sm" value="Neue Hauptwohnung" readonly>
+          </div>
+          <div class="d-flex gap-3 small">
+            <div class="form-check">
+              <input type="checkbox" class="form-check-input" checked readonly>
+              <label class="form-check-label">Ist Startschritt</label>
+            </div>
+            <div class="form-check">
+              <input type="checkbox" class="form-check-input" readonly>
+              <label class="form-check-label">Ist Endschritt</label>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="alert alert-warning small">
+      <strong>Wichtig:</strong> Jedes Formular braucht genau <strong>einen Startschritt</strong>
+      (Haken bei „Ist Startschritt") und mindestens <strong>einen Endschritt</strong>
+      (Haken bei „Ist Endschritt"). Beim Abschluss des Endschritts wird der Antrag eingereicht.
+    </div>
+  </div>
+
+  {# 3 Felder #}
+  <div id="s3" class="mb-5">
+    <h4 class="fw-bold">3. Felder hinzufügen</h4>
+    <p>Innerhalb eines Schritts fügen Sie Felder hinzu – das sind die eigentlichen Eingabeelemente
+    des Formulars. Klicken Sie doppelt auf einen Schritt → Reiter <strong>„Felder"</strong> → <strong>„+ Feld"</strong>.</p>
+
+    <div class="border rounded-3 bg-light p-4 mb-3">
+      <div class="text-muted small mb-3 fw-semibold">&#128247; Feld-Dialog – Feldtypen im Überblick</div>
+      <div class="row g-2">
+        {% for typ, icon, beschreibung in feldtypen %}
+        {% empty %}
+        {% endfor %}
+        <div class="col-md-6">
+          <table class="table table-sm table-bordered small mb-0 bg-white">
+            <thead class="table-light"><tr><th>Feldtyp</th><th>Verwendung</th></tr></thead>
+            <tbody>
+              <tr><td><code>text</code></td><td>Freitext, Name, Straße</td></tr>
+              <tr><td><code>datum</code></td><td>Datumsauswahl (Kalender)</td></tr>
+              <tr><td><code>radio</code></td><td>Einfachauswahl: ja/nein, m/w/d</td></tr>
+              <tr><td><code>auswahl</code></td><td>Dropdown-Liste</td></tr>
+              <tr><td><code>gemeindekennzahl</code></td><td>AGS + PLZ-Suche (automatisch)</td></tr>
+              <tr><td><code>autofill</code></td><td>Wird aus anderem Feld befüllt</td></tr>
+              <tr><td><code>signatur</code></td><td>Handschrift-Unterschrift</td></tr>
+              <tr><td><code>datei</code></td><td>Datei-Upload</td></tr>
+              <tr><td><code>zusammenfassung</code></td><td>Alle Angaben zur Kontrolle</td></tr>
+              <tr><td><code>systemfeld</code></td><td>Technisch (Loop-Zähler)</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="col-md-6">
+          <div class="card border shadow-sm h-100">
+            <div class="card-header bg-secondary text-white small py-2">Feld hinzufügen</div>
+            <div class="card-body">
+              <div class="mb-2">
+                <label class="form-label small fw-semibold mb-1">Feld-ID <span class="text-danger">*</span></label>
+                <input type="text" class="form-control form-control-sm" value="neue_plz" readonly>
+                <div class="form-text" style="font-size:0.7rem;">Eindeutig, keine Leerzeichen, Kleinbuchstaben</div>
+              </div>
+              <div class="mb-2">
+                <label class="form-label small fw-semibold mb-1">Beschriftung</label>
+                <input type="text" class="form-control form-control-sm" value="Postleitzahl (neue Hauptwohnung)" readonly>
+              </div>
+              <div class="mb-2">
+                <label class="form-label small fw-semibold mb-1">Feldtyp</label>
+                <select class="form-select form-select-sm" disabled>
+                  <option>text</option>
+                </select>
+              </div>
+              <div class="form-check">
+                <input type="checkbox" class="form-check-input" checked readonly>
+                <label class="form-check-label small">Pflichtfeld</label>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="alert alert-info small">
+      <strong>Tipp – Feld-ID:</strong> Die Feld-ID ist der interne Name. Verwenden Sie sprechende
+      Namen wie <code>neue_plz</code>, <code>p1_familienname</code>.
+      Dieselbe ID kann später in Bedingungen und Vorlagen als <code>{% verbatim %}{{neue_plz}}{% endverbatim %}</code>
+      verwendet werden.
+    </div>
+  </div>
+
+  {# 4 Transitionen #}
+  <div id="s4" class="mb-5">
+    <h4 class="fw-bold">4. Übergänge (Transitionen)</h4>
+    <p>Transitionen verbinden Schritte miteinander. Ohne Transition kommt der Antragsteller
+    nicht weiter.</p>
+
+    <div class="border rounded-3 bg-light p-4 mb-3">
+      <div class="text-muted small mb-3 fw-semibold">&#128247; Transition ziehen – so geht es</div>
+      <div class="row g-3 align-items-center">
+        <div class="col-auto">
+          <div class="card border-success border-2 shadow-sm text-center" style="width:110px;">
+            <div class="card-body py-2 px-1">
+              <div class="small fw-semibold">Schritt A</div>
+              <div class="text-muted" style="font-size:0.7rem;">Person 1</div>
+            </div>
+          </div>
+        </div>
+        <div class="col-auto text-center">
+          <div class="text-success fw-bold fs-5">&#10230;</div>
+          <div class="text-muted" style="font-size:0.7rem;">Linie ziehen</div>
+        </div>
+        <div class="col-auto">
+          <div class="card border shadow-sm text-center" style="width:110px;">
+            <div class="card-body py-2 px-1">
+              <div class="small fw-semibold">Schritt B</div>
+              <div class="text-muted" style="font-size:0.7rem;">Weitere Person?</div>
+            </div>
+          </div>
+        </div>
+        <div class="col-12">
+          <div class="alert alert-secondary small mb-0 py-2">
+            <strong>So ziehen Sie eine Transition:</strong>
+            Bewegen Sie die Maus an den Rand eines Schritts bis ein kleiner Kreis (&#9900;) erscheint →
+            halten Sie die Maustaste gedrückt → ziehen Sie zur auf den Ziel-Schritt → loslassen.
+            Die Verbindungslinie erscheint automatisch.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {# 5 Bedingte Verzweigungen #}
+  <div id="s5" class="mb-5">
+    <h4 class="fw-bold">5. Bedingte Verzweigungen – Wenn/Dann</h4>
+    <p>Mit Bedingungen steuern Sie welchen Weg der Antragsteller nimmt – abhängig von seinen Angaben.
+    Klicken Sie auf eine Transition (Linie) um die Bedingung einzutragen.</p>
+
+    <div class="border rounded-3 bg-light p-4 mb-3">
+      <div class="text-muted small mb-3 fw-semibold">&#128247; Beispiel: Weiterleitung nach Antwort auf „Weitere Person?"</div>
+
+      {# Flussdiagramm #}
+      <div class="d-flex gap-2 align-items-start flex-wrap mb-3">
+        <div class="card border shadow-sm text-center" style="width:120px;">
+          <div class="card-body py-2 px-1">
+            <div class="small fw-semibold">Weitere Person?</div>
+            <div class="badge bg-warning text-dark mt-1" style="font-size:0.65rem;">Radio: ja / nein</div>
+          </div>
+        </div>
+        <div class="d-flex flex-column gap-2 mt-2">
+          <div class="d-flex align-items-center gap-2">
+            <span class="text-success fw-bold">&#10230;</span>
+            <span class="badge bg-success-subtle border border-success text-success-emphasis small">weitere_person == 'ja'</span>
+            <div class="card border-primary border-2 shadow-sm text-center" style="width:120px;">
+              <div class="card-body py-2 px-1">
+                <div class="small fw-semibold">Loop-Trigger</div>
+                <div class="text-muted" style="font-size:0.7rem;">Zähler-Schritt</div>
+              </div>
+            </div>
+          </div>
+          <div class="d-flex align-items-center gap-2">
+            <span class="text-danger fw-bold">&#10230;</span>
+            <span class="badge bg-danger-subtle border border-danger text-danger-emphasis small">weitere_person == 'nein'</span>
+            <div class="card border-danger border-2 shadow-sm text-center" style="width:120px;">
+              <div class="card-body py-2 px-1">
+                <div class="small fw-semibold">Abschluss</div>
+                <div class="text-muted" style="font-size:0.7rem;">Ende</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {# Transition Dialog #}
+      <div class="card border shadow-sm" style="max-width:420px;">
+        <div class="card-header bg-secondary text-white small py-2">Transition bearbeiten</div>
+        <div class="card-body">
+          <div class="mb-2">
+            <label class="form-label small fw-semibold mb-1">Bedingung</label>
+            <input type="text" class="form-control form-control-sm font-monospace" value="weitere_person == 'ja'" readonly>
+            <div class="form-text" style="font-size:0.7rem;">
+              Feld-ID, dann == oder !=, dann Wert in einfachen Anführungszeichen
+            </div>
+          </div>
+          <div class="mb-2">
+            <label class="form-label small fw-semibold mb-1">Reihenfolge</label>
+            <input type="number" class="form-control form-control-sm" value="0" readonly style="width:80px;">
+            <div class="form-text" style="font-size:0.7rem;">
+              Niedrigere Zahl = wird zuerst geprüft. Die erste passende Transition gewinnt.
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="alert alert-warning small">
+      <strong>Wichtig – Reihenfolge:</strong> Wenn zwei Transitionen vom selben Schritt abgehen,
+      prüft das System sie in aufsteigender Reihenfolge (0, 1, 2, …).
+      Die <em>erste</em> passende Bedingung gewinnt.
+      Tragen Sie für die „ja"-Transition Reihenfolge <strong>0</strong> ein,
+      für die „nein"-Transition <strong>1</strong>.
+    </div>
+
+    <div class="card border-0 bg-light p-3 mb-3">
+      <div class="fw-semibold small mb-2">&#128278; Häufige Bedingungen – Kurzreferenz</div>
+      <table class="table table-sm table-bordered small mb-0 bg-white">
+        <thead class="table-light">
+          <tr><th>Bedingung</th><th>Bedeutung</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><code>weitere_person == 'ja'</code></td><td>Feld hat Wert „ja"</td></tr>
+          <tr><td><code>weitere_person == 'nein'</code></td><td>Feld hat Wert „nein"</td></tr>
+          <tr><td><code>hat_kinder != '0'</code></td><td>Feld ist nicht „0"</td></tr>
+          <tr><td><code>(leer lassen)</code></td><td>Immer wahr – geht immer zu diesem Schritt</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  {# 6 Loops #}
+  <div id="s6" class="mb-5">
+    <h4 class="fw-bold">6. Wiederholungen (Loops)</h4>
+    <p>Ein Loop ermöglicht es, denselben Schritt mehrfach zu durchlaufen –
+    z.B. beliebig viele Personen oder Wohnungen anzumelden.</p>
+
+    <div class="alert alert-info small mb-3">
+      <strong>Wann brauche ich einen Loop?</strong>
+      Wenn der Antragsteller eine <em>unbekannte</em> Anzahl gleichartiger Einträge machen soll
+      (z.B. „Person 2, Person 3, Person 4 …"). Für eine feste Anzahl reichen mehrere Schritte.
+    </div>
+
+    <div class="border rounded-3 bg-light p-4 mb-3">
+      <div class="text-muted small mb-3 fw-semibold">&#128247; Loop-Aufbau – 4 Schritte sind nötig</div>
+
+      <div class="d-flex gap-2 align-items-start flex-wrap mb-3" style="overflow-x:auto;">
+        <div class="card border shadow-sm text-center" style="width:110px; min-width:110px;">
+          <div class="card-header bg-warning text-dark small py-1">Gate</div>
+          <div class="card-body py-2 px-1">
+            <div class="small fw-semibold">Weitere Person?</div>
+            <div class="text-muted" style="font-size:0.65rem;">Radio: ja/nein</div>
+          </div>
+        </div>
+        <div class="d-flex align-items-center">
+          <div class="text-center">
+            <div class="text-success fw-bold">&#10230; ja</div>
+          </div>
+        </div>
+        <div class="card border-primary border-2 shadow-sm text-center" style="width:110px; min-width:110px;">
+          <div class="card-header bg-primary text-white small py-1">Loop-Trigger</div>
+          <div class="card-body py-2 px-1">
+            <div class="small fw-semibold">Zähler-Schritt</div>
+            <div class="badge bg-warning text-dark mt-1" style="font-size:0.6rem;">Systemfeld: loop_zaehler</div>
+          </div>
+        </div>
+        <div class="d-flex align-items-center">
+          <div class="text-success fw-bold">&#10230;</div>
+        </div>
+        <div class="card border shadow-sm text-center" style="width:110px; min-width:110px;">
+          <div class="card-header bg-secondary text-white small py-1">Loop-Body</div>
+          <div class="card-body py-2 px-1">
+            <div class="small fw-semibold">Person (weitere)</div>
+            <div class="text-muted" style="font-size:0.65rem;">Felder eintragen</div>
+          </div>
+        </div>
+        <div class="d-flex align-items-center">
+          <div class="text-success fw-bold">&#10230;</div>
+        </div>
+        <div class="card border-warning border-2 shadow-sm text-center" style="width:110px; min-width:110px;">
+          <div class="card-header bg-warning text-dark small py-1">Gate (zurück)</div>
+          <div class="card-body py-2 px-1">
+            <div class="small fw-semibold">Weitere Person?</div>
+            <div class="badge bg-danger text-white mt-1" style="font-size:0.6rem;">&#8630; LOOP</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="alert alert-secondary small mb-0">
+        <strong>Funktionsweise:</strong> Der Loop-Trigger-Schritt wird beim ersten Durchlauf normal besucht.
+        Wenn der Antragsteller „ja" wählt und der Loop-Body ausgefüllt hat,
+        kehrt er zum Gate-Schritt zurück. Wählt er dort erneut „ja" →
+        der Loop-Trigger wurde bereits besucht → das System erkennt den Loop und archiviert
+        die Daten automatisch als Iteration. Bei „nein" geht es normal weiter.
+      </div>
+    </div>
+
+    <div class="card border-0 bg-light p-3 mb-3">
+      <div class="fw-semibold small mb-2">&#9989; Checkliste: Loop korrekt aufbauen</div>
+      <ul class="small mb-0">
+        <li>Gate-Schritt hat ein <strong>Radio-Feld</strong> (ja/nein) mit <code>pdf_ausblenden: ✓</code></li>
+        <li>Loop-Trigger-Schritt hat genau <strong>ein Systemfeld</strong> vom Typ <code>loop_zaehler</code></li>
+        <li>Transition Gate → Loop-Trigger: Bedingung <code>weitere_person == 'ja'</code>, Reihenfolge 0</li>
+        <li>Transition Loop-Trigger → Loop-Body: <strong>keine Bedingung</strong></li>
+        <li>Transition Loop-Body → Gate: <strong>keine Bedingung</strong> (erzeugt den Loop-Rücksprung)</li>
+        <li>Transition Gate → Nächster Schritt: Bedingung <code>weitere_person == 'nein'</code>, Reihenfolge 1</li>
+      </ul>
+    </div>
+
+    <div class="alert alert-warning small">
+      <strong>Mehrere unabhängige Loops:</strong>
+      Ein Formular kann mehrere Loops haben (z.B. Loop für Wohnungen UND Loop für Personen).
+      Jeder Loop braucht seinen <em>eigenen</em> Gate-Schritt, Loop-Trigger und Loop-Body.
+      Die Feld-IDs müssen unterschiedlich sein (z.B. <code>wohnung_zaehler</code> vs. <code>personen_zaehler</code>).
+    </div>
+  </div>
+
+  {# 7 Gemeindekennzahl #}
+  <div id="s7" class="mb-5">
+    <h4 class="fw-bold">7. Gemeindekennzahl-Feld &amp; PLZ-Suche</h4>
+    <p>Das Feld vom Typ <code>gemeindekennzahl</code> ist ein Spezialfeld für den
+    <strong>Amtlichen Gemeindeschlüssel (AGS)</strong>.
+    Es enthält eine automatische PLZ-Suche – der Antragsteller tippt einfach seine Postleitzahl,
+    das System schlägt die passende Gemeinde vor.</p>
+
+    <div class="border rounded-3 bg-light p-4 mb-3">
+      <div class="text-muted small mb-3 fw-semibold">&#128247; Gemeindekennzahl-Feld im Formular (Ansicht des Antragstellers)</div>
+      <div class="card shadow-sm" style="max-width:500px;">
+        <div class="card-body">
+          <fieldset>
+            <legend class="fw-semibold small mb-3">Gemeindekennzahl (neue Wohnung) <span class="text-danger">*</span></legend>
+            <div class="row g-2">
+              <div class="col-4">
+                <label class="form-label small">PLZ</label>
+                <input type="text" class="form-control form-control-sm" placeholder="z.B. 80331" value="80331" readonly>
+                <div class="form-text" style="font-size:0.68rem;">PLZ eingeben → Gemeinde wird gesucht</div>
+              </div>
+              <div class="col-8">
+                <label class="form-label small">Gemeinde auswählen</label>
+                <select class="form-select form-select-sm" disabled>
+                  <option>München, Stadtbezirk 01 (München, Stadtkreis)</option>
+                </select>
+              </div>
+              <div class="col-4">
+                <label class="form-label small">Gemeindekennzahl (AGS)</label>
+                <input type="text" class="form-control form-control-sm font-monospace" value="09162000" readonly>
+                <div class="form-text" style="font-size:0.68rem;">8-stellig, wird automatisch gefüllt</div>
+              </div>
+              <div class="col-4">
+                <label class="form-label small">Gemeinde</label>
+                <input type="text" class="form-control form-control-sm" value="München" readonly>
+              </div>
+              <div class="col-4">
+                <label class="form-label small">Kreis</label>
+                <input type="text" class="form-control form-control-sm" value="München, Stadtkreis" readonly>
+              </div>
+              <div class="col-4">
+                <label class="form-label small">Bundesland</label>
+                <input type="text" class="form-control form-control-sm" value="Bayern" readonly>
+              </div>
+            </div>
+          </fieldset>
+        </div>
+      </div>
+    </div>
+
+    <p class="small text-muted">
+      Die GKZ-Unterfelder (<code>neue_gkz_gemeinde</code>, <code>neue_gkz_kreis</code>, <code>neue_gkz_land</code>)
+      werden automatisch mitgespeichert und können als <strong>Autofill-Quelle</strong> in anderen Feldern genutzt werden.
+    </p>
+  </div>
+
+  {# 8 Autofill #}
+  <div id="s8" class="mb-5">
+    <h4 class="fw-bold">8. Autofill – Felder automatisch befüllen</h4>
+    <p>Ein Feld vom Typ <code>autofill</code> wird automatisch mit dem Wert eines anderen Feldes befüllt.
+    Das ist nützlich wenn dieselbe Information an mehreren Stellen erscheinen soll
+    (z.B. Gemeinde aus der Gemeindekennzahl in ein separates Textfeld übertragen).</p>
+
+    <div class="border rounded-3 bg-light p-4 mb-3">
+      <div class="text-muted small mb-3 fw-semibold">&#128247; Autofill einrichten – Feldtyp = autofill</div>
+      <div class="card border shadow-sm" style="max-width:420px;">
+        <div class="card-header bg-secondary text-white small py-2">Feld bearbeiten</div>
+        <div class="card-body">
+          <div class="mb-2">
+            <label class="form-label small fw-semibold mb-1">Feldtyp</label>
+            <select class="form-select form-select-sm" disabled><option>autofill</option></select>
+          </div>
+          <div class="mb-2">
+            <label class="form-label small fw-semibold mb-1">Quelle (Autofill)</label>
+            <select class="form-select form-select-sm" disabled>
+              <option>neue_gkz_gemeinde – Gemeinde (neue Wohnung)</option>
+            </select>
+            <div class="form-text" style="font-size:0.7rem;">
+              Wählen Sie das Quellfeld. GKZ-Felder bieten _gemeinde, _kreis, _land, _plz als Unterfelder.
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {# 9 Testen #}
+  <div id="s9" class="mb-5">
+    <h4 class="fw-bold">9. Formular testen</h4>
+    <p>Bevor Sie ein Formular freigeben, testen Sie den vollständigen Ausfüllprozess.</p>
+
+    <div class="border rounded-3 bg-light p-4 mb-3">
+      <div class="text-muted small mb-3 fw-semibold">&#128247; Test-Schaltfläche im Editor</div>
+      <div class="d-flex gap-2 align-items-center">
+        <span class="badge bg-success fs-6 px-3 py-2">&#9654; Formular testen</span>
+        <span class="text-muted small">← Öffnet das Formular in einem neuen Tab als Testlauf (wird nicht als echter Antrag gezählt)</span>
+      </div>
+    </div>
+
+    <ul class="small">
+      <li>Prüfen Sie alle Pfade: „ja"- <em>und</em> „nein"-Zweige durchklicken</li>
+      <li>Prüfen Sie Pflichtfelder: leere Pflichtfelder müssen einen Fehler zeigen</li>
+      <li>Prüfen Sie das PDF: nach Abschluss erscheint ein Download-Link für das PDF</li>
+      <li>Prüfen Sie Loops: mehrere Iterationen anlegen und die Zusammenfassung kontrollieren</li>
+    </ul>
+  </div>
+
+  {# 10 Export/Import #}
+  <div id="s10" class="mb-5">
+    <h4 class="fw-bold">10. Export &amp; Import</h4>
+    <p>Formulare können als JSON-Datei exportiert und in andere Instanzen importiert werden.
+    Das ermöglicht den Austausch zwischen Behörden oder die Nutzung einer Formularbibliothek.</p>
+
+    <div class="border rounded-3 bg-light p-4 mb-3">
+      <div class="text-muted small mb-3 fw-semibold">&#128247; Export und Import – Formularliste</div>
+      <div class="d-flex gap-3 flex-wrap">
+        <div>
+          <div class="badge bg-outline-secondary border small px-3 py-2 mb-1">&#8595; Exportieren</div>
+          <div class="text-muted" style="font-size:0.75rem;">Button in der Formularliste.<br>Lädt eine .json-Datei herunter.</div>
+        </div>
+        <div>
+          <div class="badge bg-primary small px-3 py-2 mb-1">&#8593; Importieren</div>
+          <div class="text-muted" style="font-size:0.75rem;">JSON-Datei hochladen.<br>Wird als neues Formular angelegt.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {# ═══════════════════════════════════════════════════════════ #}
+  <h2 class="fw-bold border-bottom pb-2 mb-4 mt-5">Teil 2 – Automatische Rückantwort mit OnlyOffice-Briefvorlage</h2>
+
+  {# 11 Wie funktioniert es #}
+  <div id="s11" class="mb-5">
+    <h4 class="fw-bold">11. Wie funktioniert die automatische Rückantwort?</h4>
+    <p>Nach dem Einreichen eines Antrags kann Vorgangswerk automatisch eine
+    <strong>personalisierte Bestätigung per E-Mail</strong> versenden –
+    mit einem ausgefüllten PDF-Anhang aus einer Word-Vorlage (.docx).</p>
+
+    <div class="border rounded-3 bg-light p-4 mb-3">
+      <div class="text-muted small mb-3 fw-semibold">&#128247; Ablauf der automatischen Rückantwort</div>
+      <div class="d-flex gap-0 flex-column gap-2">
+        <div class="d-flex gap-2 align-items-center">
+          <div class="badge bg-primary rounded-circle d-flex align-items-center justify-content-center" style="width:28px;height:28px;font-size:0.85rem;">1</div>
+          <div class="small">Antragsteller schließt das Formular ab</div>
+        </div>
+        <div class="d-flex gap-2 align-items-center ms-1 text-muted small">&#124;</div>
+        <div class="d-flex gap-2 align-items-center">
+          <div class="badge bg-primary rounded-circle d-flex align-items-center justify-content-center" style="width:28px;height:28px;font-size:0.85rem;">2</div>
+          <div class="small">System erkennt den <strong>Aktions-Schritt</strong> im Formular</div>
+        </div>
+        <div class="d-flex gap-2 align-items-center ms-1 text-muted small">&#124;</div>
+        <div class="d-flex gap-2 align-items-center">
+          <div class="badge bg-primary rounded-circle d-flex align-items-center justify-content-center" style="width:28px;height:28px;font-size:0.85rem;">3</div>
+          <div class="small">Antragsdaten werden in die <strong>DOCX-Vorlage</strong> eingefügt (Platzhalter ersetzt)</div>
+        </div>
+        <div class="d-flex gap-2 align-items-center ms-1 text-muted small">&#124;</div>
+        <div class="d-flex gap-2 align-items-center">
+          <div class="badge bg-primary rounded-circle d-flex align-items-center justify-content-center" style="width:28px;height:28px;font-size:0.85rem;">4</div>
+          <div class="small">DOCX wird in PDF umgewandelt (OnlyOffice oder Fallback)</div>
+        </div>
+        <div class="d-flex gap-2 align-items-center ms-1 text-muted small">&#124;</div>
+        <div class="d-flex gap-2 align-items-center">
+          <div class="badge bg-success rounded-circle d-flex align-items-center justify-content-center" style="width:28px;height:28px;font-size:0.85rem;">5</div>
+          <div class="small">E-Mail mit PDF-Anhang geht an den Antragsteller und/oder die Behörde</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {# 12 Vorlage erstellen #}
+  <div id="s12" class="mb-5">
+    <h4 class="fw-bold">12. Vorlage in OnlyOffice erstellen</h4>
+    <p>Erstellen Sie ein normales Word-Dokument (.docx) – in OnlyOffice oder Word –
+    das Ihren gewünschten Briefkopf und Text enthält.</p>
+
+    <div class="border rounded-3 bg-light p-4 mb-3">
+      <div class="text-muted small mb-3 fw-semibold">&#128247; Muster-Briefkopf in der Vorlage</div>
+      <div class="card shadow-sm" style="max-width:520px; border:2px solid #dee2e6;">
+        <div class="card-body py-3 px-4" style="font-family:serif; font-size:0.85rem; line-height:1.6;">
+          <div class="fw-bold text-center mb-3" style="font-size:1rem;">Stadtverwaltung Musterstadt</div>
+          <div class="mb-3">
+            <strong>Einwohnermeldeamt</strong><br>
+            Rathausplatz 1, 12345 Musterstadt<br>
+            Tel.: 0123 456-0
+          </div>
+          <hr>
+          <div class="mb-2">
+            <div class="text-muted" style="font-size:0.75rem;">[Name und Anschrift des Antragstellers]</div>
+            <div class="font-monospace text-primary">{% verbatim %}{{p1_vornamen}} {{p1_familienname}}{% endverbatim %}</div>
+            <div class="font-monospace text-primary">{% verbatim %}{{neue_strasse}} {{neue_hausnummer}}{% endverbatim %}</div>
+            <div class="font-monospace text-primary">{% verbatim %}{{neue_plz}} {{neue_gemeinde}}{% endverbatim %}</div>
+          </div>
+          <div class="mb-3 text-end text-muted small">Musterstadt, {% verbatim %}{{datum_unterschrift}}{% endverbatim %}</div>
+          <p><strong>Bestätigung der Ummeldung des Hauptwohnsitzes</strong></p>
+          <p>
+            Sehr geehrte/r Frau/Herr <span class="font-monospace text-primary">{% verbatim %}{{p1_familienname}}{% endverbatim %}</span>,<br><br>
+            wir bestätigen den Eingang Ihrer Mitteilung über die Änderung des Hauptwohnsitzes
+            zum <span class="font-monospace text-primary">{% verbatim %}{{datum_aenderung}}{% endverbatim %}</span>.
+          </p>
+          <p>
+            Ihre neue Hauptwohnung:<br>
+            <span class="font-monospace text-primary">{% verbatim %}{{neue_strasse}} {{neue_hausnummer}}, {{neue_plz}} {{neue_gemeinde}}{% endverbatim %}</span>
+          </p>
+          <p>Mit freundlichen Grüßen<br>Das Einwohnermeldeamt</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="alert alert-info small">
+      <strong>Tipp:</strong> Sie können die Vorlage in OnlyOffice direkt auf dem Server bearbeiten –
+      navigieren Sie zu <em>Dokumente → Neue Briefvorlage</em>.
+      Oder erstellen Sie die Vorlage lokal in Microsoft Word und laden Sie sie hoch.
+    </div>
+  </div>
+
+  {# 13 Platzhalter #}
+  <div id="s13" class="mb-5">
+    <h4 class="fw-bold">13. Platzhalter einfügen</h4>
+    <p>Platzhalter werden beim Versand automatisch durch die Antragsdaten ersetzt.
+    Die Syntax ist: doppelte geschweifte Klammern um die <strong>Feld-ID</strong>.</p>
+
+    <div class="border rounded-3 bg-light p-4 mb-3">
+      <div class="text-muted small mb-3 fw-semibold">&#128247; Platzhalter-Syntax</div>
+      <table class="table table-sm table-bordered small bg-white mb-0">
+        <thead class="table-light">
+          <tr><th>Platzhalter in der Vorlage</th><th>Wird ersetzt durch</th><th>Beispielwert</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code class="text-primary">{% verbatim %}{{p1_familienname}}{% endverbatim %}</code></td>
+            <td>Familienname Person 1</td>
+            <td>Müller</td>
+          </tr>
+          <tr>
+            <td><code class="text-primary">{% verbatim %}{{neue_plz}}{% endverbatim %}</code></td>
+            <td>PLZ neue Wohnung</td>
+            <td>80331</td>
+          </tr>
+          <tr>
+            <td><code class="text-primary">{% verbatim %}{{datum_aenderung}}{% endverbatim %}</code></td>
+            <td>Datum der Änderung</td>
+            <td>2026-04-16</td>
+          </tr>
+          <tr>
+            <td><code class="text-primary">{% verbatim %}{{neue_gkz_gemeinde}}{% endverbatim %}</code></td>
+            <td>Gemeindename (aus GKZ-Feld)</td>
+            <td>München</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="alert alert-warning small">
+      <strong>Schreibweise beachten:</strong> Die Feld-ID im Platzhalter muss
+      <em>exakt</em> mit der Feld-ID im Editor übereinstimmen – Groß-/Kleinschreibung,
+      Unterstriche, keine Leerzeichen.
+    </div>
+  </div>
+
+  {# 14 Vorlage hochladen #}
+  <div id="s14" class="mb-5">
+    <h4 class="fw-bold">14. Vorlage hochladen &amp; verknüpfen</h4>
+    <p>Die fertige .docx-Vorlage laden Sie als <strong>Briefvorlage</strong> in Vorgangswerk hoch.</p>
+
+    <div class="border rounded-3 bg-light p-4 mb-3">
+      <div class="text-muted small mb-3 fw-semibold">&#128247; Vorlage anlegen – Menü Korrespondenz → Vorlagen</div>
+      <ol class="small mb-0">
+        <li>Navigieren Sie zu <strong>Korrespondenz → Vorlagen</strong></li>
+        <li>Klicken Sie <span class="badge bg-primary">+ Neue Vorlage</span></li>
+        <li>Geben Sie einen Namen ein z.B. <em>„Bestätigung Ummeldung Hauptwohnsitz"</em></li>
+        <li>Laden Sie die .docx-Datei hoch</li>
+        <li>Speichern Sie – die Vorlage erhält eine interne <strong>Vorlagen-ID</strong> (Zahl)</li>
+        <li>Notieren Sie diese ID – Sie benötigen sie im nächsten Schritt</li>
+      </ol>
+    </div>
+  </div>
+
+  {# 15 Aktions-Schritt #}
+  <div id="s15" class="mb-5">
+    <h4 class="fw-bold">15. Aktions-Schritt im Formular einrichten</h4>
+    <p>Der <strong>Aktions-Schritt</strong> ist ein spezieller Schritt im Formular-Editor,
+    der nach dem Abschluss automatisch ausgeführt wird – ohne dass der Antragsteller
+    etwas tun muss.</p>
+
+    <div class="border rounded-3 bg-light p-4 mb-3">
+      <div class="text-muted small mb-3 fw-semibold">&#128247; Aktions-Schritt anlegen</div>
+      <ol class="small mb-3">
+        <li>Fügen Sie im Editor einen neuen Schritt ein: <strong>nach</strong> dem Endschritt</li>
+        <li>Doppelklick auf den Schritt → aktivieren Sie <strong>„Ist Aktions-Schritt"</strong></li>
+        <li>Fügen Sie ein Feld vom Typ <code>aktion_briefvorlage</code> hinzu</li>
+        <li>Tragen Sie die <strong>Vorlagen-ID</strong> aus Schritt 14 ein</li>
+        <li>Tragen Sie die <strong>Empfänger-E-Mail</strong> ein oder verweisen Sie auf ein Formularfeld</li>
+      </ol>
+
+      <div class="card border shadow-sm" style="max-width:440px;">
+        <div class="card-header bg-warning text-dark small py-2">&#9889; Aktions-Schritt – Feldkonfiguration</div>
+        <div class="card-body">
+          <div class="mb-2">
+            <label class="form-label small fw-semibold mb-1">Feldtyp</label>
+            <select class="form-select form-select-sm" disabled><option>aktion_briefvorlage</option></select>
+          </div>
+          <div class="mb-2">
+            <label class="form-label small fw-semibold mb-1">Vorlagen-ID</label>
+            <input type="number" class="form-control form-control-sm" value="3" readonly>
+            <div class="form-text" style="font-size:0.7rem;">ID der Briefvorlage aus dem Vorlagen-Manager</div>
+          </div>
+          <div class="mb-2">
+            <label class="form-label small fw-semibold mb-1">Empfänger (fest)</label>
+            <input type="text" class="form-control form-control-sm" value="meldestelle@stadt-musterstadt.de" readonly>
+          </div>
+          <div class="mb-2">
+            <label class="form-label small fw-semibold mb-1">Empfänger (aus Formularfeld)</label>
+            <input type="text" class="form-control form-control-sm font-monospace" value="{% verbatim %}{{email_antragsteller}}{% endverbatim %}" readonly>
+            <div class="form-text" style="font-size:0.7rem;">
+              Falls das Formular ein E-Mail-Feld enthält, schickt das System die Bestätigung direkt an den Antragsteller
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="alert alert-success small">
+      <strong>&#10003; Fertig!</strong>
+      Nach dem Speichern sendet Vorgangswerk bei jedem Abschluss dieses Formulars
+      automatisch eine personalisierte E-Mail mit der ausgefüllten Vorlage als PDF-Anhang –
+      ohne weiteres Zutun des Sachbearbeiters.
+    </div>
+  </div>
+
+  {# Hilfe #}
+  <div class="card border-0 bg-light mb-4 text-center">
+    <div class="card-body">
+      <div class="fw-bold mb-2">&#128172; Haben Sie Fragen?</div>
+      <p class="text-muted small mb-3">
+        Weitere Dokumentation, Beispielformulare und technische Details finden Sie im
+        GitHub-Repository.
+      </p>
+      <a href="https://github.com/geolohmar-star/vorgangswerk" target="_blank" rel="noopener"
+         class="btn btn-outline-dark btn-sm">
+        &#128279; GitHub – Vorgangswerk
+      </a>
+    </div>
+  </div>
+
+</div>
+{% endblock %}

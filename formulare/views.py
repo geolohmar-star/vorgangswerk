@@ -502,25 +502,44 @@ def _baue_zusammenfassung(sitzung):
                 loop_titel_feld = schritt.loop_titel_feld or ""
                 break
 
-    # Pre-Loop-Node-IDs wurden beim Loop-Feuern gespeichert
+    # Pre-Loop-Node-IDs wurden beim ersten Loop-Feuern gespeichert
     pre_loop_node_ids = gesammelte.get("__pre_loop_node_ids__", [])
     pre_loop_set = set(pre_loop_node_ids)
-    loop_node_ids = list(dict.fromkeys(
-        n for n in sitzung.besuchte_schritte if n not in pre_loop_set
-    ))
+    # Post-Loop-Schritte: alle besuchten Schritte die nicht pre-loop sind
+    post_loop_node_ids = [n for n in sitzung.besuchte_schritte if n not in pre_loop_set]
+    # Fallback loop_node_ids für ältere Sitzungen ohne pro-Iteration-Metadaten
+    fallback_loop_node_ids = gesammelte.get("__loop_body_node_ids__", []) or post_loop_node_ids
 
     zusammenfassung = []
-    # Pre-Loop-Felder zuerst (z.B. Nachname, der vor dem Loop abgefragt wurde)
+    # Pre-Loop-Felder zuerst (Adresse, Person 1 die vor dem Loop abgefragt wurde)
     if pre_loop_node_ids:
         zusammenfassung.extend(_zeilen(gesammelte, pre_loop_node_ids))
 
-    for nr, iteration_daten in enumerate(_loop_iterationen(gesammelte), start=1):
-        bezeichnung = loop_bezeichnung or "Eintrag"
-        label = f"{nr}. {bezeichnung}"
-        if loop_titel_feld and iteration_daten.get(loop_titel_feld):
-            label += f" – {iteration_daten[loop_titel_feld]}"
-        zusammenfassung.append({"label": label, "wert": "", "typ": "_loop_header"})
-        zusammenfassung.extend(_zeilen(iteration_daten, loop_node_ids))
+    # Archivierte Loop-Iterationen – jede mit ihren eigenen Body-Node-IDs
+    nr = 0
+    i = 0
+    while True:
+        praeffix = f"__loop_{i}__"
+        iteration_daten = {k[len(praeffix):]: v for k, v in gesammelte.items() if k.startswith(praeffix)}
+        if not iteration_daten:
+            break
+        # Body-IDs dieser spezifischen Iteration (neue Sitzungen) oder Fallback
+        body_ids = gesammelte.get(f"__loop_{i}_body__") or fallback_loop_node_ids
+        zeilen = _zeilen(iteration_daten, body_ids)
+        if zeilen:
+            nr += 1
+            iter_bezeichnung = gesammelte.get(f"__loop_{i}_bezeichnung__") or loop_bezeichnung or "Eintrag"
+            label = f"{nr}. {iter_bezeichnung}"
+            if loop_titel_feld and iteration_daten.get(loop_titel_feld):
+                label += f" – {iteration_daten[loop_titel_feld]}"
+            zusammenfassung.append({"label": label, "wert": "", "typ": "_loop_header"})
+            zusammenfassung.extend(zeilen)
+        i += 1
+
+    # Post-Loop-Felder: aktueller Daten-Stand durch post-loop Schritte rendern
+    # (enthält z.B. letzte Wohnung ohne Loop-Fire, Person 1, Datum, Unterschrift)
+    if post_loop_node_ids:
+        zusammenfassung.extend(_zeilen(gesammelte, post_loop_node_ids))
     return zusammenfassung
 
 
@@ -2165,6 +2184,10 @@ def pfad_schritt(request, sitzung_pk):
             # Pre-Loop-Node-IDs einmalig speichern (werden beim Kürzen sonst verloren)
             if "__pre_loop_node_ids__" not in sitzung.gesammelte_daten:
                 sitzung.gesammelte_daten["__pre_loop_node_ids__"] = sitzung.besuchte_schritte[:ziel_idx]
+            # Loop-Body-Node-IDs pro Iteration speichern (Schritte zwischen Loop-Ziel und aktuellem Schritt)
+            # Schlüssel enthält den aktuellen Durchlauf-Index damit mehrere unabhängige Loops korrekt getrennt sind
+            sitzung.gesammelte_daten[f"__loop_{durchlauf}_body__"] = sitzung.besuchte_schritte[ziel_idx + 1:]
+            sitzung.gesammelte_daten[f"__loop_{durchlauf}_bezeichnung__"] = schritt.loop_bezeichnung or ""
             besucht_liste = sitzung.besuchte_schritte[: ziel_idx + 1]
         else:
             besucht_liste = sitzung.besuchte_schritte + [naechster.node_id]
@@ -2746,6 +2769,10 @@ def antrag_oeffentlich_schritt(request, sitzung_pk):
             # Pre-Loop-Node-IDs einmalig speichern (werden beim Kürzen sonst verloren)
             if "__pre_loop_node_ids__" not in sitzung.gesammelte_daten:
                 sitzung.gesammelte_daten["__pre_loop_node_ids__"] = sitzung.besuchte_schritte[:ziel_idx]
+            # Loop-Body-Node-IDs pro Iteration speichern (Schritte zwischen Loop-Ziel und aktuellem Schritt)
+            # Schlüssel enthält den aktuellen Durchlauf-Index damit mehrere unabhängige Loops korrekt getrennt sind
+            sitzung.gesammelte_daten[f"__loop_{durchlauf}_body__"] = sitzung.besuchte_schritte[ziel_idx + 1:]
+            sitzung.gesammelte_daten[f"__loop_{durchlauf}_bezeichnung__"] = schritt.loop_bezeichnung or ""
             besucht_liste = sitzung.besuchte_schritte[: ziel_idx + 1]
         else:
             besucht_liste = sitzung.besuchte_schritte + [naechster.node_id]
