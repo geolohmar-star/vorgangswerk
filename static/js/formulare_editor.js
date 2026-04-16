@@ -2572,6 +2572,9 @@
                     ist_ende: s.ist_ende,
                     pos_x: s.pos_x,
                     pos_y: s.pos_y,
+                    pdf_gruppe: s.pdf_gruppe || "",
+                    loop_bezeichnung: s.loop_bezeichnung || "",
+                    loop_titel_feld: s.loop_titel_feld || "",
                 };
                 nodes.add({
                     id: s.node_id,
@@ -2634,6 +2637,9 @@
                 ist_ende: s.ist_ende,
                 pos_x: s.pos_x,
                 pos_y: s.pos_y,
+                pdf_gruppe: s.pdf_gruppe || "",
+                loop_bezeichnung: s.loop_bezeichnung || "",
+                loop_titel_feld: s.loop_titel_feld || "",
             };
             nodes.add({
                 id: s.node_id,
