@@ -98,6 +98,16 @@ class AntrSchritt(models.Model):
     )
     ist_ende = models.BooleanField(default=False, verbose_name="End-Knoten")
     ist_start = models.BooleanField(default=False, verbose_name="Start-Knoten")
+    loop_bezeichnung = models.CharField(
+        max_length=100, blank=True, default="",
+        verbose_name="Loop-Bezeichnung",
+        help_text="z.B. 'Kind' → '1. Kind', '2. Kind' in der PDF-Ausgabe",
+    )
+    loop_titel_feld = models.CharField(
+        max_length=100, blank=True, default="",
+        verbose_name="Loop-Titelfeld",
+        help_text="Feld-ID dessen Wert als Untertitel erscheint, z.B. 'vorname'",
+    )
     node_id = models.CharField(max_length=50, verbose_name="Node-ID")
     pfad = models.ForeignKey(
         AntrPfad, on_delete=models.CASCADE, related_name="schritte"

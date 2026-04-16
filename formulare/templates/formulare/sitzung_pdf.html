@@ -79,6 +79,17 @@
             padding: 3px 8px;
             margin-bottom: 4px;
         }
+        .loop-header {
+            font-size: 11pt;
+            font-weight: bold;
+            color: #ffffff;
+            background: #1a4d2e;
+            border-radius: 3px;
+            padding: 5px 10px;
+            margin-top: 0.5cm;
+            margin-bottom: 0.15cm;
+            letter-spacing: 0.02em;
+        }
         table.daten {
             width: 100%;
             border-collapse: collapse;
@@ -155,7 +166,9 @@
         </div>
 
         {% for eintrag in zusammenfassung %}
-            {% if eintrag.typ == "_abschnitt" %}
+            {% if eintrag.typ == "_loop_header" %}
+            <div class="loop-header">{{ eintrag.label }}</div>
+            {% elif eintrag.typ == "_abschnitt" %}
             <div class="abschnitt-titel" style="margin-top:0.4cm;">{{ eintrag.label }}</div>
             {% elif eintrag.typ == "_abschnitt_sub" %}
             <div class="abschnitt-titel" style="margin-top:0.2cm;font-size:0.8em;color:#555;">{{ eintrag.label }}</div>

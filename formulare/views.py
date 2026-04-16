@@ -438,9 +438,24 @@ def _baue_zusammenfassung(sitzung):
     if durchlauf_count == 0:
         return _zeilen(gesammelte, sitzung.besuchte_schritte)
 
+    # Loop-Bezeichnung und Titelfeld aus dem ersten besuchten Schritt lesen
+    loop_bezeichnung = ""
+    loop_titel_feld = ""
+    if sitzung.besuchte_schritte:
+        try:
+            erster_schritt = sitzung.pfad.schritte.get(node_id=sitzung.besuchte_schritte[0])
+            loop_bezeichnung = erster_schritt.loop_bezeichnung or ""
+            loop_titel_feld = erster_schritt.loop_titel_feld or ""
+        except AntrSchritt.DoesNotExist:
+            pass
+
     zusammenfassung = []
     for nr, iteration_daten in enumerate(_loop_iterationen(gesammelte), start=1):
-        zusammenfassung.append({"label": f"-- Eintrag {nr} --", "wert": "", "typ": "_abschnitt"})
+        bezeichnung = loop_bezeichnung or "Eintrag"
+        label = f"{nr}. {bezeichnung}"
+        if loop_titel_feld and iteration_daten.get(loop_titel_feld):
+            label += f" – {iteration_daten[loop_titel_feld]}"
+        zusammenfassung.append({"label": label, "wert": "", "typ": "_loop_header"})
         zusammenfassung.extend(_zeilen(iteration_daten, sitzung.besuchte_schritte))
     return zusammenfassung
 
@@ -1184,14 +1199,16 @@ def pfad_editor_laden(request, pk):
     pfad = get_object_or_404(AntrPfad, pk=pk)
     schritte = [
         {
-            "id":        s.pk,
-            "node_id":   s.node_id,
-            "titel":     s.titel,
-            "felder_json": s.felder_json,
-            "ist_start": s.ist_start,
-            "ist_ende":  s.ist_ende,
-            "pos_x":     s.pos_x,
-            "pos_y":     s.pos_y,
+            "id":              s.pk,
+            "node_id":         s.node_id,
+            "titel":           s.titel,
+            "felder_json":     s.felder_json,
+            "ist_start":       s.ist_start,
+            "ist_ende":        s.ist_ende,
+            "pos_x":           s.pos_x,
+            "pos_y":           s.pos_y,
+            "loop_bezeichnung": s.loop_bezeichnung or "",
+            "loop_titel_feld":  s.loop_titel_feld or "",
         }
         for s in pfad.schritte.all()
     ]
@@ -1292,6 +1309,8 @@ def pfad_editor_speichern(request):
             ist_ende=s.get("ist_ende", False),
             pos_x=s.get("pos_x", 200),
             pos_y=s.get("pos_y", 200),
+            loop_bezeichnung=s.get("loop_bezeichnung", ""),
+            loop_titel_feld=s.get("loop_titel_feld", ""),
         )
         schritt_map[node_id] = obj
 

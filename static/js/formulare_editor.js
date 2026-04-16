@@ -989,6 +989,8 @@
         document.getElementById("schritt-titel").value = schritt ? schritt.titel : "";
         document.getElementById("schritt-ist-start").checked = schritt ? !!schritt.ist_start : false;
         document.getElementById("schritt-ist-ende").checked = schritt ? !!schritt.ist_ende : false;
+        document.getElementById("schritt-loop-bezeichnung").value = schritt ? (schritt.loop_bezeichnung || "") : "";
+        document.getElementById("schritt-loop-titel-feld").value = schritt ? (schritt.loop_titel_feld || "") : "";
 
         // Temporaere Felder-Liste aufbauen
         schritteFelder = schritt ? JSON.parse(JSON.stringify(schritt.felder_json || [])) : [];
@@ -1073,6 +1075,8 @@
 
         var istStart = document.getElementById("schritt-ist-start").checked;
         var istEnde = document.getElementById("schritt-ist-ende").checked;
+        var loopBezeichnung = document.getElementById("schritt-loop-bezeichnung").value.trim();
+        var loopTitelFeld = document.getElementById("schritt-loop-titel-feld").value.trim();
         var modalEl = document.getElementById("schritt-modal");
         var posX = parseFloat(modalEl.dataset.posX || 300);
         var posY = parseFloat(modalEl.dataset.posY || 300);
@@ -1083,6 +1087,8 @@
             schritte[editNodeId].ist_start = istStart;
             schritte[editNodeId].ist_ende = istEnde;
             schritte[editNodeId].felder_json = JSON.parse(JSON.stringify(schritteFelder));
+            schritte[editNodeId].loop_bezeichnung = loopBezeichnung;
+            schritte[editNodeId].loop_titel_feld = loopTitelFeld;
             nodes.update({
                 id: editNodeId,
                 label: knotenLabel(schritte[editNodeId]),
@@ -1099,6 +1105,8 @@
                 ist_ende: istEnde,
                 pos_x: Math.round(posX),
                 pos_y: Math.round(posY),
+                loop_bezeichnung: loopBezeichnung,
+                loop_titel_feld: loopTitelFeld,
             };
             schritte[nodeId] = neuerSchritt;
             nodes.add({
