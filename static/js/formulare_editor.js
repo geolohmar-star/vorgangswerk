@@ -1159,8 +1159,9 @@
             html += '<span class="drag-handle text-muted" style="cursor:grab; padding:0 4px; font-size:1rem;" title="Ziehen zum Sortieren">&#8942;&#8942;</span>';
             html += '<span class="badge bg-secondary small">' + (TYP_LABEL[feld.typ] || feld.typ) + '</span> ';
             html += esc(feld.label || "");
-            if (feld.pflicht)    html += ' <span class="text-danger small">*</span>';
-            if (feld.versteckt)  html += ' <span class="text-muted small" title="Versteckt">&#128065;&#xFE0E;</span>';
+            if (feld.pflicht)        html += ' <span class="text-danger small">*</span>';
+            if (feld.pdf_ausblenden) html += ' <span class="text-muted small" title="Nicht in PDF">&#128683;</span>';
+            if (feld.versteckt)      html += ' <span class="text-muted small" title="Versteckt">&#128065;&#xFE0E;</span>';
             if (feld.zeige_wenn) html += ' <span class="badge bg-info text-dark small" title="Bedingt anzeigen">&#8627; wenn ' + esc(feld.zeige_wenn) + '</span>';
             html += '</span>';
             html += '<span class="d-flex gap-1">';
@@ -1370,8 +1371,9 @@
         _fimIdAnzeigen(fimId);
         document.getElementById("feld-hilfetext").value = feld ? (feld.hilfetext || "") : "";
         document.getElementById("feld-regex").value = feld ? (feld.validierung_regex || "") : "";
-        document.getElementById("feld-pflicht").checked   = feld ? !!feld.pflicht   : false;
-        document.getElementById("feld-versteckt").checked = feld ? !!feld.versteckt : false;
+        document.getElementById("feld-pflicht").checked        = feld ? !!feld.pflicht        : false;
+        document.getElementById("feld-pdf-ausblenden").checked = feld ? !!feld.pdf_ausblenden : false;
+        document.getElementById("feld-versteckt").checked      = feld ? !!feld.versteckt      : false;
         document.getElementById("feld-id-vorschau").textContent = feld ? (feld.id || "") : "";
         // bool: Feld-ID explizit vorbelegen; manuallyEdited-Flag zurücksetzen
         var elBoolFeldId = document.getElementById("feld-bool-feld-id");
@@ -1746,8 +1748,9 @@
         var feld = {
             typ: typ,
             label: label,
-            pflicht:   document.getElementById("feld-pflicht").checked,
-            versteckt: document.getElementById("feld-versteckt").checked,
+            pflicht:        document.getElementById("feld-pflicht").checked,
+            pdf_ausblenden: document.getElementById("feld-pdf-ausblenden").checked,
+            versteckt:      document.getElementById("feld-versteckt").checked,
         };
         var fimIdVal = document.getElementById("feld-fim-id").value.trim();
         if (fimIdVal) feld.fim_id = fimIdVal;

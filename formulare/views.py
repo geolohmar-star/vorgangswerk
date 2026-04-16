@@ -328,7 +328,10 @@ def _eingabefelder(schritt):
 
 def _anzeigefelder(schritt):
     """Alle Felder fuer die Zusammenfassung."""
-    return [f for f in schritt.felder() if f.get("typ") not in _KEINE_ANZEIGE]
+    return [
+        f for f in schritt.felder()
+        if f.get("typ") not in _KEINE_ANZEIGE and not f.get("pdf_ausblenden")
+    ]
 
 
 def _loop_iterationen(gesammelte_daten):
