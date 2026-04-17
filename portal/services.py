@@ -238,13 +238,13 @@ Nur wenn die Bezeichnung keine bekannten Adress-Begriffe enthält: als einzelnes
 Es gibt zwei Wege ein Feld automatisch vorzubefüllen:
 
 **A – Automatisch (ohne Marker):** Enthält ein Schritt ein GKZ-Feld (typ: gemeindekennzahl) und direkt danach Felder für Gemeinde, Kreis, Land oder PLZ, setze diese Felder als `typ: "autofill"` mit dem passenden `quelle`-Attribut:
-- Gemeinde-Feld neben/nach GKZ-Feld mit ID `neue_gkz` → `{"typ": "autofill", "quelle": "neue_gkz_gemeinde"}`
-- Kreis-Feld → `{"typ": "autofill", "quelle": "neue_gkz_kreis"}`
-- Land-Feld → `{"typ": "autofill", "quelle": "neue_gkz_land"}`
-- PLZ-Feld neben GKZ → `{"typ": "autofill", "quelle": "neue_gkz_plz"}` (falls vorhanden)
-Schema: `{gkz_feld_id}_gemeinde`, `{gkz_feld_id}_kreis`, `{gkz_feld_id}_land`
+- Gemeinde-Feld neben/nach GKZ-Feld mit ID `neue_gkz` → `{{"typ": "autofill", "quelle": "neue_gkz_gemeinde"}}`
+- Kreis-Feld → `{{"typ": "autofill", "quelle": "neue_gkz_kreis"}}`
+- Land-Feld → `{{"typ": "autofill", "quelle": "neue_gkz_land"}}`
+- PLZ-Feld neben GKZ → `{{"typ": "autofill", "quelle": "neue_gkz_plz"}}` (falls vorhanden)
+Schema: `{{gkz_feld_id}}_gemeinde`, `{{gkz_feld_id}}_kreis`, `{{gkz_feld_id}}_land`
 
-**B – Explizit (türkiser Marker):** Erkennst du einen türkisen Marker wie "AUTOFILL: neue_gkz_gemeinde" neben einem Feld, setze `"typ": "autofill", "quelle": "neue_gkz_gemeinde"` (ohne `{{}}`-Klammern beim quelle-Wert).
+**B – Explizit (türkiser Marker):** Erkennst du einen türkisen Marker wie "AUTOFILL: neue_gkz_gemeinde" neben einem Feld, setze `"typ": "autofill", "quelle": "neue_gkz_gemeinde"` (ohne geschweifte Klammern beim quelle-Wert).
 Der türkise Marker gilt für alle Feldvariablen – nicht nur GKZ. Beispiel: "AUTOFILL: p1_familienname" → Vorname von Person 1 in späteren Schritt übernehmen.
 
 Der Nutzer kann autofill-Werte jederzeit überschreiben.
