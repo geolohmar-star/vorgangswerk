@@ -163,19 +163,59 @@ _STANDARD_PLATZHALTER = [
 ]
 
 
+def _loop_platzhalter_aus_daten(gesammelte_daten: dict) -> dict:
+    """
+    Wandelt Loop-Metadaten aus gesammelte_daten in saubere Platzhalter um.
+    __loop_0__baum_nr → loop_0_baum_nr
+    __loop_1__baumart → loop_1_baumart
+    """
+    ergebnis = {}
+    for key, value in gesammelte_daten.items():
+        if key.startswith("__loop_") and not key.endswith("__"):
+            # Format: __loop_N__feld_id
+            rest = key[len("__loop_"):]
+            teile = rest.split("__", 1)
+            if len(teile) == 2 and teile[0].isdigit():
+                sauberer_key = f"loop_{teile[0]}_{teile[1]}"
+                ergebnis[sauberer_key] = str(value) if value is not None else ""
+    return ergebnis
+
+
 def _pfad_platzhalter(kuerzel: str) -> list:
     if not kuerzel:
         return []
-    from formulare.models import AntrPfad
+    from formulare.models import AntrPfad, AntrSchritt
     pfad = AntrPfad.objects.filter(kuerzel=kuerzel).first()
     if not pfad:
         return []
     result = []
+    loop_felder = []  # Felder aus Loop-Schritten separat sammeln
     for schritt in pfad.schritte.all():
+        ist_loop_body = any(
+            t.zu_schritt == schritt and t.von_schritt.node_id in
+            pfad.schritte.values_list("node_id", flat=True)
+            for t in pfad.transitionen.filter(zu_schritt=schritt)
+        )
         for feld in schritt.felder():
             fid = feld.get("id", "")
-            if fid:
-                result.append((fid, feld.get("label", fid)))
+            label = feld.get("label", fid)
+            if not fid:
+                continue
+            result.append((fid, label))
+            # Für Loop-Schritte: nummerierte Varianten als Hinweis ergänzen
+            if schritt.loop_bezeichnung or any(
+                t.zu_schritt.node_id == schritt.node_id
+                for t in pfad.transitionen.all()
+                if t.von_schritt.node_id != schritt.node_id
+            ):
+                for n in range(3):
+                    loop_felder.append((f"loop_{n}_{fid}", f"{label} (Loop-Eintrag {n + 1})"))
+    # Loop-Platzhalter dedupliziert anhängen
+    seen = {k for k, _ in result}
+    for key, label in loop_felder:
+        if key not in seen:
+            result.append((key, label))
+            seen.add(key)
     return result
 
 
@@ -1246,7 +1286,9 @@ def bescheid_suche(request):
         sitzung = get_object_or_404(AntrSitzung, pk=sitzung_pk, status=AntrSitzung.STATUS_ABGESCHLOSSEN)
         vorlage = get_object_or_404(Briefvorlage, pk=vorlage_pk, ist_aktiv=True)
 
-        antrag_daten = {k: str(v) for k, v in sitzung.gesammelte_daten.items()}
+        antrag_daten = {k: str(v) for k, v in sitzung.gesammelte_daten.items()
+                        if not k.startswith("__")}
+        antrag_daten.update(_loop_platzhalter_aus_daten(sitzung.gesammelte_daten))
         antrag_daten["vorgangsnummer"] = sitzung.vorgangsnummer or f"ANT-{sitzung.pk:05d}"
         antrag_daten["pfad_name"]      = sitzung.pfad.name
         antrag_daten["antrag_datum"]   = (
