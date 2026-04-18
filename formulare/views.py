@@ -536,10 +536,36 @@ def _baue_zusammenfassung(sitzung):
             zusammenfassung.extend(zeilen)
         i += 1
 
-    # Post-Loop-Felder: aktueller Daten-Stand durch post-loop Schritte rendern
-    # (enthält z.B. letzte Wohnung ohne Loop-Fire, Person 1, Datum, Unterschrift)
-    if post_loop_node_ids:
-        zusammenfassung.extend(_zeilen(gesammelte, post_loop_node_ids))
+    # Letzter (nicht archivierter) Durchlauf: Felder aus post_loop_node_ids die im
+    # letzten Loop-Body vorkommen → als nummerierten Eintrag rendern.
+    last_body_set = set()
+    for j in range(i - 1, -1, -1):
+        b = gesammelte.get(f"__loop_{j}_body__")
+        if b:
+            last_body_set = set(b)
+            break
+
+    last_iter_node_ids = []
+    for node_id in post_loop_node_ids:
+        if node_id in last_body_set:
+            last_iter_node_ids.append(node_id)
+        else:
+            break
+    real_post_node_ids = post_loop_node_ids[len(last_iter_node_ids):]
+
+    if last_iter_node_ids:
+        zeilen = _zeilen(gesammelte, last_iter_node_ids)
+        if zeilen:
+            nr += 1
+            iter_bezeichnung = loop_bezeichnung or "Eintrag"
+            label = f"{nr}. {iter_bezeichnung}"
+            if loop_titel_feld and gesammelte.get(loop_titel_feld):
+                label += f" – {gesammelte[loop_titel_feld]}"
+            zusammenfassung.append({"label": label, "wert": "", "typ": "_loop_header"})
+            zusammenfassung.extend(zeilen)
+
+    if real_post_node_ids:
+        zusammenfassung.extend(_zeilen(gesammelte, real_post_node_ids))
     return zusammenfassung
 
 
@@ -2186,7 +2212,7 @@ def pfad_schritt(request, sitzung_pk):
                 sitzung.gesammelte_daten["__pre_loop_node_ids__"] = sitzung.besuchte_schritte[:ziel_idx]
             # Loop-Body-Node-IDs pro Iteration speichern (Schritte zwischen Loop-Ziel und aktuellem Schritt)
             # Schlüssel enthält den aktuellen Durchlauf-Index damit mehrere unabhängige Loops korrekt getrennt sind
-            sitzung.gesammelte_daten[f"__loop_{durchlauf}_body__"] = sitzung.besuchte_schritte[ziel_idx + 1:]
+            sitzung.gesammelte_daten[f"__loop_{durchlauf}_body__"] = sitzung.besuchte_schritte[ziel_idx:]
             sitzung.gesammelte_daten[f"__loop_{durchlauf}_bezeichnung__"] = schritt.loop_bezeichnung or ""
             besucht_liste = sitzung.besuchte_schritte[: ziel_idx + 1]
         else:
@@ -2771,7 +2797,7 @@ def antrag_oeffentlich_schritt(request, sitzung_pk):
                 sitzung.gesammelte_daten["__pre_loop_node_ids__"] = sitzung.besuchte_schritte[:ziel_idx]
             # Loop-Body-Node-IDs pro Iteration speichern (Schritte zwischen Loop-Ziel und aktuellem Schritt)
             # Schlüssel enthält den aktuellen Durchlauf-Index damit mehrere unabhängige Loops korrekt getrennt sind
-            sitzung.gesammelte_daten[f"__loop_{durchlauf}_body__"] = sitzung.besuchte_schritte[ziel_idx + 1:]
+            sitzung.gesammelte_daten[f"__loop_{durchlauf}_body__"] = sitzung.besuchte_schritte[ziel_idx:]
             sitzung.gesammelte_daten[f"__loop_{durchlauf}_bezeichnung__"] = schritt.loop_bezeichnung or ""
             besucht_liste = sitzung.besuchte_schritte[: ziel_idx + 1]
         else:
