@@ -2717,6 +2717,7 @@ def antrag_oeffentlich_schritt(request, sitzung_pk):
             "zusammenfassung":       _baue_zusammenfassung(sitzung) if schritt.ist_ende else [],
             "bankverbindungen":      _bankverbindungen_pub,
             "bankverbindungen_json": _bankverbindungen_json_pub,
+            "gesammelte_daten_json": json.dumps(sitzung.gesammelte_daten, ensure_ascii=False),
             "embed":                 request.session.get("embed", False),
         })
 
