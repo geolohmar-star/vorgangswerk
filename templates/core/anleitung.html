@@ -406,31 +406,41 @@
       </div>
 
       <div class="alert alert-secondary small mb-0">
-        <strong>Funktionsweise:</strong> Der Loop-Trigger-Schritt wird beim ersten Durchlauf normal besucht.
-        Wenn der Antragsteller „ja" wählt und der Loop-Body ausgefüllt hat,
-        kehrt er zum Gate-Schritt zurück. Wählt er dort erneut „ja" →
-        der Loop-Trigger wurde bereits besucht → das System erkennt den Loop und archiviert
-        die Daten automatisch als Iteration. Bei „nein" geht es normal weiter.
+        <strong>Funktionsweise:</strong>
+        Beim ersten Durchlauf besucht das System Gate → Trigger → Body in dieser Reihenfolge.
+        Sobald der Antragsteller den Loop-Body abschickt, navigiert das System automatisch
+        zurück zum Gate-Schritt. Da der <strong>Gate-Schritt bereits besucht wurde</strong>,
+        erkennt das System den Loop und archiviert die Eingaben dieser Iteration sofort –
+        <em>bevor</em> der Antragsteller Gate erneut sieht. Der Antragsteller wählt dann
+        „ja" (weiterer Eintrag) oder „nein" (fertig). Bei „nein" geht es normal weiter.
       </div>
     </div>
 
     <div class="card border-0 bg-light p-3 mb-3">
       <div class="fw-semibold small mb-2">&#9989; Checkliste: Loop korrekt aufbauen</div>
       <ul class="small mb-0">
-        <li>Gate-Schritt hat ein <strong>Radio-Feld</strong> (ja/nein) mit <code>pdf_ausblenden: ✓</code></li>
-        <li>Loop-Trigger-Schritt hat genau <strong>ein Systemfeld</strong> vom Typ <code>loop_zaehler</code></li>
-        <li>Transition Gate → Loop-Trigger: Bedingung <code>weitere_person == 'ja'</code>, Reihenfolge 0</li>
-        <li>Transition Loop-Trigger → Loop-Body: <strong>keine Bedingung</strong></li>
-        <li>Transition Loop-Body → Gate: <strong>keine Bedingung</strong> (erzeugt den Loop-Rücksprung)</li>
-        <li>Transition Gate → Nächster Schritt: Bedingung <code>weitere_person == 'nein'</code>, Reihenfolge 1</li>
+        <li>Gate-Schritt hat ein <strong>Radio-Feld</strong> (ja/nein) mit <code>pdf_ausblenden: ✓</code> – das Gate-Radio erscheint nicht in der PDF-Zusammenfassung</li>
+        <li>Loop-Trigger-Schritt hat genau <strong>ein Systemfeld</strong> vom Typ <code>loop_zaehler</code> und das Attribut <strong>loop_bezeichnung</strong> gesetzt (z.B. „Person")</li>
+        <li>Transition <strong>Gate → Loop-Trigger</strong>: Bedingung <code>weitere_person == 'ja'</code>, Reihenfolge 0</li>
+        <li>Transition <strong>Loop-Trigger → Loop-Body</strong>: keine Bedingung</li>
+        <li>Transition <strong>Loop-Body → Gate</strong>: keine Bedingung – diese Transition löst bei jedem Durchlauf den Loop-Archivierungsmechanismus aus</li>
+        <li>Transition <strong>Gate → Nächster Schritt</strong>: Bedingung <code>weitere_person == 'nein'</code>, Reihenfolge 1</li>
       </ul>
+    </div>
+
+    <div class="alert alert-danger small mb-3">
+      <strong>Häufiger Fehler:</strong> Die Transition Loop-Body → Gate darf <em>nicht</em> bedingt sein
+      und darf <em>nicht</em> direkt zum Loop-Trigger springen. Nur über den Gate-Schritt funktioniert
+      der Archivierungsmechanismus korrekt – weil der Gate-Schritt als bereits besuchter Schritt
+      den Loop auslöst.
     </div>
 
     <div class="alert alert-warning small">
       <strong>Mehrere unabhängige Loops:</strong>
       Ein Formular kann mehrere Loops haben (z.B. Loop für Wohnungen UND Loop für Personen).
-      Jeder Loop braucht seinen <em>eigenen</em> Gate-Schritt, Loop-Trigger und Loop-Body.
+      Jeder Loop braucht seinen <em>eigenen</em> Gate-, Trigger- und Body-Schritt.
       Die Feld-IDs müssen unterschiedlich sein (z.B. <code>wohnung_zaehler</code> vs. <code>personen_zaehler</code>).
+      Die Loops dürfen sich nicht verschachteln.
     </div>
   </div>
 
@@ -759,6 +769,20 @@
       Nach dem Speichern sendet Vorgangswerk bei jedem Abschluss dieses Formulars
       automatisch eine personalisierte E-Mail mit der ausgefüllten Vorlage als PDF-Anhang –
       ohne weiteres Zutun des Sachbearbeiters.
+    </div>
+  </div>
+
+  {# PDF-Download #}
+  <div class="card border-0 shadow-sm mb-4">
+    <div class="card-body d-flex align-items-center gap-3">
+      <div class="fs-2"><i class="bi bi-file-earmark-pdf-fill text-danger"></i></div>
+      <div class="flex-grow-1">
+        <div class="fw-bold mb-1">Anleitung als PDF herunterladen</div>
+        <div class="text-muted small">Druckfertige Version dieser Anleitung – alle 15 Abschnitte.</div>
+      </div>
+      <a href="{% url 'core:anleitung_pdf' %}" class="btn btn-danger text-nowrap">
+        <i class="bi bi-download me-1"></i> PDF herunterladen
+      </a>
     </div>
   </div>
 

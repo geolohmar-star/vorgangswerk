@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<title>Vorgangswerk – Anleitung</title>
+<style>
+  @page {
+    size: A4;
+    margin: 2cm 2.2cm 2.5cm 2.2cm;
+    @top-center {
+      content: "Vorgangswerk – Formular-Editor & Briefvorlagen";
+      font-size: 8pt; color: #666; font-family: sans-serif;
+    }
+    @bottom-right {
+      content: "Seite " counter(page) " von " counter(pages);
+      font-size: 8pt; color: #666; font-family: sans-serif;
+    }
+    @bottom-left {
+      content: "Stand: {{ datum }}";
+      font-size: 8pt; color: #666; font-family: sans-serif;
+    }
+  }
+  body { font-family: 'DejaVu Sans', Arial, sans-serif; font-size: 10pt; color: #1a1a1a; line-height: 1.5; }
+  h1 { font-size: 20pt; font-weight: bold; color: #0d47a1; margin: 0 0 4pt 0; }
+  h2 { font-size: 13pt; font-weight: bold; color: #0d47a1; border-bottom: 2px solid #0d47a1; padding-bottom: 3pt; margin: 18pt 0 8pt 0; page-break-after: avoid; }
+  h3 { font-size: 11pt; font-weight: bold; color: #1a237e; margin: 12pt 0 5pt 0; page-break-after: avoid; }
+  p  { margin: 0 0 6pt 0; }
+  ul, ol { margin: 4pt 0 6pt 0; padding-left: 18pt; }
+  li { margin-bottom: 3pt; }
+  code { font-family: 'DejaVu Sans Mono', monospace; font-size: 9pt; background: #f0f0f0; padding: 1pt 3pt; border-radius: 2pt; }
+  pre  { background: #f5f5f5; border: 1pt solid #ddd; padding: 8pt; font-size: 8.5pt; font-family: 'DejaVu Sans Mono', monospace; margin: 6pt 0; }
+  .box { border: 1pt solid #ccc; border-radius: 3pt; padding: 8pt 10pt; margin: 8pt 0; background: #fafafa; }
+  .box-info  { border-left: 4pt solid #1565c0; background: #e3f2fd; }
+  .box-warn  { border-left: 4pt solid #e65100; background: #fff3e0; }
+  .box-danger{ border-left: 4pt solid #b71c1c; background: #ffebee; }
+  .box-ok    { border-left: 4pt solid #2e7d32; background: #e8f5e9; }
+  .box-grey  { border-left: 4pt solid #555; background: #f5f5f5; }
+  .label { display: inline-block; background: #1565c0; color: white; font-size: 8pt; padding: 1pt 5pt; border-radius: 3pt; }
+  .label-warn { background: #f57f17; }
+  .label-ok   { background: #2e7d32; }
+  .label-grey { background: #555; }
+  table { width: 100%; border-collapse: collapse; margin: 8pt 0; font-size: 9pt; }
+  th { background: #1565c0; color: white; padding: 4pt 6pt; text-align: left; }
+  td { padding: 4pt 6pt; border-bottom: 0.5pt solid #ddd; vertical-align: top; }
+  tr:nth-child(even) td { background: #f7f7f7; }
+  .flow { display: flex; gap: 6pt; align-items: center; flex-wrap: wrap; margin: 8pt 0; }
+  .flow-box { border: 1.5pt solid #555; border-radius: 3pt; padding: 4pt 8pt; font-size: 9pt; text-align: center; min-width: 80pt; }
+  .flow-box.primary { border-color: #1565c0; background: #e3f2fd; }
+  .flow-box.gate    { border-color: #f57f17; background: #fff3e0; }
+  .flow-box.body    { border-color: #555;    background: #f5f5f5; }
+  .flow-arrow { font-size: 12pt; color: #2e7d32; font-weight: bold; }
+  .loop-marker { font-size: 8pt; color: #b71c1c; font-weight: bold; }
+  .toc { border: 1pt solid #ccc; padding: 10pt 14pt; margin-bottom: 16pt; background: #fafafa; }
+  .toc h4 { margin: 0 0 6pt 0; font-size: 11pt; }
+  .toc-col { display: inline-block; width: 48%; vertical-align: top; }
+  .toc ol { margin: 0; padding-left: 16pt; }
+  .toc li { font-size: 9pt; margin-bottom: 2pt; }
+  .cover { text-align: center; padding: 40pt 0 30pt 0; }
+  .cover .subtitle { font-size: 12pt; color: #444; margin-top: 6pt; }
+  .cover .meta { font-size: 9pt; color: #777; margin-top: 30pt; }
+  .page-break { page-break-before: always; }
+  strong { font-weight: bold; }
+  em { font-style: italic; }
+</style>
+</head>
+<body>
+
+<!-- Titelseite -->
+<div class="cover">
+  <h1>Vorgangswerk</h1>
+  <div class="subtitle">Schritt-für-Schritt-Anleitung<br>Formular-Editor &amp; Briefvorlagen mit OnlyOffice</div>
+  <div class="meta">
+    Für Sachbearbeiterinnen und Sachbearbeiter ohne Programmierkenntnisse<br>
+    Stand: {{ datum }}
+  </div>
+</div>
+
+<!-- Inhaltsverzeichnis -->
+<div class="toc">
+  <h4>Inhalt</h4>
+  <div class="toc-col">
+    <p style="font-size:9pt;font-weight:bold;margin:0 0 3pt 0;">Teil 1 – Formular-Editor</p>
+    <ol>
+      <li>Überblick und Einstieg</li>
+      <li>Schritte anlegen</li>
+      <li>Felder hinzufügen</li>
+      <li>Übergänge (Transitionen)</li>
+      <li>Bedingte Verzweigungen – Wenn/Dann</li>
+      <li>Wiederholungen (Loops)</li>
+      <li>Gemeindekennzahl-Feld &amp; PLZ-Suche</li>
+      <li>Autofill – Felder automatisch befüllen</li>
+      <li>Formular testen</li>
+      <li>Export &amp; Import</li>
+    </ol>
+  </div>
+  <div class="toc-col">
+    <p style="font-size:9pt;font-weight:bold;margin:0 0 3pt 0;">Teil 2 – OnlyOffice-Briefvorlage</p>
+    <ol start="11">
+      <li>Wie funktioniert die automatische Rückantwort?</li>
+      <li>Vorlage in OnlyOffice erstellen</li>
+      <li>Platzhalter einfügen</li>
+      <li>Vorlage hochladen &amp; verknüpfen</li>
+      <li>Aktions-Schritt im Formular einrichten</li>
+    </ol>
+  </div>
+</div>
+
+<!-- ─────────────────────────────────────────── -->
+<h2>Teil 1 – Formular-Editor</h2>
+
+<h3>1. Überblick und Einstieg</h3>
+<p>Der Formular-Editor ist ein visueller Graph-Editor – ähnlich einem Flussdiagramm. Jeder <strong>Kasten (Schritt)</strong> entspricht einer Seite im Formular, jede <strong>Linie (Transition)</strong> zeigt den Weg zum nächsten Schritt.</p>
+
+<div class="box box-info">
+  <strong>Einstieg:</strong> Navigieren Sie zu <em>Formulare → Formular-Editor</em> und klicken Sie <strong>+ Neues Formular</strong>. Vergeben Sie einen Namen und ein Kürzel (3–5 Großbuchstaben).
+</div>
+
+<p>Der Editor zeigt die Schritte als Kästen im Canvas. Sie können Kästen verschieben, vergrößern und verbinden. Oben links finden Sie die Werkzeuge: <em>Speichern, Schritt hinzufügen, Verbinden, Vorschau</em>.</p>
+
+<!-- ─────────────────────────────────────────── -->
+<h3>2. Schritte anlegen</h3>
+<p>Ein <strong>Schritt</strong> ist eine Seite im Formular – der Antragsteller sieht alle Felder eines Schritts auf einmal.</p>
+<ul>
+  <li>Klicken Sie im Editor auf <strong>+ Schritt</strong> – ein neuer Kasten erscheint im Canvas</li>
+  <li>Doppelklicken Sie den Kasten, um ihn zu benennen</li>
+  <li>Der erste Schritt muss als <strong>START</strong> markiert sein</li>
+  <li>Der letzte Schritt muss als <strong>ENDE</strong> markiert sein – hier erscheint die Zusammenfassung</li>
+</ul>
+
+<div class="box box-grey">
+  <strong>Empfehlung:</strong> Thematisch zusammengehörige Felder in einem Schritt bündeln (z.B. alle Adressfelder in einem Schritt „Neue Adresse"). Nicht mehr als 8–10 Felder pro Schritt.
+</div>
+
+<!-- ─────────────────────────────────────────── -->
+<h3>3. Felder hinzufügen</h3>
+<p>Klicken Sie auf einen Schritt → rechts öffnet sich das Feldformular. Klicken Sie <strong>+ Feld hinzufügen</strong> und wählen Sie den Feldtyp.</p>
+
+<table>
+  <tr><th>Feldtyp</th><th>Verwendung</th></tr>
+  <tr><td><code>text</code></td><td>Einzeilige Texteingabe (Standard)</td></tr>
+  <tr><td><code>mehrzeil</code></td><td>Mehrzeiliges Textfeld (Beschreibungen)</td></tr>
+  <tr><td><code>datum</code></td><td>Datumsfeld (TT.MM.JJJJ)</td></tr>
+  <tr><td><code>uhrzeit</code></td><td>Zeitfeld (HH:MM)</td></tr>
+  <tr><td><code>radio</code></td><td>Einfachauswahl – eine Option wählen</td></tr>
+  <tr><td><code>checkboxen</code></td><td>Mehrfachauswahl – mehrere Optionen möglich</td></tr>
+  <tr><td><code>bool</code></td><td>Einzelne Checkbox (ja/nein)</td></tr>
+  <tr><td><code>email</code></td><td>E-Mail-Adresse mit Validierung</td></tr>
+  <tr><td><code>telefon</code></td><td>Telefonnummer</td></tr>
+  <tr><td><code>plz</code></td><td>Postleitzahl (5 Stellen)</td></tr>
+  <tr><td><code>gemeindekennzahl</code></td><td>AGS-Feld mit PLZ-Suche und Autofill</td></tr>
+  <tr><td><code>datei</code></td><td>Datei-Upload (PDF, Word, etc.)</td></tr>
+  <tr><td><code>signatur</code></td><td>Unterschriftsfeld (Canvas)</td></tr>
+  <tr><td><code>zahl</code></td><td>Numerische Eingabe</td></tr>
+  <tr><td><code>berechnung</code></td><td>Automatisch berechneter Wert aus anderen Feldern</td></tr>
+  <tr><td><code>zusammenfassung</code></td><td>Zeigt alle Eingaben zur Kontrolle an (im letzten Schritt)</td></tr>
+  <tr><td><code>einwilligung</code></td><td>DSGVO-Einwilligungstext mit Pflicht-Checkbox</td></tr>
+  <tr><td><code>autofill</code></td><td>Automatisch befülltes Feld (z.B. aus GKZ)</td></tr>
+  <tr><td><code>systemfeld</code></td><td>Technisches Feld (Loop-Zähler, nicht sichtbar)</td></tr>
+</table>
+
+<div class="box box-info">
+  <strong>Pflichtfelder:</strong> Aktivieren Sie die Option <em>Pflichtfeld</em>, damit das Formular erst weitergeht wenn das Feld ausgefüllt ist. Pflichtfelder werden mit einem roten Sternchen markiert.
+</div>
+
+<!-- ─────────────────────────────────────────── -->
+<h3>4. Übergänge (Transitionen)</h3>
+<p>Transitionen verbinden zwei Schritte. Ohne Transition kommt das Formular nicht weiter.</p>
+<ul>
+  <li>Klicken Sie im Editor auf den <strong>Verbinden-Button</strong> und ziehen Sie vom Quell- zum Zielschritt</li>
+  <li>Eine einfache Transition ohne Bedingung führt immer zum nächsten Schritt</li>
+  <li>Mehrere Transitionen vom selben Schritt ermöglichen Verzweigungen</li>
+</ul>
+<div class="box box-warn">
+  <strong>Reihenfolge:</strong> Wenn mehrere Transitionen vom selben Schritt ausgehen, bestimmt die <strong>Reihenfolge</strong> (0, 1, 2 …) die Auswertungsreihenfolge. Die erste Transition deren Bedingung erfüllt ist wird genommen.
+</div>
+
+<!-- ─────────────────────────────────────────── -->
+<h3>5. Bedingte Verzweigungen – Wenn/Dann</h3>
+<p>Bedingte Transitionen führen den Antragsteller unterschiedliche Wege, abhängig von seiner Eingabe.</p>
+
+<div class="box box-grey">
+<strong>Syntax:</strong> <code>feld_id == 'Wert'</code><br>
+Beispiele:
+<ul style="margin-top:4pt;">
+  <li><code>antragstyp == 'Neubau'</code></li>
+  <li><code>weitere_person == 'ja'</code></li>
+  <li><code>anzahl &gt; 5</code></li>
+  <li><code>geschlecht == 'weiblich'</code></li>
+</ul>
+</div>
+
+<p><strong>Aufbau einer Verzweigung:</strong></p>
+<ol>
+  <li>Radio-Feld anlegen mit den Optionen (z.B. „An-" / „Abmeldung")</li>
+  <li>Zwei Transitionen vom selben Schritt anlegen</li>
+  <li>Erste Transition: Bedingung <code>typ == 'Anmeldung'</code>, Reihenfolge 0</li>
+  <li>Zweite Transition: Bedingung <code>typ == 'Abmeldung'</code>, Reihenfolge 1</li>
+  <li>Beide Wege können am Ende in einem gemeinsamen Abschlussschritt zusammenlaufen</li>
+</ol>
+
+<div class="box box-danger">
+  <strong>Achtung:</strong> Der Wert in der Bedingung muss <em>exakt</em> mit der Option im Radio-Feld übereinstimmen – Groß-/Kleinschreibung beachten. <code>'ja'</code> ≠ <code>'Ja'</code>.
+</div>
+
+<!-- ─────────────────────────────────────────── -->
+<h3 class="page-break">6. Wiederholungen (Loops)</h3>
+<p>Ein Loop ermöglicht es, denselben Schritt mehrfach zu durchlaufen – z.B. beliebig viele Personen oder Bäume erfassen.</p>
+
+<div class="box box-info">
+  <strong>Wann brauche ich einen Loop?</strong> Wenn der Antragsteller eine <em>unbekannte</em> Anzahl gleichartiger Einträge machen soll (z.B. „Person 2, Person 3 …"). Für eine feste Anzahl reichen mehrere Schritte.
+</div>
+
+<p><strong>Loop-Aufbau – 4 Schritte sind nötig:</strong></p>
+
+<div class="flow">
+  <div class="flow-box gate">
+    <strong>Gate</strong><br>
+    <small>„Weitere Person?"</small><br>
+    <small>Radio: ja / nein</small>
+  </div>
+  <div class="flow-arrow">→ ja</div>
+  <div class="flow-box primary">
+    <strong>Loop-Trigger</strong><br>
+    <small>Zähler-Schritt</small><br>
+    <small>Systemfeld: loop_zaehler</small>
+  </div>
+  <div class="flow-arrow">→</div>
+  <div class="flow-box body">
+    <strong>Loop-Body</strong><br>
+    <small>Person (weitere)</small><br>
+    <small>Felder eintragen</small>
+  </div>
+  <div class="flow-arrow">→</div>
+  <div class="flow-box gate">
+    <strong>Gate (zurück)</strong><br>
+    <small>„Weitere Person?"</small><br>
+    <span class="loop-marker">⟲ LOOP</span>
+  </div>
+</div>
+
+<div class="box box-grey">
+  <strong>Wie funktioniert der Loop-Mechanismus?</strong><br>
+  Beim ersten Durchlauf besucht das System Gate → Trigger → Body in dieser Reihenfolge. Sobald der Antragsteller den Loop-Body abschickt, navigiert das System automatisch zurück zum Gate-Schritt. Da der <strong>Gate-Schritt bereits besucht wurde</strong>, erkennt das System den Loop und archiviert die Eingaben dieser Iteration sofort – <em>bevor</em> der Antragsteller Gate erneut sieht. Der Antragsteller wählt dann „ja" (weiterer Eintrag) oder „nein" (fertig).
+</div>
+
+<p><strong>Checkliste: Loop korrekt aufbauen</strong></p>
+<ul>
+  <li>Gate-Schritt hat ein <strong>Radio-Feld</strong> (ja/nein) mit aktiviertem <code>pdf_ausblenden</code> – das Gate-Radio erscheint nicht in der PDF-Zusammenfassung</li>
+  <li>Loop-Trigger-Schritt hat genau <strong>ein Systemfeld</strong> vom Typ <code>loop_zaehler</code> und das Attribut <strong>loop_bezeichnung</strong> gesetzt (z.B. „Person")</li>
+  <li>Transition <strong>Gate → Loop-Trigger</strong>: Bedingung <code>weitere_person == 'ja'</code>, Reihenfolge 0</li>
+  <li>Transition <strong>Loop-Trigger → Loop-Body</strong>: keine Bedingung</li>
+  <li>Transition <strong>Loop-Body → Gate</strong>: keine Bedingung – diese Transition löst den Loop-Archivierungsmechanismus aus</li>
+  <li>Transition <strong>Gate → Nächster Schritt</strong>: Bedingung <code>weitere_person == 'nein'</code>, Reihenfolge 1</li>
+</ul>
+
+<div class="box box-danger">
+  <strong>Häufiger Fehler:</strong> Die Transition Loop-Body → Gate darf <em>nicht</em> bedingt sein und darf <em>nicht</em> direkt zum Loop-Trigger springen. Nur über den Gate-Schritt funktioniert der Archivierungsmechanismus korrekt – weil der Gate-Schritt als bereits besuchter Schritt den Loop auslöst.
+</div>
+
+<div class="box box-warn">
+  <strong>Mehrere Loops:</strong> Ein Formular kann mehrere Loops haben (z.B. Wohnungen UND Personen). Jeder Loop braucht eigene Gate-, Trigger- und Body-Schritte. Feld-IDs müssen unterschiedlich sein (z.B. <code>wohnung_zaehler</code> vs. <code>personen_zaehler</code>). Loops dürfen sich nicht verschachteln.
+</div>
+
+<!-- ─────────────────────────────────────────── -->
+<h3>7. Gemeindekennzahl-Feld &amp; PLZ-Suche</h3>
+<p>Das Feld vom Typ <code>gemeindekennzahl</code> ist ein Spezialfeld für den Amtlichen Gemeindeschlüssel (AGS).</p>
+<ul>
+  <li>Der Antragsteller kann den 8-stelligen AGS direkt eingeben <em>oder</em> über die PLZ-Suche finden</li>
+  <li>Nach Eingabe einer gültigen Postleitzahl schlägt das System passende Gemeinden vor (via OpenPLZ-API)</li>
+  <li>Bei eindeutigem Treffer wird der AGS automatisch eingetragen</li>
+  <li>Das Feld befüllt automatisch weitere Felder: Gemeinde, Kreis, Bundesland (via Autofill)</li>
+</ul>
+
+<div class="box box-info">
+  <strong>Feldnamen-Konvention:</strong> Trägt das GKZ-Feld die ID <code>neue_gkz</code>, dann werden die Autofill-Quellen automatisch als <code>neue_gkz_gemeinde</code>, <code>neue_gkz_kreis</code>, <code>neue_gkz_land</code> bereitgestellt.
+</div>
+
+<!-- ─────────────────────────────────────────── -->
+<h3>8. Autofill – Felder automatisch befüllen</h3>
+<p>Felder vom Typ <code>autofill</code> werden automatisch aus einer anderen Quelle befüllt. Der Antragsteller kann den Wert jederzeit überschreiben.</p>
+<ul>
+  <li>Feld anlegen, Typ <code>autofill</code> wählen</li>
+  <li>Im Attribut <strong>quelle</strong> den Quellnamen angeben, z.B. <code>neue_gkz_gemeinde</code></li>
+  <li>Das Feld erscheint vorausgefüllt sobald die Quelle einen Wert liefert</li>
+</ul>
+
+<!-- ─────────────────────────────────────────── -->
+<h3>9. Formular testen</h3>
+<p>Klicken Sie im Editor auf <strong>Vorschau</strong> oder navigieren Sie zur öffentlichen Formular-URL. Prüfen Sie:</p>
+<ul>
+  <li>Alle Pflichtfelder funktionieren</li>
+  <li>Bedingte Übergänge führen zu den richtigen Schritten</li>
+  <li>Bei Loops: mehrere Iterationen anlegen und die Zusammenfassung kontrollieren</li>
+  <li>Die automatisch erzeugte PDF sieht vollständig aus</li>
+</ul>
+
+<!-- ─────────────────────────────────────────── -->
+<h3>10. Export &amp; Import</h3>
+<p>Formulare können als JSON-Datei exportiert und auf anderen Instanzen importiert werden.</p>
+<ul>
+  <li><strong>Export:</strong> Im Editor auf <em>Exportieren</em> klicken – eine .json-Datei wird heruntergeladen</li>
+  <li><strong>Import:</strong> Unter <em>Formulare → Importieren</em> die JSON-Datei hochladen</li>
+  <li>Alle Schritte, Felder und Transitionen werden übertragen</li>
+</ul>
+
+<!-- ─────────────────────────────────────────── -->
+<h2 class="page-break">Teil 2 – OnlyOffice-Briefvorlage</h2>
+
+<h3>11. Wie funktioniert die automatische Rückantwort?</h3>
+<p>Vorgangswerk kann nach dem Abschluss eines Formulars automatisch eine personalisierte E-Mail mit PDF-Anhang versenden. Dafür brauchen Sie:</p>
+<ol>
+  <li>Eine <strong>OnlyOffice-Briefvorlage</strong> (.docx) mit Platzhaltern</li>
+  <li>Einen <strong>Aktions-Schritt</strong> im Formular-Editor der die Vorlage auslöst</li>
+</ol>
+<div class="box box-info">
+  Das System befüllt die Platzhalter mit den Antragsdaten, wandelt das Dokument in ein PDF um und sendet es per E-Mail – ohne Zutun des Sachbearbeiters.
+</div>
+
+<!-- ─────────────────────────────────────────── -->
+<h3>12. Vorlage in OnlyOffice erstellen</h3>
+<ol>
+  <li>Öffnen Sie <strong>OnlyOffice</strong> (Menü: Dokumente) und erstellen Sie ein neues Textdokument</li>
+  <li>Gestalten Sie die Vorlage wie einen normalen Brief – Briefkopf, Anrede, Text, Grußformel</li>
+  <li>An den Stellen, die befüllt werden sollen, fügen Sie <strong>Platzhalter</strong> ein (siehe Abschnitt 13)</li>
+  <li>Speichern Sie das Dokument als <strong>.docx</strong></li>
+</ol>
+
+<!-- ─────────────────────────────────────────── -->
+<h3>13. Platzhalter einfügen</h3>
+<p>Platzhalter haben das Format <code>&#123;&#123;feld_id&#125;&#125;</code>. Beim Befüllen wird der Platzhalter durch den tatsächlichen Wert ersetzt.</p>
+
+<table>
+  <tr><th>Platzhalter</th><th>Inhalt</th></tr>
+  <tr><td><code>&#123;&#123;empfaenger_name&#125;&#125;</code></td><td>Name des Antragstellers</td></tr>
+  <tr><td><code>&#123;&#123;empfaenger_strasse&#125;&#125;</code></td><td>Straße des Antragstellers</td></tr>
+  <tr><td><code>&#123;&#123;empfaenger_plz_ort&#125;&#125;</code></td><td>PLZ und Ort</td></tr>
+  <tr><td><code>&#123;&#123;datum&#125;&#125;</code></td><td>Heutiges Datum</td></tr>
+  <tr><td><code>&#123;&#123;betreff&#125;&#125;</code></td><td>Betreff des Schreibens</td></tr>
+  <tr><td><code>&#123;&#123;anrede&#125;&#125;</code></td><td>Anrede (z.B. „Sehr geehrte Damen und Herren")</td></tr>
+  <tr><td><code>&#123;&#123;brieftext&#125;&#125;</code></td><td>Individueller Brieftext</td></tr>
+  <tr><td><code>&#123;&#123;vorgangsnummer&#125;&#125;</code></td><td>Automatisch vergebene Vorgangsnummer</td></tr>
+  <tr><td><code>&#123;&#123;feld_id&#125;&#125;</code></td><td>Beliebiges Formularfeld (ID aus dem Editor)</td></tr>
+  <tr><td><code>&#123;&#123;loop_0_feld_id&#125;&#125;</code></td><td>Feld aus dem 1. Loop-Durchlauf</td></tr>
+  <tr><td><code>&#123;&#123;loop_1_feld_id&#125;&#125;</code></td><td>Feld aus dem 2. Loop-Durchlauf</td></tr>
+</table>
+
+<div class="box box-danger">
+  <strong>Wichtig:</strong> Der Platzhalter-Name muss <em>exakt</em> mit der Feld-ID im Editor übereinstimmen – Groß-/Kleinschreibung, Unterstriche, keine Leerzeichen.
+</div>
+
+<p>Die vollständige Platzhalter-Liste für Ihre Vorlage finden Sie unter <em>Korrespondenz → Vorlagen → Platzhalter anzeigen</em>.</p>
+
+<!-- ─────────────────────────────────────────── -->
+<h3>14. Vorlage hochladen &amp; verknüpfen</h3>
+<ol>
+  <li>Navigieren Sie zu <strong>Korrespondenz → Vorlagen</strong></li>
+  <li>Klicken Sie <strong>+ Neue Vorlage</strong></li>
+  <li>Geben Sie einen Namen ein, z.B. <em>„Bestätigung Ummeldung Hauptwohnsitz"</em></li>
+  <li>Laden Sie die .docx-Datei hoch und wählen Sie ggf. das zugehörige Formular (Kürzel)</li>
+  <li>Speichern Sie – die Vorlage erhält eine interne <strong>Vorlagen-ID</strong> (Zahl in der URL)</li>
+  <li>Notieren Sie diese ID – Sie benötigen sie im nächsten Schritt</li>
+</ol>
+
+<!-- ─────────────────────────────────────────── -->
+<h3>15. Aktions-Schritt im Formular einrichten</h3>
+<p>Der <strong>Aktions-Schritt</strong> ist ein spezieller Schritt im Formular-Editor, der nach dem Abschluss automatisch ausgeführt wird – ohne dass der Antragsteller etwas tun muss.</p>
+<ol>
+  <li>Fügen Sie im Editor einen neuen Schritt <em>nach</em> dem Ende-Schritt ein</li>
+  <li>Setzen Sie den Typ auf <strong>Aktions-Schritt</strong></li>
+  <li>Wählen Sie die Aktion: <strong>E-Mail mit Vorlage senden</strong></li>
+  <li>Tragen Sie die <strong>Vorlagen-ID</strong> aus Schritt 14 ein</li>
+  <li>Tragen Sie im Empfänger-Feld die Feld-ID des E-Mail-Felds ein, z.B. <code>&#123;&#123;email&#125;&#125;</code></li>
+  <li>Speichern und testen</li>
+</ol>
+
+<div class="box box-ok">
+  <strong>Fertig!</strong> Nach dem Speichern sendet Vorgangswerk bei jedem Abschluss dieses Formulars automatisch eine personalisierte E-Mail mit der ausgefüllten Vorlage als PDF-Anhang – ohne weiteres Zutun des Sachbearbeiters.
+</div>
+
+<div style="margin-top: 40pt; border-top: 1pt solid #ccc; padding-top: 10pt; font-size: 8pt; color: #666; text-align: center;">
+  Vorgangswerk ist freie Software, lizenziert unter der European Union Public Licence 1.2 (EUPL-1.2).<br>
+  Copyright &copy; 2026 Georg Klein &middot; <a href="https://github.com/geolohmar-star/vorgangswerk">github.com/geolohmar-star/vorgangswerk</a>
+</div>
+
+</body>
+</html>

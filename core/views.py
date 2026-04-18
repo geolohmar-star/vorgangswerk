@@ -352,6 +352,24 @@ def anleitung(request):
     return render(request, "core/anleitung.html")
 
 
+def anleitung_pdf(request):
+    """Anleitung als druckfertiges PDF (WeasyPrint)."""
+    import datetime
+    from django.template.loader import render_to_string
+    from django.http import HttpResponse
+    try:
+        from weasyprint import HTML
+    except ImportError:
+        return HttpResponse("WeasyPrint nicht installiert.", status=500)
+
+    datum = datetime.date.today().strftime("%d.%m.%Y")
+    html_string = render_to_string("core/anleitung_pdf.html", {"datum": datum}, request=request)
+    pdf = HTML(string=html_string, base_url=request.build_absolute_uri("/")).write_pdf()
+    response = HttpResponse(pdf, content_type="application/pdf")
+    response["Content-Disposition"] = 'attachment; filename="Vorgangswerk-Anleitung.pdf"'
+    return response
+
+
 def roadmap(request):
     """Innovationsboard – Roadmap und nutzbare Standards."""
     from .models import RoadmapEintrag
