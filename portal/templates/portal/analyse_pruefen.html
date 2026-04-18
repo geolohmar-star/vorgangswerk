@@ -1,0 +1,384 @@
+{% extends "portal/base.html" %}
+{% block title %}Felder prüfen – {{ analyse.dateiname }} – Vorgangswerk Portal{% endblock %}
+
+{% block extra_css %}
+<style>
+.schritt-card { border: 1px solid #dee2e6; border-radius: 8px; margin-bottom: 1rem; }
+.schritt-header { background: #f8f9fa; border-radius: 8px 8px 0 0; padding: .6rem 1rem; display: flex; align-items: center; gap: .5rem; cursor: pointer; user-select: none; }
+.schritt-header:hover { background: #e9ecef; }
+.schritt-body { padding: 1rem; }
+.feld-row { display: grid; grid-template-columns: 1fr 2fr 1fr auto auto; gap: .5rem; align-items: start; padding: .4rem 0; border-bottom: 1px solid #f0f0f0; }
+.feld-row:last-child { border-bottom: none; }
+.feld-row-header { display: grid; grid-template-columns: 1fr 2fr 1fr auto auto; gap: .5rem; padding: .25rem 0; font-size: .75rem; font-weight: 600; text-transform: uppercase; color: #6c757d; border-bottom: 2px solid #dee2e6; margin-bottom: .25rem; }
+.optionen-editor { grid-column: 1 / -1; margin-top: .25rem; background: #f8f9fa; border-radius: 6px; padding: .5rem; }
+.option-item { display: flex; align-items: center; gap: .4rem; margin-bottom: .3rem; }
+.badge-typ { font-size: .7rem; }
+.loop-badge { background: #cfe2ff; color: #084298; font-size: .7rem; padding: 2px 6px; border-radius: 4px; }
+.pflicht-toggle { display: flex; align-items: center; justify-content: center; gap: 4px; font-size: .8rem; }
+input[type="checkbox"].form-check-input { cursor: pointer; }
+.feld-id-badge { font-family: monospace; font-size: .75rem; color: #6c757d; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sonderwert-input { grid-column: 1 / -1; margin-top: .25rem; }
+.transitionen-info { font-size: .8rem; color: #6c757d; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-md-10">
+
+    <nav aria-label="breadcrumb" class="mb-3">
+      <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="{% url 'portal:dashboard' %}">Dashboard</a></li>
+        <li class="breadcrumb-item"><a href="{% url 'portal:analyse_detail' analyse.pk %}">Analyse</a></li>
+        <li class="breadcrumb-item active">Felder prüfen</li>
+      </ol>
+    </nav>
+
+    <div class="card mb-3">
+      <div class="card-header py-3">
+        <h5 class="mb-0">Felder prüfen &amp; anpassen</h5>
+      </div>
+      <div class="card-body">
+        <p class="text-muted small mb-3">
+          Prüfe die erkannten Felder und passe Typen an. Insbesondere <strong>radio</strong>-
+          und <strong>checkboxen</strong>-Felder brauchen Auswahloptionen.
+          Alles Weitere kann danach im Editor bearbeitet werden.
+        </p>
+
+        <form id="review-form" method="post">
+          {% csrf_token %}
+          <input type="hidden" name="ergebnis_json" id="ergebnis-json-input">
+
+          <!-- Metadaten -->
+          <div class="row g-2 mb-4">
+            <div class="col-md-6">
+              <label class="form-label fw-semibold small">Formularname</label>
+              <input type="text" class="form-control form-control-sm" id="meta-name" required>
+            </div>
+            <div class="col-md-2">
+              <label class="form-label fw-semibold small">Kürzel</label>
+              <input type="text" class="form-control form-control-sm" id="meta-kuerzel" maxlength="10">
+            </div>
+            <div class="col-md-4">
+              <label class="form-label fw-semibold small">Beschreibung</label>
+              <input type="text" class="form-control form-control-sm" id="meta-beschreibung">
+            </div>
+          </div>
+
+          <!-- Schritte -->
+          <div id="schritte-container"></div>
+
+          <!-- Aktionsleiste -->
+          <div class="d-flex gap-2 mt-3 pt-3 border-top">
+            <button type="submit" class="btn btn-primary btn-lg flex-grow-1" id="import-btn">
+              Jetzt importieren &rarr;
+            </button>
+            <a href="{% url 'portal:analyse_detail' analyse.pk %}" class="btn btn-outline-secondary btn-lg">
+              Abbrechen
+            </a>
+          </div>
+          <p class="text-muted small text-center mt-2">
+            Der Pfad wird als Entwurf angelegt und ist zunächst nicht öffentlich.
+          </p>
+        </form>
+      </div>
+    </div>
+
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Rohdaten von der KI-Analyse (Pydantic-validiert, sicher)
+const DATEN = {{ ergebnis_json_str|safe }};
+
+// Feldtypen mit Beschriftungen und Sonderwert-Hinweisen
+const TYPEN = [
+  { wert: "text",             label: "Text (einzeilig)" },
+  { wert: "mehrzeil",         label: "Text (mehrzeilig)" },
+  { wert: "zahl",             label: "Zahl" },
+  { wert: "datum",            label: "Datum" },
+  { wert: "email",            label: "E-Mail" },
+  { wert: "telefon",          label: "Telefon" },
+  { wert: "plz",              label: "Postleitzahl" },
+  { wert: "gemeindekennzahl", label: "Gemeindekennzahl (AGS)" },
+  { wert: "autofill",         label: "Autofill (auto. Vorbelegt)" },
+  { wert: "radio",            label: "Radio (Einfachauswahl)" },
+  { wert: "checkboxen",       label: "Checkboxen (Mehrfachauswahl)" },
+  { wert: "bool",             label: "Checkbox (Ja/Nein)" },
+  { wert: "signatur",         label: "Unterschrift" },
+  { wert: "einwilligung",     label: "Einwilligungstext" },
+  { wert: "textblock",        label: "Infotext / Hinweis" },
+  { wert: "abschnitt",        label: "Abschnittsüberschrift" },
+  { wert: "systemfeld",       label: "Systemfeld (intern)" },
+  { wert: "zusammenfassung",  label: "Zusammenfassung" },
+];
+
+// Typen die optionen[] brauchen
+const BRAUCHT_OPTIONEN = new Set(["radio", "checkboxen"]);
+// Typen die text brauchen
+const BRAUCHT_TEXT = new Set(["textblock", "einwilligung", "abschnitt"]);
+
+// Zustand – wir bearbeiten DATEN direkt
+const state = JSON.parse(JSON.stringify(DATEN));  // deep copy
+
+// ---- Hilfsfunktionen ----
+
+function el(tag, attrs={}, ...children) {
+  const e = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) {
+    if (k === "class") e.className = v;
+    else if (k.startsWith("on")) e.addEventListener(k.slice(2), v);
+    else e.setAttribute(k, v);
+  }
+  for (const c of children) {
+    if (c == null) continue;
+    e.append(typeof c === "string" ? document.createTextNode(c) : c);
+  }
+  return e;
+}
+
+function typenSelect(aktuellerTyp, onChange) {
+  const sel = el("select", { class: "form-select form-select-sm" });
+  for (const t of TYPEN) {
+    const opt = el("option", { value: t.wert }, t.label);
+    if (t.wert === aktuellerTyp) opt.selected = true;
+    sel.append(opt);
+  }
+  sel.addEventListener("change", () => onChange(sel.value));
+  return sel;
+}
+
+function optionenEditor(feld) {
+  const wrap = el("div", { class: "optionen-editor" });
+  const titel = el("div", { class: "small fw-semibold mb-1 text-muted" }, "Auswahloptionen:");
+  wrap.append(titel);
+
+  function renderOptionen() {
+    // Optionen-Liste neu rendern
+    const liste = wrap.querySelector(".opt-liste") || el("div", { class: "opt-liste" });
+    liste.innerHTML = "";
+    const optionen = feld.optionen || [];
+    optionen.forEach((opt, i) => {
+      const row = el("div", { class: "option-item" });
+      const inp = el("input", { type: "text", class: "form-control form-control-sm", value: opt, placeholder: `Option ${i+1}` });
+      inp.addEventListener("input", () => { feld.optionen[i] = inp.value; });
+      const removeBtn = el("button", {
+        type: "button", class: "btn btn-outline-danger btn-sm",
+        onclick: () => { feld.optionen.splice(i, 1); renderOptionen(); }
+      }, "×");
+      row.append(inp, removeBtn);
+      liste.append(row);
+    });
+    if (!wrap.contains(liste)) wrap.append(liste);
+
+    const addBtn = wrap.querySelector(".add-opt-btn") || el("button", {
+      type: "button", class: "btn btn-outline-secondary btn-sm mt-1 add-opt-btn"
+    }, "+ Option hinzufügen");
+    addBtn.onclick = () => {
+      if (!feld.optionen) feld.optionen = [];
+      feld.optionen.push("");
+      renderOptionen();
+    };
+    if (!wrap.contains(addBtn)) wrap.append(addBtn);
+  }
+
+  if (!feld.optionen) feld.optionen = [];
+  renderOptionen();
+  return wrap;
+}
+
+function sonderwertEditor(feld) {
+  const wrap = el("div", { class: "sonderwert-input" });
+
+  if (BRAUCHT_TEXT.has(feld.typ)) {
+    const lbl = el("label", { class: "small text-muted" }, "Text / Inhalt:");
+    const ta = el("textarea", { class: "form-control form-control-sm mt-1", rows: "2" });
+    ta.value = feld.text || "";
+    ta.addEventListener("input", () => { feld.text = ta.value; });
+    wrap.append(lbl, ta);
+  } else if (feld.typ === "autofill") {
+    const lbl = el("label", { class: "small text-muted" }, "Quelle (Variable):");
+    const inp = el("input", { type: "text", class: "form-control form-control-sm mt-1",
+                               placeholder: "z.B. neue_gkz_gemeinde", value: feld.quelle || "" });
+    inp.addEventListener("input", () => { feld.quelle = inp.value; });
+    wrap.append(lbl, inp);
+  } else if (feld.typ === "systemfeld") {
+    const lbl = el("label", { class: "small text-muted" }, "Systemwert:");
+    const inp = el("input", { type: "text", class: "form-control form-control-sm mt-1",
+                               placeholder: "loop_zaehler", value: feld.systemwert || "" });
+    inp.addEventListener("input", () => { feld.systemwert = inp.value; });
+    wrap.append(lbl, inp);
+  }
+
+  return wrap;
+}
+
+function feldZeile(feld) {
+  const wrapper = el("div", {});
+
+  const row = el("div", { class: "feld-row" });
+
+  // Spalte 1: ID
+  const idBadge = el("div", { class: "feld-id-badge", title: feld.id }, feld.id || "–");
+  row.append(idBadge);
+
+  // Spalte 2: Label
+  const labelInp = el("input", { type: "text", class: "form-control form-control-sm",
+                                   value: feld.label || "", placeholder: "Feldbeschriftung" });
+  labelInp.addEventListener("input", () => { feld.label = labelInp.value; });
+  row.append(labelInp);
+
+  // Spalte 3: Typ
+  let sonderEditor = null;
+  let optEditor = null;
+
+  const typSel = typenSelect(feld.typ || "text", (neuerTyp) => {
+    feld.typ = neuerTyp;
+    // Sonder-Editor aktualisieren
+    if (sonderEditor) sonderEditor.remove();
+    if (optEditor) optEditor.remove();
+    sonderEditor = null;
+    optEditor = null;
+
+    if (BRAUCHT_OPTIONEN.has(neuerTyp)) {
+      if (!feld.optionen || feld.optionen.length === 0) feld.optionen = [];
+      optEditor = optionenEditor(feld);
+      wrapper.append(optEditor);
+    } else if (BRAUCHT_TEXT.has(neuerTyp) || neuerTyp === "autofill" || neuerTyp === "systemfeld") {
+      sonderEditor = sonderwertEditor(feld);
+      wrapper.append(sonderEditor);
+    }
+  });
+  row.append(typSel);
+
+  // Spalte 4: Pflicht
+  const pflichtWrap = el("div", { class: "pflicht-toggle" });
+  const pflichtCb = el("input", { type: "checkbox", class: "form-check-input", id: `p_${feld.id}` });
+  pflichtCb.checked = !!feld.pflicht;
+  pflichtCb.addEventListener("change", () => { feld.pflicht = pflichtCb.checked; });
+  pflichtWrap.append(pflichtCb);
+  row.append(pflichtWrap);
+
+  // Spalte 5: pdf_ausblenden
+  const ausblendenWrap = el("div", { class: "pflicht-toggle" });
+  const ausblendenCb = el("input", { type: "checkbox", class: "form-check-input", id: `a_${feld.id}` });
+  ausblendenCb.checked = !!feld.pdf_ausblenden;
+  ausblendenCb.addEventListener("change", () => { feld.pdf_ausblenden = ausblendenCb.checked; });
+  ausblendenWrap.append(ausblendenCb);
+  row.append(ausblendenWrap);
+
+  wrapper.append(row);
+
+  // Sonder-Editoren direkt anzeigen wenn nötig
+  if (BRAUCHT_OPTIONEN.has(feld.typ)) {
+    optEditor = optionenEditor(feld);
+    wrapper.append(optEditor);
+  } else if (BRAUCHT_TEXT.has(feld.typ) || feld.typ === "autofill" || feld.typ === "systemfeld") {
+    sonderEditor = sonderwertEditor(feld);
+    wrapper.append(sonderEditor);
+  }
+
+  return wrapper;
+}
+
+function schrittKarte(schritt, idx) {
+  const karte = el("div", { class: "schritt-card" });
+
+  // Header
+  const header = el("div", { class: "schritt-header" });
+
+  const numBadge = el("span", { class: "badge bg-secondary" }, `${idx + 1}`);
+  const nodeBadge = el("span", { class: "badge bg-light text-dark border" }, schritt.node_id || "");
+
+  const titelInp = el("input", {
+    type: "text",
+    class: "form-control form-control-sm",
+    value: schritt.titel || "Schritt",
+    style: "max-width: 300px; font-weight: 600;",
+    placeholder: "Schritttitel",
+    onclick: (e) => e.stopPropagation(),
+  });
+  titelInp.addEventListener("input", () => { schritt.titel = titelInp.value; });
+
+  const badges = el("div", { class: "ms-auto d-flex gap-1 align-items-center" });
+  if (schritt.ist_start) badges.append(el("span", { class: "badge bg-success" }, "Start"));
+  if (schritt.ist_ende) badges.append(el("span", { class: "badge bg-warning text-dark" }, "Ende"));
+  if (schritt.loop_bezeichnung) {
+    badges.append(el("span", { class: "loop-badge" }, `Loop: ${schritt.loop_bezeichnung}`));
+  }
+  const feldAnz = el("span", { class: "text-muted small ms-2" },
+                      `${(schritt.felder_json || []).length} Feld${(schritt.felder_json||[]).length !== 1 ? "er" : ""}`);
+  badges.append(feldAnz);
+
+  const chevron = el("span", {}, "▾");
+  badges.append(chevron);
+
+  header.append(numBadge, nodeBadge, titelInp, badges);
+  karte.append(header);
+
+  // Body (collapsible)
+  const body = el("div", { class: "schritt-body" });
+  let offen = true;
+
+  header.addEventListener("click", (e) => {
+    if (e.target === titelInp) return;
+    offen = !offen;
+    body.style.display = offen ? "" : "none";
+    chevron.textContent = offen ? "▾" : "▸";
+  });
+
+  const felder = schritt.felder_json || [];
+  if (felder.length === 0) {
+    body.append(el("p", { class: "text-muted small mb-0" }, "Keine Felder in diesem Schritt."));
+  } else {
+    // Spalten-Header
+    const hdr = el("div", { class: "feld-row-header" });
+    hdr.append(
+      el("span", {}, "Feld-ID"),
+      el("span", {}, "Beschriftung"),
+      el("span", {}, "Typ"),
+      el("span", { title: "Pflichtfeld" }, "Pflicht"),
+      el("span", { title: "In PDF ausblenden" }, "PDF"),
+    );
+    body.append(hdr);
+
+    for (const feld of felder) {
+      body.append(feldZeile(feld));
+    }
+  }
+
+  karte.append(body);
+  return karte;
+}
+
+// ---- Rendern ----
+
+function init() {
+  // Metadaten
+  document.getElementById("meta-name").value = state.name || "";
+  document.getElementById("meta-kuerzel").value = state.kuerzel || "";
+  document.getElementById("meta-beschreibung").value = state.beschreibung || "";
+
+  document.getElementById("meta-name").addEventListener("input", e => { state.name = e.target.value; });
+  document.getElementById("meta-kuerzel").addEventListener("input", e => { state.kuerzel = e.target.value; });
+  document.getElementById("meta-beschreibung").addEventListener("input", e => { state.beschreibung = e.target.value; });
+
+  // Schritte
+  const container = document.getElementById("schritte-container");
+  (state.schritte || []).forEach((s, i) => {
+    container.append(schrittKarte(s, i));
+  });
+}
+
+// ---- Submit ----
+
+document.getElementById("review-form").addEventListener("submit", function(e) {
+  const jsonStr = JSON.stringify(state);
+  document.getElementById("ergebnis-json-input").value = jsonStr;
+});
+
+init();
+</script>
+{% endblock %}

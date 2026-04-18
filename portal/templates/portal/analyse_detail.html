@@ -114,15 +114,12 @@
                     </div>
 
                     {% if analyse.status == "fertig" %}
-                    <form method="post" action="{% url 'portal:analyse_importieren' analyse.pk %}">
-                        {% csrf_token %}
-                        <button type="submit" class="btn btn-primary btn-lg w-100">
-                            In Vorgangswerk importieren &rarr;
-                        </button>
-                    </form>
+                    <a href="{% url 'portal:analyse_pruefen' analyse.pk %}"
+                       class="btn btn-primary btn-lg w-100">
+                        Felder prüfen &amp; importieren &rarr;
+                    </a>
                     <p class="text-muted small text-center mt-2">
-                        Der Pfad wird als Entwurf angelegt und ist zunächst nicht öffentlich.
-                        Du kannst ihn danach im Editor anpassen.
+                        Im nächsten Schritt kannst du Feldtypen und Optionen anpassen, bevor der Pfad angelegt wird.
                     </p>
                     {% elif analyse.status == "importiert" and analyse.importierter_pfad_pk %}
                     <a href="/formulare/editor/{{ analyse.importierter_pfad_pk }}/"

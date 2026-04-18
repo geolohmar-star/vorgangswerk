@@ -287,7 +287,7 @@ def analyse_status_json(request, pk):
 @portal_login_required
 @require_POST
 def analyse_importieren(request, pk):
-    """Importiert das Analyse-Ergebnis als Pfad in Vorgangswerk."""
+    """Importiert das Analyse-Ergebnis als Pfad in Vorgangswerk (direkter Import, ohne Review)."""
     account = request.user.portal_account
     analyse = get_object_or_404(FormularAnalyse, pk=pk, account=account)
 
@@ -300,8 +300,46 @@ def analyse_importieren(request, pk):
         return redirect(reverse("portal:analyse_detail", args=[pk]))
 
     pfad_pk = importiere_pfad_aus_analyse(analyse)
-    messages.success(request, f"Pfad erfolgreich importiert! Du kannst ihn jetzt im Editor bearbeiten.")
+    messages.success(request, "Pfad erfolgreich importiert! Du kannst ihn jetzt im Editor bearbeiten.")
     return redirect(f"/formulare/editor/{pfad_pk}/")
+
+
+@portal_login_required
+def analyse_pruefen(request, pk):
+    """Zwischenschritt: Felder prüfen und Typen anpassen vor dem Import."""
+    account = request.user.portal_account
+    analyse = get_object_or_404(FormularAnalyse, pk=pk, account=account)
+
+    if analyse.status == FormularAnalyse.STATUS_IMPORTIERT and analyse.importierter_pfad_pk:
+        messages.info(request, "Dieser Entwurf wurde bereits importiert.")
+        return redirect(f"/formulare/editor/{analyse.importierter_pfad_pk}/")
+
+    if analyse.status != FormularAnalyse.STATUS_FERTIG:
+        messages.error(request, "Analyse noch nicht abgeschlossen.")
+        return redirect(reverse("portal:analyse_detail", args=[pk]))
+
+    if request.method == "POST":
+        try:
+            geaendert_json_str = request.POST.get("ergebnis_json", "")
+            geaendert_json = json.loads(geaendert_json_str)
+            from .services import PfadDefinition
+            pfad_def = PfadDefinition.model_validate(geaendert_json)
+            analyse.ergebnis_json = pfad_def.model_dump()
+            analyse.save(update_fields=["ergebnis_json"])
+            pfad_pk = importiere_pfad_aus_analyse(analyse)
+            messages.success(request, "Pfad erfolgreich importiert! Du kannst ihn jetzt im Editor bearbeiten.")
+            return redirect(f"/formulare/editor/{pfad_pk}/")
+        except Exception as e:
+            logger.exception("Fehler beim Prüf-Import für Analyse %d: %s", pk, e)
+            messages.error(request, f"Fehler beim Import: {e}")
+
+    import json as _json
+    ergebnis_json_str = _json.dumps(analyse.ergebnis_json, ensure_ascii=False)
+    return render(request, "portal/analyse_pruefen.html", {
+        "account": account,
+        "analyse": analyse,
+        "ergebnis_json_str": ergebnis_json_str,
+    })
 
 
 # ---------------------------------------------------------------------------
