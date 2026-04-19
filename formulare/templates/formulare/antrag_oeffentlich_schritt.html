@@ -75,6 +75,7 @@
                 <div class="row g-3">
 
                 {% for feld in felder_render %}
+                {% if feld.zeige_wenn %}<div class="zeige-wenn-wrapper" data-zeige-wenn="{{ feld.zeige_wenn }}" style="display:none;width:100%;">{% endif %}
                 {% if feld.versteckt %}
                 {% if feld.typ == "berechnung" %}
                 <input type="hidden" name="{{ feld.id }}" id="berechnung-hidden-{{ feld.id }}"
@@ -519,6 +520,7 @@
 
                 {% endwith %}
                 {% endif %}
+                {% if feld.zeige_wenn %}</div>{% endif %}
                 {% endfor %}
 
                 </div>
@@ -578,6 +580,51 @@
                 if (!gemFeld || !gemFeld.value.trim()) lookup(el);
             }
         });
+    });
+}());
+</script>
+<script>
+// zeige_wenn – Live-Ein/Ausblenden (auch im öffentlichen Formular)
+(function () {
+    "use strict";
+    function _feldWert(feldId) {
+        var cb = document.querySelector('input[type="checkbox"][name="' + feldId + '"]');
+        if (cb && document.querySelectorAll('input[type="checkbox"][name="' + feldId + '"]').length === 1) return cb.checked;
+        var cbs = document.querySelectorAll('input[type="checkbox"][name="' + feldId + '"]:checked');
+        if (cbs.length > 0) return Array.from(cbs).map(function(c){ return c.value; });
+        var radio = document.querySelector('input[type="radio"][name="' + feldId + '"]:checked');
+        if (radio) return radio.value;
+        var el = document.querySelector('[name="' + feldId + '"]');
+        return el ? el.value : "";
+    }
+    function _istAktiv(bedingung) {
+        var doppelpunkt = bedingung.indexOf(":");
+        if (doppelpunkt !== -1) {
+            var feldId = bedingung.substring(0, doppelpunkt);
+            var erwartet = bedingung.substring(doppelpunkt + 1);
+            var wert = _feldWert(feldId);
+            if (Array.isArray(wert)) return wert.indexOf(erwartet) !== -1;
+            return String(wert) === erwartet;
+        }
+        var wert = _feldWert(bedingung);
+        if (Array.isArray(wert)) return wert.length > 0;
+        if (typeof wert === "boolean") return wert;
+        return wert && wert !== "False" && wert !== "false";
+    }
+    function _aktualisiere() {
+        document.querySelectorAll(".zeige-wenn-wrapper").forEach(function (wrapper) {
+            var bedingung = wrapper.dataset.zeigeWenn;
+            var aktiv = _istAktiv(bedingung);
+            wrapper.style.display = aktiv ? "" : "none";
+            wrapper.querySelectorAll("input,select,textarea").forEach(function(el) {
+                el.disabled = !aktiv;
+            });
+        });
+    }
+    document.addEventListener("DOMContentLoaded", function () {
+        _aktualisiere();
+        document.addEventListener("change", _aktualisiere);
+        document.addEventListener("input", _aktualisiere);
     });
 }());
 </script>
