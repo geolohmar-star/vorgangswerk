@@ -47,6 +47,7 @@
             <li><a href="#s13" class="text-decoration-none">Platzhalter einfügen</a></li>
             <li><a href="#s14" class="text-decoration-none">Vorlage hochladen &amp; verknüpfen</a></li>
             <li><a href="#s15" class="text-decoration-none">Aktions-Schritt im Formular einrichten</a></li>
+            <li><a href="#s16" class="text-decoration-none">Formular per KI aus PDF importieren (Portal)</a></li>
           </ol>
         </div>
       </div>
@@ -769,6 +770,91 @@
       Nach dem Speichern sendet Vorgangswerk bei jedem Abschluss dieses Formulars
       automatisch eine personalisierte E-Mail mit der ausgefüllten Vorlage als PDF-Anhang –
       ohne weiteres Zutun des Sachbearbeiters.
+    </div>
+  </div>
+
+  {# 16 KI-PDF-Import #}
+  <div id="s16" class="mb-5">
+    <h4 class="fw-bold">16. Formular per KI aus PDF importieren (Portal)</h4>
+    <p>Im <strong>Vorgangswerk-Portal</strong> kannst du ein bestehendes PDF-Formular hochladen.
+    Claude analysiert das Dokument und erstellt automatisch einen fertigen Antrags-Pfad –
+    inklusive Schritte, Felder, Typen und Transitionen.</p>
+
+    <h6 class="fw-semibold mt-4 mb-2">Farbmarker-Konvention</h6>
+    <p class="small text-muted mb-3">
+      Bereite das PDF vor dem Upload mit farbigen Markierungen vor (z.B. in Word, LibreOffice oder
+      einem PDF-Editor). Die KI erkennt die Farben als Strukturierungsanweisungen.
+    </p>
+
+    <div class="table-responsive mb-4">
+      <table class="table table-sm table-bordered small">
+        <thead class="table-light">
+          <tr>
+            <th style="width:120px;">Farbe</th>
+            <th>Bedeutung</th>
+            <th>Beispiel-Text im Marker</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><span class="badge text-white" style="background:#1565c0;">&#9608; Blau</span></td>
+            <td><strong>Loop</strong> – wiederholbarer Abschnitt (z.B. mehrere Kinder)</td>
+            <td><code>LOOP: Kind</code> oder nur <code>Kind</code></td>
+          </tr>
+          <tr>
+            <td><span class="badge text-white" style="background:#2e7d32;">&#9608; Grün</span></td>
+            <td><strong>Schritt/Gruppe</strong> – neuer Formularschritt beginnt hier</td>
+            <td><code>GRUPPE: Wohnort</code> oder <code>GRUPPE: 2 · Neue Hauptwohnung</code></td>
+          </tr>
+          <tr>
+            <td><span class="badge text-dark" style="background:#f9a825;">&#9608; Gelb</span></td>
+            <td><strong>Split</strong> – kombiniertes Feld in Einzelfelder aufteilen</td>
+            <td><code>SPLIT: PLZ, Gemeinde, Ortsteil</code></td>
+          </tr>
+          <tr>
+            <td><span class="badge text-dark" style="background:#00acc1;">&#9608; Türkis</span></td>
+            <td><strong>Autofill</strong> – Feld automatisch aus anderer Variable befüllen</td>
+            <td><code>AUTOFILL: neue_gkz_gemeinde</code></td>
+          </tr>
+          <tr>
+            <td><span class="badge text-white" style="background:#7b1fa2;">&#9608; Violett</span></td>
+            <td><strong>Zeige wenn</strong> – Feld nur einblenden wenn Bedingung erfüllt</td>
+            <td><code>ZEIGE_WENN: hat_hund = ja</code></td>
+          </tr>
+          <tr>
+            <td><span class="badge text-white" style="background:#c62828;">&#9608; Rot</span> <span class="text-muted small">mit Text/Zahl</span></td>
+            <td><strong>Verzweigung</strong> – Entscheidungsweg (verschiedene Gruppen)</td>
+            <td><code>3</code>, <code>4</code>, <code>5</code> (Gruppennummern)</td>
+          </tr>
+          <tr>
+            <td><span class="badge text-white" style="background:#b71c1c;">&#9608; Rot</span> <span class="text-muted small">ausgefüllt</span></td>
+            <td><strong>Ignorieren</strong> – alle darunter liegenden Felder weglassen</td>
+            <td>Kein Text oder nur <code>X</code></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h6 class="fw-semibold mb-2">Zeige-wenn – bedingte Felder</h6>
+    <p class="small">Ein typisches Muster: Radio-Feld "Haben Sie einen Hund?" (ja/nein) –
+    das Folgefeld "Name des Hundes" soll nur erscheinen wenn "ja" gewählt wurde.</p>
+    <div class="border rounded-3 bg-light p-3 mb-3 small">
+      <div class="fw-semibold mb-2">So funktioniert es:</div>
+      <ol class="mb-2">
+        <li>Radio-Feld <code>hat_hund</code> mit Optionen <code>ja</code> / <code>nein</code></li>
+        <li>Folgefeld <code>hund_name</code> – violetten Marker daneben: <code>ZEIGE_WENN: hat_hund = ja</code></li>
+        <li>Im Editor: Feld-Attribut <code>zeige_wenn</code> auf <code>hat_hund:ja</code> setzen</li>
+      </ol>
+      <div class="text-muted">
+        Die KI erkennt dieses Muster auch <em>ohne</em> Marker automatisch,
+        wenn nach einem Ja/Nein-Feld ein Feld mit "Falls ja …" folgt.
+      </div>
+    </div>
+
+    <div class="alert alert-info small mb-0">
+      <strong>Ablauf im Portal:</strong>
+      PDF hochladen → KI analysiert (20–60 Sek.) → <strong>Prüfschritt</strong>:
+      Feldtypen und Optionen anpassen → Importieren → Pfad im Editor nachbearbeiten.
     </div>
   </div>
 
