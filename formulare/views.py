@@ -1107,6 +1107,16 @@ def _versende_pdf_email(sitzung):
 # Versions-Helfer
 # ---------------------------------------------------------------------------
 
+def _aktuelle_version_nr(pfad) -> int | None:
+    """Gibt die höchste gespeicherte Versionsnummer des Pfads zurück, oder None."""
+    return (
+        AntrVersion.objects
+        .filter(pfad=pfad)
+        .aggregate(max_nr=models.Max("version_nr"))
+        ["max_nr"]
+    )
+
+
 def _pfad_version_anlegen(pfad, user, daten):
     """Legt einen Versions-Snapshot an und loescht aelteste ueber dem Limit."""
     letzte_nr = (
@@ -2028,6 +2038,7 @@ def pfad_starten(request, pk):
         user=request.user,
         aktueller_schritt=start,
         besuchte_schritte=[start.node_id],
+        pfad_version_nr=_aktuelle_version_nr(pfad),
     )
     return redirect("formulare:pfad_schritt", sitzung_pk=sitzung.pk)
 
@@ -2589,12 +2600,13 @@ def pfad_auswertung(request, pk):
     for sitzung in qs[:500]:
         einreicher = str(sitzung.user) if sitzung.user else (sitzung.email_anonym or "anonym")
         zeilen.append({
-            "pk":             sitzung.pk,
-            "vorgangsnummer": sitzung.vorgangsnummer or "-",
-            "gestartet_am":   sitzung.gestartet_am,
-            "status":         sitzung.get_status_display(),
-            "einreicher":     einreicher,
-            "felder":         [_auswertung_zellwert(sitzung.gesammelte_daten, sp) for sp in spalten],
+            "pk":               sitzung.pk,
+            "vorgangsnummer":   sitzung.vorgangsnummer or "-",
+            "gestartet_am":     sitzung.gestartet_am,
+            "status":           sitzung.get_status_display(),
+            "einreicher":       einreicher,
+            "pfad_version_nr":  sitzung.pfad_version_nr,
+            "felder":           [_auswertung_zellwert(sitzung.gesammelte_daten, sp) for sp in spalten],
         })
 
     return render(request, "formulare/pfad_auswertung.html", {
@@ -2659,6 +2671,7 @@ def antrag_oeffentlich_starten(request, kuerzel):
         email_anonym=email_anonym,
         aktueller_schritt=start,
         besuchte_schritte=[start.node_id],
+        pfad_version_nr=_aktuelle_version_nr(pfad),
     )
     anon_sitzungen = request.session.get("anon_sitzungen", [])
     anon_sitzungen.append(sitzung.pk)

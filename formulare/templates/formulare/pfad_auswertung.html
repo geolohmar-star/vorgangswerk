@@ -89,6 +89,10 @@
                 <tr>
                     <td class="fw-semibold text-nowrap">
                         {{ zeile.vorgangsnummer|default:"—" }}
+                        {% if zeile.pfad_version_nr %}
+                        <span class="badge bg-light text-muted border ms-1" style="font-size:.65rem;"
+                              title="Formularversion zum Einreichungszeitpunkt">v{{ zeile.pfad_version_nr }}</span>
+                        {% endif %}
                     </td>
                     <td class="text-muted text-nowrap">
                         {{ zeile.gestartet_am|date:"d.m.Y H:i"|default:"—" }}

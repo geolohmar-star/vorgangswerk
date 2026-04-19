@@ -224,6 +224,12 @@ class AntrSitzung(models.Model):
     pfad = models.ForeignKey(
         AntrPfad, on_delete=models.PROTECT, related_name="sitzungen"
     )
+    pfad_version_nr = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        verbose_name="Formular-Version",
+        help_text="Version des Pfads zum Zeitpunkt des Starts (Audit/Rechtsschutz)",
+    )
     status = models.CharField(
         max_length=20, choices=STATUS_CHOICES, default=STATUS_LAUFEND
     )
