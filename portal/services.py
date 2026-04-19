@@ -191,6 +191,10 @@ So baust du die Struktur:
 4. Einen Loop-Trigger-Schritt mit loop_bezeichnung = Loop-Name (z.B. "Kind"), loop_titel_feld = erstes Namensfeld im Loop (z.B. "vorname"), und einem systemfeld (systemwert: "loop_zaehler").
 5. Transitionen: Loop-Body → Weiter-Schritt → (ja) → Loop-Trigger → Loop-Body; (nein) → Abschluss.
 
+**WICHTIG – Transitionsbedingungen immer mit `==` oder `!=` schreiben:**
+- Richtig: `"bedingung": "weiterer_verwandter == 'ja'"` und `"bedingung": "weiterer_verwandter == 'nein'"`
+- Falsch: `"bedingung": "weiterer_verwandter:ja"` ← Doppelpunkt-Syntax gilt NUR für zeige_wenn-Felder, NICHT für Transitionen!
+
 Schritt-Attribute für Loop-Schritte:
 - "loop_bezeichnung": "Kind" (nur am Loop-Trigger-Schritt)
 - "loop_titel_feld": "vorname" (Feld-ID dessen Wert als Untertitel erscheint, nur am Loop-Trigger-Schritt)
