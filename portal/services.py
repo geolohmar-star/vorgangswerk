@@ -178,7 +178,7 @@ Farbcode:
 - **ROT ausgefüllt ohne Text** (vollflächig rote Fläche, kein lesbarer Text, ggf. mit "X") → IGNORIEREN: alle darunter liegenden Felder weglassen
 - **TÜRKIS/CYAN** (türkiser Hintergrund, dunkle Schrift) → AUTOFILL-Marker
 - **GELB** (gelber Hintergrund, schwarze Schrift) → SPLIT-Marker: kombiniertes Feld in separate Einzelfelder aufteilen
-- **ORANGE** (oranger Hintergrund, dunkle Schrift) → ZEIGE_WENN-Marker: Feld nur einblenden wenn Bedingung erfüllt
+- **VIOLETT/LILA** (violetter/lilaner Hintergrund, weiße oder dunkle Schrift) → ZEIGE_WENN-Marker: Feld nur einblenden wenn Bedingung erfüllt
 
 ### LOOP-Marker (blauer Rahmen oder blaue Fläche)
 Erkennst du einen blauen Rahmen oder eine blaue Fläche um einen Bereich, ist das immer ein LOOP-Marker – egal ob der Text mit "LOOP:" beginnt oder nicht.
@@ -251,8 +251,8 @@ Der türkise Marker gilt für alle Feldvariablen – nicht nur GKZ. Beispiel: "A
 
 Der Nutzer kann autofill-Werte jederzeit überschreiben.
 
-### ZEIGE_WENN-Marker (oranger Hintergrund) – bedingte Felder
-Erkennst du einen **orangefarbenen Marker** neben einem Feld, wird dieses Feld nur eingeblendet wenn eine Bedingung erfüllt ist.
+### ZEIGE_WENN-Marker (violetter/lilaner Hintergrund) – bedingte Felder
+Erkennst du einen **violetten oder lilanen Marker** neben einem Feld, wird dieses Feld nur eingeblendet wenn eine Bedingung erfüllt ist.
 
 Format: `ZEIGE_WENN: feld_id = wert`
 
