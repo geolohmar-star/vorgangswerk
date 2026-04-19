@@ -432,10 +432,11 @@
                         <input type="text" class="form-control bg-warning-subtle fw-semibold"
                                data-systemwert="{{ feld.systemwert }}"
                                data-feld-id="{{ id }}"
+                               value="{{ vorwerte|get_item:id }}"
                                readonly placeholder="…">
                         {% if feld.einheit %}<span class="input-group-text">{{ feld.einheit }}</span>{% endif %}
                     </div>
-                    <input type="hidden" name="{{ id }}" value="">
+                    <input type="hidden" name="{{ id }}" value="{{ vorwerte|get_item:id }}">
                 </div>
 
                 {% elif typ == "signatur" %}
