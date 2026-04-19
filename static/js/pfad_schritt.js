@@ -114,19 +114,25 @@ document.addEventListener("DOMContentLoaded", function () {
     // Systemfelder – Wert aus gesammelteDaten berechnen und anzeigen
     // ---------------------------------------------------------------------------
 
+    // Systemfelder: Wert wird server-seitig in vorwerte_get vorberechnet und
+    // bereits als value-Attribut im Template gesetzt. Das JS synchronisiert
+    // nur noch das versteckte Eingabefeld für die Formularübertragung.
     document.querySelectorAll("[data-systemwert]").forEach(function (anzeige) {
-        var systemwert = anzeige.dataset.systemwert;
         var feldId = anzeige.dataset.feldId;
-        var loopDurchlauf = parseInt(gesammelteDaten["__loop_durchlauf"] || 0, 10);
-        var wert = "";
-        if (systemwert === "loop_zaehler") {
-            wert = String(loopDurchlauf + 1);
-        } else if (systemwert === "loop_durchlauf") {
-            wert = String(loopDurchlauf);
-        } else if (systemwert === "heute") {
-            wert = new Date().toISOString().slice(0, 10);
+        var wert = anzeige.value; // vom Server vorausgefüllter Wert
+        if (!wert) {
+            // Fallback: dynamisch berechnen (für Schritte ohne vorwerte-Kontext)
+            var systemwert = anzeige.dataset.systemwert;
+            var loopDurchlauf = parseInt(gesammelteDaten["__loop_durchlauf"] || 0, 10);
+            if (systemwert === "loop_zaehler") {
+                wert = String(loopDurchlauf + 1);
+            } else if (systemwert === "loop_durchlauf") {
+                wert = String(loopDurchlauf);
+            } else if (systemwert === "heute") {
+                wert = new Date().toISOString().slice(0, 10);
+            }
+            anzeige.value = wert;
         }
-        anzeige.value = wert;
         // Verstecktes Formularfeld synchron halten
         var hidden = document.querySelector("input[type='hidden'][name='" + feldId + "']");
         if (hidden) hidden.value = wert;
