@@ -101,6 +101,7 @@
       <li>Platzhalter einfügen</li>
       <li>Vorlage hochladen &amp; verknüpfen</li>
       <li>Aktions-Schritt im Formular einrichten</li>
+      <li>Formular per KI aus PDF importieren (Portal)</li>
     </ol>
   </div>
 </div>
@@ -375,6 +376,80 @@ Beispiele:
 
 <div class="box box-ok">
   <strong>Fertig!</strong> Nach dem Speichern sendet Vorgangswerk bei jedem Abschluss dieses Formulars automatisch eine personalisierte E-Mail mit der ausgefüllten Vorlage als PDF-Anhang – ohne weiteres Zutun des Sachbearbeiters.
+</div>
+
+<h2 class="page-break">16. Formular per KI aus PDF importieren (Portal)</h2>
+<p>Im <strong>Vorgangswerk-Portal</strong> kann ein bestehendes PDF-Formular hochgeladen werden.
+Claude analysiert das Dokument und erstellt automatisch einen fertigen Antrags-Pfad –
+inklusive Schritte, Felder, Typen und Transitionen.</p>
+
+<h3>Farbmarker-Konvention</h3>
+<p>Bereite das PDF mit farbigen Markierungen vor (z.B. in Word, LibreOffice oder einem PDF-Editor).
+Die KI erkennt die Farben als Strukturierungsanweisungen:</p>
+
+<table style="width:100%; border-collapse:collapse; font-size:9pt; margin-bottom:12pt;">
+  <thead>
+    <tr style="background:#f0f0f0;">
+      <th style="border:1pt solid #ccc; padding:4pt 6pt; text-align:left; width:90pt;">Farbe</th>
+      <th style="border:1pt solid #ccc; padding:4pt 6pt; text-align:left;">Bedeutung</th>
+      <th style="border:1pt solid #ccc; padding:4pt 6pt; text-align:left;">Beispiel-Text</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td style="border:1pt solid #ccc; padding:4pt 6pt; background:#1565c0; color:white; font-weight:bold;">Blau</td>
+      <td style="border:1pt solid #ccc; padding:4pt 6pt;"><strong>Loop</strong> – wiederholbarer Abschnitt</td>
+      <td style="border:1pt solid #ccc; padding:4pt 6pt; font-family:monospace;">LOOP: Kind</td>
+    </tr>
+    <tr>
+      <td style="border:1pt solid #ccc; padding:4pt 6pt; background:#2e7d32; color:white; font-weight:bold;">Grün</td>
+      <td style="border:1pt solid #ccc; padding:4pt 6pt;"><strong>Schritt/Gruppe</strong> – neuer Schritt</td>
+      <td style="border:1pt solid #ccc; padding:4pt 6pt; font-family:monospace;">GRUPPE: Wohnort</td>
+    </tr>
+    <tr>
+      <td style="border:1pt solid #ccc; padding:4pt 6pt; background:#f9a825; color:#000; font-weight:bold;">Gelb</td>
+      <td style="border:1pt solid #ccc; padding:4pt 6pt;"><strong>Split</strong> – Feld aufteilen</td>
+      <td style="border:1pt solid #ccc; padding:4pt 6pt; font-family:monospace;">SPLIT: PLZ, Gemeinde</td>
+    </tr>
+    <tr>
+      <td style="border:1pt solid #ccc; padding:4pt 6pt; background:#00acc1; color:#000; font-weight:bold;">Türkis</td>
+      <td style="border:1pt solid #ccc; padding:4pt 6pt;"><strong>Autofill</strong> – automatisch befüllen</td>
+      <td style="border:1pt solid #ccc; padding:4pt 6pt; font-family:monospace;">AUTOFILL: neue_gkz_gemeinde</td>
+    </tr>
+    <tr>
+      <td style="border:1pt solid #ccc; padding:4pt 6pt; background:#7b1fa2; color:white; font-weight:bold;">Violett</td>
+      <td style="border:1pt solid #ccc; padding:4pt 6pt;"><strong>Zeige wenn</strong> – bedingtes Feld</td>
+      <td style="border:1pt solid #ccc; padding:4pt 6pt; font-family:monospace;">ZEIGE_WENN: hat_hund = ja</td>
+    </tr>
+    <tr>
+      <td style="border:1pt solid #ccc; padding:4pt 6pt; background:#c62828; color:white; font-weight:bold;">Rot (Zahl)</td>
+      <td style="border:1pt solid #ccc; padding:4pt 6pt;"><strong>Verzweigung</strong> – Entscheidungsweg</td>
+      <td style="border:1pt solid #ccc; padding:4pt 6pt; font-family:monospace;">3 / 4 / 5</td>
+    </tr>
+    <tr>
+      <td style="border:1pt solid #ccc; padding:4pt 6pt; background:#b71c1c; color:white; font-weight:bold;">Rot (voll)</td>
+      <td style="border:1pt solid #ccc; padding:4pt 6pt;"><strong>Ignorieren</strong> – Felder weglassen</td>
+      <td style="border:1pt solid #ccc; padding:4pt 6pt; font-family:monospace;">X (oder kein Text)</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3>Bedingte Felder (Zeige-wenn)</h3>
+<p>Typisches Muster: Radio-Feld „Haben Sie einen Hund?" (ja/nein) –
+das Folgefeld „Name des Hundes" erscheint nur bei „ja".</p>
+<ol>
+  <li>Radio-Feld <code>hat_hund</code> mit Optionen <code>ja</code> / <code>nein</code> anlegen</li>
+  <li>Folgefeld mit violettem Marker: <code>ZEIGE_WENN: hat_hund = ja</code></li>
+  <li>Im Editor: Feld-Attribut <code>zeige_wenn</code> auf <code>hat_hund:ja</code> setzen</li>
+</ol>
+<p style="font-size:8.5pt; color:#555;">
+  Die KI erkennt dieses Muster auch ohne Marker automatisch,
+  wenn nach einem Ja/Nein-Feld ein Feld mit „Falls ja …" folgt.
+</p>
+
+<div class="box box-ok" style="margin-top:12pt;">
+  <strong>Ablauf im Portal:</strong> PDF hochladen → KI analysiert (20–60 Sek.) →
+  Prüfschritt: Feldtypen &amp; Optionen anpassen → Importieren → Pfad im Editor nachbearbeiten.
 </div>
 
 <div style="margin-top: 40pt; border-top: 1pt solid #ccc; padding-top: 10pt; font-size: 8pt; color: #666; text-align: center;">
