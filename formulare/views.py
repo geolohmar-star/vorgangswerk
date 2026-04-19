@@ -2123,14 +2123,14 @@ def pfad_schritt(request, sitzung_pk):
     except Exception:
         pass
 
-    def _render_schritt(fehler, vorwerte):
+    def _render_schritt(fehler, vorwerte, gesammelte_json=None):
         return render(request, "formulare/pfad_schritt.html", {
             "sitzung":               sitzung,
             "schritt":               schritt,
             "felder_render":         felder_render,
             "fehler":                fehler,
             "vorwerte":              vorwerte,
-            "gesammelte_daten_json": json.dumps(sitzung.gesammelte_daten, ensure_ascii=False),
+            "gesammelte_daten_json": gesammelte_json or json.dumps(sitzung.gesammelte_daten, ensure_ascii=False),
             "zusammenfassung":       _baue_zusammenfassung(sitzung) if schritt.ist_ende else [],
             "bankverbindungen":      _bankverbindungen,
             "bankverbindungen_json": _bankverbindungen_json,
@@ -2261,7 +2261,25 @@ def pfad_schritt(request, sitzung_pk):
             return redirect("formulare:pfad_abgeschlossen", sitzung_pk=sitzung.pk)
         return redirect("formulare:pfad_schritt", sitzung_pk=sitzung.pk)
 
-    return _render_schritt([], sitzung.gesammelte_daten)
+    # Systemfeld-Werte für GET-Render vorberechnen (z.B. loop_zaehler).
+    # Ohne diesen Schritt wäre der Wert nach Loop-Archivierung aus gesammelte_daten entfernt.
+    vorwerte_get = dict(sitzung.gesammelte_daten)
+    _loop_durchlauf = sitzung.gesammelte_daten.get("__loop_durchlauf", 0)
+    for _feld in felder_render:
+        if _feld.get("typ") != "systemfeld":
+            continue
+        _systemwert = _feld.get("systemwert", "loop_zaehler")
+        _feld_id = _feld.get("id")
+        if not _feld_id:
+            continue
+        if _systemwert == "loop_zaehler":
+            vorwerte_get[_feld_id] = _loop_durchlauf + 1
+        elif _systemwert == "loop_durchlauf":
+            vorwerte_get[_feld_id] = _loop_durchlauf
+        elif _systemwert == "heute":
+            import datetime as _dt
+            vorwerte_get[_feld_id] = _dt.date.today().isoformat()
+    return _render_schritt([], vorwerte_get, json.dumps(vorwerte_get, ensure_ascii=False))
 
 
 # ---------------------------------------------------------------------------
@@ -2720,7 +2738,7 @@ def antrag_oeffentlich_schritt(request, sitzung_pk):
     except Exception:
         pass
 
-    def _render_pub(fehler, vorwerte):
+    def _render_pub(fehler, vorwerte, gesammelte_json=None):
         return render(request, "formulare/antrag_oeffentlich_schritt.html", {
             "sitzung":               sitzung,
             "schritt":               schritt,
@@ -2730,7 +2748,7 @@ def antrag_oeffentlich_schritt(request, sitzung_pk):
             "zusammenfassung":       _baue_zusammenfassung(sitzung) if schritt.ist_ende else [],
             "bankverbindungen":      _bankverbindungen_pub,
             "bankverbindungen_json": _bankverbindungen_json_pub,
-            "gesammelte_daten_json": json.dumps(sitzung.gesammelte_daten, ensure_ascii=False),
+            "gesammelte_daten_json": gesammelte_json or json.dumps(sitzung.gesammelte_daten, ensure_ascii=False),
             "embed":                 request.session.get("embed", False),
         })
 
@@ -2838,7 +2856,24 @@ def antrag_oeffentlich_schritt(request, sitzung_pk):
             return redirect("formulare:antrag_oeffentlich_abgeschlossen", sitzung_pk=sitzung.pk)
         return redirect("formulare:antrag_oeffentlich_schritt", sitzung_pk=sitzung.pk)
 
-    return _render_pub([], sitzung.gesammelte_daten)
+    # Systemfeld-Werte für GET-Render vorberechnen (z.B. loop_zaehler)
+    vorwerte_get_pub = dict(sitzung.gesammelte_daten)
+    _loop_durchlauf_pub = sitzung.gesammelte_daten.get("__loop_durchlauf", 0)
+    for _feld in felder_render:
+        if _feld.get("typ") != "systemfeld":
+            continue
+        _systemwert = _feld.get("systemwert", "loop_zaehler")
+        _feld_id = _feld.get("id")
+        if not _feld_id:
+            continue
+        if _systemwert == "loop_zaehler":
+            vorwerte_get_pub[_feld_id] = _loop_durchlauf_pub + 1
+        elif _systemwert == "loop_durchlauf":
+            vorwerte_get_pub[_feld_id] = _loop_durchlauf_pub
+        elif _systemwert == "heute":
+            import datetime as _dt
+            vorwerte_get_pub[_feld_id] = _dt.date.today().isoformat()
+    return _render_pub([], vorwerte_get_pub, json.dumps(vorwerte_get_pub, ensure_ascii=False))
 
 
 @xframe_options_exempt
