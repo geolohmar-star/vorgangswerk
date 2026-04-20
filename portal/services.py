@@ -179,6 +179,7 @@ Farbcode:
 - **TÜRKIS/CYAN** (türkiser Hintergrund, dunkle Schrift) → AUTOFILL-Marker
 - **GELB** (gelber Hintergrund, schwarze Schrift) → SPLIT-Marker: kombiniertes Feld in separate Einzelfelder aufteilen
 - **VIOLETT/LILA** (violetter/lilaner Hintergrund, weiße oder dunkle Schrift) → ZEIGE_WENN-Marker: Feld nur einblenden wenn Bedingung erfüllt
+- **BRAUN** (brauner/dunkelorangener Hintergrund, weiße oder dunkle Schrift) → BERECHNUNG-Marker: Summen- oder Rechenfeld automatisch erzeugen
 
 ### LOOP-Marker (blauer Rahmen oder blaue Fläche)
 Erkennst du einen blauen Rahmen oder eine blaue Fläche um einen Bereich, ist das immer ein LOOP-Marker – egal ob der Text mit "LOOP:" beginnt oder nicht.
@@ -273,6 +274,17 @@ Typisches Muster:
 
 Auch ohne orangen Marker: Siehst du im PDF eine typische Ja/Nein-Frage gefolgt von einem Feld das nur bei "ja" relevant ist (z.B. "Falls ja, tragen Sie bitte ein:"), setze `zeige_wenn` automatisch.
 
+### BERECHNUNG-Marker (brauner/dunkelorangener Rahmen oder Fläche)
+Erkennst du einen braunen Marker mit Text `summanden:ergebnis`, erzeuge ein `berechnung`-Feld:
+- `id` = der Teil nach dem Doppelpunkt (z.B. `summe`)
+- `label` = sinnvoller Anzeigetext (z.B. „Summe", „Gesamtbetrag")
+- `formel` = alle Zahlenfelder im Kontext des Markers addiert: `feld_1 + feld_2 + feld_3`
+- Das Berechnungsfeld erscheint als letztes Feld im selben Schritt, nach den Summanden
+- Die Summanden-Felder selbst bleiben normale `zahl`-Felder
+
+Beispiel: Brauner Marker `summanden:gesamtbetrag` neben 12 Monatsbetragsfeldern →
+`{{"typ": "berechnung", "id": "gesamtbetrag", "label": "Gesamtbetrag", "formel": "monat_1 + monat_2 + ... + monat_12"}}`
+
 ### IGNORIEREN-Marker (vollflächig rote Fläche, kein Text oder nur "X")
 Erkennst du einen vollflächig ausgefüllten roten Block ohne lesbaren Inhalt (oder mit einem "X"), überspringe alle Felder die darunter liegen oder damit überdeckt sind vollständig – sie werden nicht als Formularfelder erfasst. Typische Verwendung: amtliche Vermerke, Behördenfelder ("Für amtliche Zwecke"), Aktenzeichen die intern vergeben werden, irrelevante Abschnitte.
 
@@ -303,6 +315,7 @@ Erstelle eine JSON-Pfad-Definition mit exakt dieser Struktur:
       "pdf_gruppe": "",
       "loop_bezeichnung": "",
       "loop_titel_feld": "",
+      "loop_max": 0,
       "felder_json": [
         {{"id": "eindeutige_feld_id", "typ": "text", "label": "Feldbeschriftung", "pflicht": true, "fim_id": "F60000003"}}
       ]
@@ -331,6 +344,7 @@ Erstelle eine JSON-Pfad-Definition mit exakt dieser Struktur:
 - textblock: Informationstext (Pflicht: "text": "Hinweistext...")
 - abschnitt: Abschnittsüberschrift (Pflicht: "text": "Überschrift")
 - systemfeld: Internes Steuerungsfeld, nicht vom Nutzer ausfüllbar (Pflicht: "systemwert": "loop_zaehler"). Nur für Loop-Trigger-Schritte.
+- berechnung: Automatisch berechnetes Feld (Pflicht: "formel": "feld_a + feld_b"). Nur bei braunem BERECHNUNG-Marker. Das Feld ist für den Nutzer nicht editierbar und wird live berechnet.
 - zusammenfassung: Zusammenfassung aller Angaben (genau einmal im letzten Schritt)
 - quizfrage: Multiple-Choice-Frage (Pflicht: "antwort_typ": "single"|"multiple", "antworten": [{{"text": "...", "korrekt": true|false}}], optional "erklaerung": "...", "punkte": 1)
 - quizergebnis: Auswertungsfeld (Pflicht: "bewertungsmodell": "prozent", "bestanden_ab": 50) – genau einmal im letzten Schritt statt zusammenfassung
