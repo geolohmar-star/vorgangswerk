@@ -48,8 +48,15 @@ document.addEventListener("DOMContentLoaded", function () {
 
     function berechneFormel(formel, werte) {
         try {
-            // {{feld_id}} durch Wert ersetzen
+            // {{feld_id}} durch Wert ersetzen (Legacy-Syntax)
             var ausdruck = formel.replace(/\{\{(\w+)\}\}/g, function (_, id) {
+                var v = werte[id];
+                if (v === undefined || v === "") return "0";
+                var n = parseFloat(String(v).replace(",", "."));
+                return isNaN(n) ? "0" : String(n);
+            });
+            // Bare Feld-IDs ersetzen (z.B. monat_1 + monat_2)
+            ausdruck = ausdruck.replace(/\b([a-zA-Z_]\w*)\b/g, function (_, id) {
                 var v = werte[id];
                 if (v === undefined || v === "") return "0";
                 var n = parseFloat(String(v).replace(",", "."));

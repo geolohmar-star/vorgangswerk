@@ -127,7 +127,10 @@ def _berechne_formel(formel, werte):
         except (ValueError, TypeError):
             return "0"
 
+    # {{feld_id}}-Syntax ersetzen
     ausdruck = re.sub(r"\{\{(\w+)\}\}", _var_zu_zahl, formel.replace(";", ","))
+    # Bare Feld-IDs ersetzen (z.B. monat_1 + monat_2, erzeugt vom KI-Import)
+    ausdruck = re.sub(r"\b([a-zA-Z_]\w*)\b", _var_zu_zahl, ausdruck)
     try:
         tree = ast.parse(ausdruck, mode="eval")
         ergebnis = _ast_eval(tree.body, {})
