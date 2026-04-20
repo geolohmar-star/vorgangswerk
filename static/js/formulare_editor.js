@@ -1050,6 +1050,7 @@
         document.getElementById("schritt-pdf-gruppe").value = schritt ? (schritt.pdf_gruppe || "") : "";
         document.getElementById("schritt-loop-bezeichnung").value = schritt ? (schritt.loop_bezeichnung || "") : "";
         document.getElementById("schritt-loop-titel-feld").value = schritt ? (schritt.loop_titel_feld || "") : "";
+        document.getElementById("schritt-loop-max").value = schritt ? (schritt.loop_max || 0) : 0;
 
         // Aktions-Schritt
         var istAktion = schritt ? !!schritt.ist_aktion : false;
@@ -1161,6 +1162,7 @@
         var pdfGruppe = document.getElementById("schritt-pdf-gruppe").value.trim();
         var loopBezeichnung = document.getElementById("schritt-loop-bezeichnung").value.trim();
         var loopTitelFeld = document.getElementById("schritt-loop-titel-feld").value.trim();
+        var loopMax = parseInt(document.getElementById("schritt-loop-max").value || "0", 10) || 0;
         var istAktion = document.getElementById("schritt-ist-aktion").checked;
         var modalEl = document.getElementById("schritt-modal");
         var posX = parseFloat(modalEl.dataset.posX || 300);
@@ -1193,6 +1195,7 @@
             schritte[editNodeId].pdf_gruppe = pdfGruppe;
             schritte[editNodeId].loop_bezeichnung = loopBezeichnung;
             schritte[editNodeId].loop_titel_feld = loopTitelFeld;
+            schritte[editNodeId].loop_max = loopMax;
             schritte[editNodeId].ist_aktion = istAktion;
             nodes.update({
                 id: editNodeId,
@@ -1213,6 +1216,7 @@
                 pdf_gruppe: pdfGruppe,
                 loop_bezeichnung: loopBezeichnung,
                 loop_titel_feld: loopTitelFeld,
+                loop_max: loopMax,
                 ist_aktion: istAktion,
             };
             schritte[nodeId] = neuerSchritt;
@@ -2694,6 +2698,7 @@
                     pdf_gruppe: s.pdf_gruppe || "",
                     loop_bezeichnung: s.loop_bezeichnung || "",
                     loop_titel_feld: s.loop_titel_feld || "",
+                    loop_max: s.loop_max || 0,
                     ist_aktion: !!s.ist_aktion,
                 };
                 nodes.add({
@@ -2760,6 +2765,7 @@
                 pdf_gruppe: s.pdf_gruppe || "",
                 loop_bezeichnung: s.loop_bezeichnung || "",
                 loop_titel_feld: s.loop_titel_feld || "",
+                loop_max: s.loop_max || 0,
                 ist_aktion: !!s.ist_aktion,
             };
             nodes.add({

@@ -108,6 +108,11 @@ class AntrSchritt(models.Model):
         verbose_name="Loop-Titelfeld",
         help_text="Feld-ID dessen Wert als Untertitel erscheint, z.B. 'vorname'",
     )
+    loop_max = models.PositiveSmallIntegerField(
+        default=0,
+        verbose_name="Loop-Maximum",
+        help_text="Maximale Anzahl Iterationen (0 = unbegrenzt)",
+    )
     pdf_gruppe = models.CharField(
         max_length=100, blank=True, default="",
         verbose_name="PDF-Gruppe",

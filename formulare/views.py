@@ -1503,6 +1503,7 @@ def pfad_editor_laden(request, pk):
             "pos_y":           s.pos_y,
             "loop_bezeichnung": s.loop_bezeichnung or "",
             "loop_titel_feld":  s.loop_titel_feld or "",
+            "loop_max":         s.loop_max,
             "pdf_gruppe":       s.pdf_gruppe or "",
             "ist_aktion":       s.ist_aktion,
         }
@@ -1563,6 +1564,7 @@ class _EditorSchritt(_PydanticBase):
     pos_y: int = 200
     loop_bezeichnung: str = ""
     loop_titel_feld: str = ""
+    loop_max: int = 0
     pdf_gruppe: str = ""
     ist_aktion: bool = False
 
@@ -1667,6 +1669,7 @@ def pfad_editor_speichern(request):
             pos_y=s.pos_y,
             loop_bezeichnung=s.loop_bezeichnung,
             loop_titel_feld=s.loop_titel_feld,
+            loop_max=s.loop_max,
             pdf_gruppe=s.pdf_gruppe,
             ist_aktion=s.ist_aktion,
         )
@@ -2196,6 +2199,13 @@ def pfad_schritt(request, sitzung_pk):
         # Loop-Erkennung
         if naechster.node_id in sitzung.besuchte_schritte:
             durchlauf = sitzung.gesammelte_daten.get("__loop_durchlauf", 0)
+            # Loop-Maximum prüfen
+            if schritt.loop_max > 0 and durchlauf >= schritt.loop_max:
+                max_label = schritt.loop_bezeichnung or "Einträge"
+                return _render_schritt(
+                    [f"Maximum erreicht: Es können maximal {schritt.loop_max} {max_label} eingetragen werden."],
+                    request.POST,
+                )
             praeffix = f"__loop_{durchlauf}__"
             ziel_idx = sitzung.besuchte_schritte.index(naechster.node_id)
             # Felder der Pre-Loop-Schritte (vor dem Loop-Start) nicht archivieren
@@ -2804,6 +2814,13 @@ def antrag_oeffentlich_schritt(request, sitzung_pk):
         naechster = transition.zu_schritt
         if naechster.node_id in sitzung.besuchte_schritte:
             durchlauf = sitzung.gesammelte_daten.get("__loop_durchlauf", 0)
+            # Loop-Maximum prüfen
+            if schritt.loop_max > 0 and durchlauf >= schritt.loop_max:
+                max_label = schritt.loop_bezeichnung or "Einträge"
+                return _render_pub(
+                    [f"Maximum erreicht: Es können maximal {schritt.loop_max} {max_label} eingetragen werden."],
+                    request.POST,
+                )
             praeffix = f"__loop_{durchlauf}__"
             ziel_idx = sitzung.besuchte_schritte.index(naechster.node_id)
             pre_loop_felder = set()

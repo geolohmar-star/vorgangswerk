@@ -187,17 +187,23 @@ html, body { overflow: hidden; height: 100%; }
                 </div>
 
                 <div class="row g-2 mb-2">
-                    <div class="col-6">
+                    <div class="col-5">
                         <label class="form-label small text-muted mb-1">Loop-Bezeichnung <span class="text-muted fw-normal">(optional)</span></label>
                         <input type="text" class="form-control form-control-sm" id="schritt-loop-bezeichnung"
                                placeholder="z.B. Kind, Person, Fahrzeug">
                         <div class="form-text" style="font-size:0.75em;">PDF: »1. Kind«, »2. Kind« …</div>
                     </div>
-                    <div class="col-6">
+                    <div class="col-5">
                         <label class="form-label small text-muted mb-1">Titelfeld <span class="text-muted fw-normal">(optional)</span></label>
                         <input type="text" class="form-control form-control-sm" id="schritt-loop-titel-feld"
                                placeholder="z.B. vorname">
                         <div class="form-text" style="font-size:0.75em;">PDF: »1. Kind – Max«</div>
+                    </div>
+                    <div class="col-2">
+                        <label class="form-label small text-muted mb-1">Max</label>
+                        <input type="number" class="form-control form-control-sm" id="schritt-loop-max"
+                               min="0" value="0" placeholder="∞">
+                        <div class="form-text" style="font-size:0.75em;">0 = unbegrenzt</div>
                     </div>
                 </div>
 
