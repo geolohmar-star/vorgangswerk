@@ -275,15 +275,22 @@ Typisches Muster:
 Auch ohne orangen Marker: Siehst du im PDF eine typische Ja/Nein-Frage gefolgt von einem Feld das nur bei "ja" relevant ist (z.B. "Falls ja, tragen Sie bitte ein:"), setze `zeige_wenn` automatisch.
 
 ### BERECHNUNG-Marker (brauner/dunkelorangener Rahmen oder Fläche)
-Erkennst du einen braunen Marker mit Text `summanden:ergebnis`, erzeuge ein `berechnung`-Feld:
-- `id` = der Teil nach dem Doppelpunkt (z.B. `summe`)
-- `label` = sinnvoller Anzeigetext (z.B. „Summe", „Gesamtbetrag")
-- `formel` = alle Zahlenfelder im Kontext des Markers addiert: `feld_1 + feld_2 + feld_3`
-- Das Berechnungsfeld erscheint als letztes Feld im selben Schritt, nach den Summanden
-- Die Summanden-Felder selbst bleiben normale `zahl`-Felder
+Erkennst du einen braunen Marker, erzeuge ein `berechnung`-Feld. Die Notation im Marker bestimmt die Operation:
 
-Beispiel: Brauner Marker `summanden:gesamtbetrag` neben 12 Monatsbetragsfeldern →
-`{{"typ": "berechnung", "id": "gesamtbetrag", "label": "Gesamtbetrag", "formel": "monat_1 + monat_2 + ... + monat_12"}}`
+**Syntax:** `ausdruck = ergebnis_id`
+
+- `summanden = summe` → Addition aller Zahlenfelder im Kontext: `formel = "feld_1 + feld_2 + feld_3"`
+- `bruttoentgelt - abzuege = netto` → Subtraktion: `formel = "bruttoentgelt - abzuege"`
+- `preis * menge = gesamtpreis` → Multiplikation: `formel = "preis * menge"`
+- `betrag / 12 = monatsrate` → Division: `formel = "betrag / 12"`
+
+Regeln:
+- `id` = Bezeichner nach dem `=` (z.B. `summe`, `netto`)
+- `label` = sinnvoller Anzeigetext (z.B. „Summe", „Nettobetrag")
+- `formel` = exakt der arithmetische Ausdruck links vom `=`, mit echten Feld-IDs
+- Bei `summanden = ergebnis`: alle Zahlenfelder im Kontext des Markers sind die Summanden
+- Das Berechnungsfeld erscheint als letztes Feld im selben Schritt
+- Die Eingangsfelder bleiben normale `zahl`-Felder
 
 ### IGNORIEREN-Marker (vollflächig rote Fläche, kein Text oder nur "X")
 Erkennst du einen vollflächig ausgefüllten roten Block ohne lesbaren Inhalt (oder mit einem "X"), überspringe alle Felder die darunter liegen oder damit überdeckt sind vollständig – sie werden nicht als Formularfelder erfasst. Typische Verwendung: amtliche Vermerke, Behördenfelder ("Für amtliche Zwecke"), Aktenzeichen die intern vergeben werden, irrelevante Abschnitte.

@@ -831,8 +831,30 @@
             <td><strong>Ignorieren</strong> – alle darunter liegenden Felder weglassen</td>
             <td>Kein Text oder nur <code>X</code></td>
           </tr>
+          <tr>
+            <td><span class="badge text-white" style="background:#6d4c41;">&#9608; Braun</span></td>
+            <td><strong>Berechnung</strong> – automatisch berechnetes Ergebnisfeld erzeugen</td>
+            <td><code>summanden = summe</code>, <code>brutto - abzuege = netto</code></td>
+          </tr>
         </tbody>
       </table>
+    </div>
+
+    <h6 class="fw-semibold mb-2">Berechnung – automatische Rechenfelder</h6>
+    <p class="small">Mit einem braunen Marker können Summen und andere Berechnungen direkt im PDF vorbereitet werden.
+    Die KI erzeugt daraus ein live-berechnetes Feld, das der Nutzer nicht manuell ausfüllen muss.</p>
+    <div class="border rounded-3 bg-light p-3 mb-3 small">
+      <div class="fw-semibold mb-2">Syntax: <code>ausdruck = ergebnis_id</code></div>
+      <table class="table table-sm table-bordered mb-2">
+        <thead class="table-light"><tr><th>Marker-Text</th><th>Operation</th><th>Beispiel-Formel</th></tr></thead>
+        <tbody>
+          <tr><td><code>summanden = summe</code></td><td>Addition aller Zahlenfelder im Kontext</td><td><code>monat_1 + monat_2 + … + monat_12</code></td></tr>
+          <tr><td><code>brutto - abzuege = netto</code></td><td>Subtraktion</td><td><code>brutto - abzuege</code></td></tr>
+          <tr><td><code>preis * menge = gesamt</code></td><td>Multiplikation</td><td><code>preis * menge</code></td></tr>
+          <tr><td><code>betrag / 12 = monatsrate</code></td><td>Division</td><td><code>betrag / 12</code></td></tr>
+        </tbody>
+      </table>
+      <div class="text-muted">Der Teil nach dem <code>=</code> wird zur Feld-ID. Die Eingangsfelder bleiben normale Zahlfelder.</div>
     </div>
 
     <h6 class="fw-semibold mb-2">Zeige-wenn – bedingte Felder</h6>
