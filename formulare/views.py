@@ -2210,7 +2210,7 @@ def pfad_schritt(request, sitzung_pk):
         if naechster.node_id in sitzung.besuchte_schritte:
             durchlauf = sitzung.gesammelte_daten.get("__loop_durchlauf", 0)
             # Loop-Maximum prüfen
-            if schritt.loop_max > 0 and durchlauf >= schritt.loop_max:
+            if schritt.loop_max > 0 and durchlauf + 1 >= schritt.loop_max:
                 max_label = schritt.loop_bezeichnung or "Einträge"
                 return _render_schritt(
                     [f"Maximum erreicht: Es können maximal {schritt.loop_max} {max_label} eingetragen werden."],
@@ -2825,7 +2825,7 @@ def antrag_oeffentlich_schritt(request, sitzung_pk):
         if naechster.node_id in sitzung.besuchte_schritte:
             durchlauf = sitzung.gesammelte_daten.get("__loop_durchlauf", 0)
             # Loop-Maximum prüfen
-            if schritt.loop_max > 0 and durchlauf >= schritt.loop_max:
+            if schritt.loop_max > 0 and durchlauf + 1 >= schritt.loop_max:
                 max_label = schritt.loop_bezeichnung or "Einträge"
                 return _render_pub(
                     [f"Maximum erreicht: Es können maximal {schritt.loop_max} {max_label} eingetragen werden."],
