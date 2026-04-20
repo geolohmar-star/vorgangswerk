@@ -14,6 +14,7 @@ RUN apt-get update && apt-get install -y \
     libjpeg-dev \
     libopenjp2-7 \
     postgresql-client \
+    poppler-utils \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
