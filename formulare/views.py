@@ -1302,13 +1302,18 @@ def pfad_exportieren(request, pk):
     pfad = get_object_or_404(AntrPfad, pk=pk)
     schritte = [
         {
-            "node_id":   s.node_id,
-            "titel":     s.titel,
-            "ist_start": s.ist_start,
-            "ist_ende":  s.ist_ende,
-            "felder_json": s.felder_json,
-            "pos_x":     s.pos_x,
-            "pos_y":     s.pos_y,
+            "node_id":          s.node_id,
+            "titel":            s.titel,
+            "ist_start":        s.ist_start,
+            "ist_ende":         s.ist_ende,
+            "felder_json":      s.felder_json,
+            "pos_x":            s.pos_x,
+            "pos_y":            s.pos_y,
+            "loop_bezeichnung": s.loop_bezeichnung,
+            "loop_titel_feld":  s.loop_titel_feld,
+            "loop_max":         s.loop_max,
+            "pdf_gruppe":       s.pdf_gruppe,
+            "ist_aktion":       s.ist_aktion,
         }
         for s in pfad.schritte.order_by("pk")
     ]
@@ -1407,6 +1412,11 @@ def pfad_importieren(request):
             felder_json=s.get("felder_json") or [],
             pos_x=s.get("pos_x", 200),
             pos_y=s.get("pos_y", 200),
+            loop_bezeichnung=s.get("loop_bezeichnung", ""),
+            loop_titel_feld=s.get("loop_titel_feld", ""),
+            loop_max=s.get("loop_max", 0),
+            pdf_gruppe=s.get("pdf_gruppe", ""),
+            ist_aktion=s.get("ist_aktion", False),
         )
         node_map[node_id] = schritt
 
