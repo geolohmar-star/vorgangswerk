@@ -1081,7 +1081,7 @@
 
 {% block extra_js %}
 {% load static %}
-{{ gesammelte_daten_json|json_script:"gesammelte-daten" }}
+{{ gesammelte_daten_dict|json_script:"gesammelte-daten" }}
 {{ schritt.felder_json|json_script:"schritt-felder" }}
 {{ bankverbindungen_json|json_script:"bankverbindungen-daten" }}
 <script src="{% static 'js/pfad_schritt.js' %}"></script>

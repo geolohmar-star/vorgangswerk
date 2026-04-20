@@ -2123,14 +2123,16 @@ def pfad_schritt(request, sitzung_pk):
     except Exception:
         pass
 
-    def _render_schritt(fehler, vorwerte, gesammelte_json=None):
+    def _render_schritt(fehler, vorwerte, gesammelte_dict=None):
+        # gesammelte_dict muss ein Python-Dict sein – json_script serialisiert es korrekt.
+        # Früher wurde hier ein JSON-String übergeben, was zu Doppel-Kodierung führte.
         return render(request, "formulare/pfad_schritt.html", {
             "sitzung":               sitzung,
             "schritt":               schritt,
             "felder_render":         felder_render,
             "fehler":                fehler,
             "vorwerte":              vorwerte,
-            "gesammelte_daten_json": gesammelte_json or json.dumps(sitzung.gesammelte_daten, ensure_ascii=False),
+            "gesammelte_daten_dict": gesammelte_dict if gesammelte_dict is not None else sitzung.gesammelte_daten,
             "zusammenfassung":       _baue_zusammenfassung(sitzung) if schritt.ist_ende else [],
             "bankverbindungen":      _bankverbindungen,
             "bankverbindungen_json": _bankverbindungen_json,
@@ -2279,7 +2281,7 @@ def pfad_schritt(request, sitzung_pk):
         elif _systemwert == "heute":
             import datetime as _dt
             vorwerte_get[_feld_id] = _dt.date.today().isoformat()
-    return _render_schritt([], vorwerte_get, json.dumps(vorwerte_get, ensure_ascii=False))
+    return _render_schritt([], vorwerte_get, vorwerte_get)
 
 
 # ---------------------------------------------------------------------------
@@ -2738,7 +2740,7 @@ def antrag_oeffentlich_schritt(request, sitzung_pk):
     except Exception:
         pass
 
-    def _render_pub(fehler, vorwerte, gesammelte_json=None):
+    def _render_pub(fehler, vorwerte, gesammelte_dict=None):
         return render(request, "formulare/antrag_oeffentlich_schritt.html", {
             "sitzung":               sitzung,
             "schritt":               schritt,
@@ -2748,7 +2750,7 @@ def antrag_oeffentlich_schritt(request, sitzung_pk):
             "zusammenfassung":       _baue_zusammenfassung(sitzung) if schritt.ist_ende else [],
             "bankverbindungen":      _bankverbindungen_pub,
             "bankverbindungen_json": _bankverbindungen_json_pub,
-            "gesammelte_daten_json": gesammelte_json or json.dumps(sitzung.gesammelte_daten, ensure_ascii=False),
+            "gesammelte_daten_dict": gesammelte_dict if gesammelte_dict is not None else sitzung.gesammelte_daten,
             "embed":                 request.session.get("embed", False),
         })
 
@@ -2873,7 +2875,7 @@ def antrag_oeffentlich_schritt(request, sitzung_pk):
         elif _systemwert == "heute":
             import datetime as _dt
             vorwerte_get_pub[_feld_id] = _dt.date.today().isoformat()
-    return _render_pub([], vorwerte_get_pub, json.dumps(vorwerte_get_pub, ensure_ascii=False))
+    return _render_pub([], vorwerte_get_pub, vorwerte_get_pub)
 
 
 @xframe_options_exempt
