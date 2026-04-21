@@ -42,6 +42,7 @@ class FeldDefinition(BaseModel):
     fim_id: str = ""
     hilfetext: str = ""
     zeige_wenn: str = ""
+    acroform_name: str = ""  # AcroForm-Feldname im Original-PDF (für ausgefülltes PDF)
 
     model_config = {"extra": "allow"}  # typ-spezifische Felder (optionen, text, ...) durchreichen
 
@@ -69,6 +70,7 @@ class SchrittDefinition(BaseModel):
     pdf_gruppe: str = ""
     loop_bezeichnung: str = ""
     loop_titel_feld: str = ""
+    loop_max: int = 0
     felder_json: list[FeldDefinition] = []
 
     model_config = {"extra": "ignore"}
@@ -163,8 +165,10 @@ def _erstelle_prompt(dateiname: str, felder: list[str], seitenanzahl: int) -> st
 Formularname: {dateiname_sauber}
 Seiten: {seitenanzahl}
 
-Technische AcroForm-Feldnamen aus dem Dokument (zur Orientierung):
+Technische AcroForm-Feldnamen aus dem Dokument (für acroform_name-Zuordnung):
 {felder_str}
+
+**WICHTIG:** Setze für jedes erzeugte Feld `acroform_name` auf den passenden AcroForm-Feldnamen aus der Liste oben. Bei SPLIT-Feldern tragen alle Teilfelder denselben `acroform_name` (das Original-Feld wird beim Ausfüllen aus den Teilen zusammengesetzt). Felder ohne passendes AcroForm-Feld bekommen `acroform_name: ""`.
 
 ## Marker-Konvention im PDF
 
@@ -360,6 +364,8 @@ Erstelle eine JSON-Pfad-Definition mit exakt dieser Struktur:
 - "pflicht": true/false – Pflichtfeld
 - "pdf_ausblenden": true – Feld erscheint nicht in der PDF-Zusammenfassung (z.B. Loop-Steuerungsfelder wie "Weiteres Kind?")
 - "vorausgefuellt": "{{variable}}" – Feld wird automatisch aus einer anderen Feldvariablen vorbelegt (Nutzer kann ändern); nur setzen wenn türkiser AUTOFILL-Marker vorhanden
+- "acroform_name": "OriginalFeldname" – AcroForm-Feldname aus dem Original-PDF (exakt wie in der Liste oben); leer lassen wenn kein passendes AcroForm-Feld vorhanden
+- "acroform_name": "loop:Slot1,Slot2,Slot3" – für Loop-Felder: kommagetrennte Liste der AcroForm-Feldnamen je Iteration (Iteration 1→Slot1, 2→Slot2, …). Einträge über die Slot-Anzahl hinaus landen automatisch auf einem Beiblatt. Erkennst du im PDF mehrere gleichartige Feldgruppen (z.B. „Kind 1 Vorname", „Kind 2 Vorname", „Kind 3 Vorname"), trage alle als loop:-Liste ein.
 
 ## Quiz-Erkennung
 Falls das PDF ein Test, eine Prüfung oder eine Einweisung mit Wissensfragen ist:
@@ -527,6 +533,7 @@ def importiere_pfad_aus_analyse(analyse: FormularAnalyse) -> int:
             pdf_gruppe=sd.pdf_gruppe,
             loop_bezeichnung=sd.loop_bezeichnung,
             loop_titel_feld=sd.loop_titel_feld,
+            loop_max=sd.loop_max,
         )
         schritt_map[obj.node_id] = obj
 

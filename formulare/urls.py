@@ -34,6 +34,7 @@ urlpatterns = [
     path("meine/", views.meine_antraege, name="meine_antraege"),
     path("sitzung/<int:pk>/loeschen/", views.sitzung_loeschen, name="sitzung_loeschen"),
     path("sitzung/<int:pk>/pdf/", views.sitzung_pdf, name="sitzung_pdf"),
+    path("sitzung/<int:pk>/original-pdf/", views.sitzung_original_pdf, name="sitzung_original_pdf"),
     path("sitzung/<int:pk>/gesamtakte/", views.sitzung_gesamtakte_zip, name="sitzung_gesamtakte"),
     path("datei/<int:pk>/", views.datei_download, name="datei_download"),
     # Webhook-Verwaltung

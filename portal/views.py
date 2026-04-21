@@ -272,6 +272,141 @@ def analyse_pdf(request, pk):
 
 
 @portal_login_required
+def analyse_original_pdf_upload(request, pk):
+    """Nimmt das saubere Original-PDF (ohne Marker) entgegen und speichert es."""
+    account = request.user.portal_account
+    analyse = get_object_or_404(FormularAnalyse, pk=pk, account=account)
+
+    if request.method != "POST":
+        return redirect(reverse("portal:analyse_detail", args=[pk]))
+
+    datei = request.FILES.get("pdf_original")
+    if not datei:
+        messages.error(request, "Bitte wähle eine PDF-Datei aus.")
+        return redirect(reverse("portal:analyse_detail", args=[pk]))
+
+    if not datei.name.lower().endswith(".pdf"):
+        messages.error(request, "Nur PDF-Dateien werden akzeptiert.")
+        return redirect(reverse("portal:analyse_detail", args=[pk]))
+
+    pdf_bytes = datei.read()
+    if not pdf_bytes.startswith(b"%PDF"):
+        messages.error(request, "Die Datei ist kein gültiges PDF.")
+        return redirect(reverse("portal:analyse_detail", args=[pk]))
+
+    analyse.pdf_original = pdf_bytes
+    analyse.save(update_fields=["pdf_original"])
+    messages.success(request, "Original-PDF gespeichert. Es wird beim Befüllen verwendet.")
+    return redirect(reverse("portal:analyse_detail", args=[pk]))
+
+
+@portal_login_required
+@require_GET
+def analyse_diagnose_pdf(request, pk):
+    """Befüllt das Original-PDF mit den AcroForm-Feldnamen als Werte (Diagnose-Werkzeug).
+    So sieht man visuell welcher interne Feldname welchem Formularfeld entspricht."""
+    account = request.user.portal_account
+    analyse = get_object_or_404(FormularAnalyse, pk=pk, account=account)
+
+    try:
+        import io
+        from pypdf import PdfReader, PdfWriter
+        pdf_bytes = bytes(analyse.pdf_inhalt)
+        reader = PdfReader(io.BytesIO(pdf_bytes))
+        writer = PdfWriter()
+        writer.append(reader)
+
+        # Alle AcroForm-Feldnamen sammeln
+        field_map = {}
+        for felder in (reader.get_form_text_fields() or {}).keys():
+            field_map[felder] = felder  # Name als Wert eintragen
+
+        for page in writer.pages:
+            try:
+                writer.update_page_form_field_values(page, field_map)
+            except Exception:
+                pass
+
+        buf = io.BytesIO()
+        writer.write(buf)
+        pdf_out = buf.getvalue()
+    except Exception as exc:
+        logger.error("Diagnose-PDF Fehler: %s", exc)
+        messages.error(request, f"Diagnose-PDF fehlgeschlagen: {exc}")
+        return redirect(reverse("portal:analyse_detail", args=[pk]))
+
+    dateiname = f"diagnose_{analyse.dateiname}"
+    response = HttpResponse(pdf_out, content_type="application/pdf")
+    response["Content-Disposition"] = f'attachment; filename="{dateiname}"'
+    return response
+
+
+@portal_login_required
+@require_GET
+def analyse_seite_png(request, pk, seite_nr):
+    """Rendert Seite N des Analyse-PDFs als PNG (für den interaktiven Viewer)."""
+    account = request.user.portal_account
+    analyse = get_object_or_404(FormularAnalyse, pk=pk, account=account)
+    try:
+        from pdf2image import convert_from_bytes
+        import io as _io
+        pages = convert_from_bytes(
+            bytes(analyse.pdf_inhalt), dpi=120,
+            first_page=seite_nr, last_page=seite_nr,
+        )
+        if not pages:
+            return HttpResponse(status=404)
+        buf = _io.BytesIO()
+        pages[0].save(buf, format="PNG")
+        response = HttpResponse(buf.getvalue(), content_type="image/png")
+        response["Cache-Control"] = "private, max-age=3600"
+        return response
+    except Exception as exc:
+        logger.error("Seiten-Render Fehler (Analyse %d Seite %d): %s", pk, seite_nr, exc)
+        return HttpResponse(status=500)
+
+
+@portal_login_required
+@require_GET
+def analyse_felder_json(request, pk):
+    """Gibt AcroForm-Feldnamen + Positionen (Seite, Rect) als JSON zurück."""
+    account = request.user.portal_account
+    analyse = get_object_or_404(FormularAnalyse, pk=pk, account=account)
+    try:
+        import io as _io
+        import pypdf
+        reader = pypdf.PdfReader(_io.BytesIO(bytes(analyse.pdf_inhalt)))
+        seiten = []
+        felder = []
+        for seite_nr, seite in enumerate(reader.pages):
+            seiten.append({
+                "breite": float(seite.mediabox.width),
+                "hoehe": float(seite.mediabox.height),
+            })
+            for ref in (seite.get("/Annots") or []):
+                try:
+                    a = ref.get_object()
+                    if a.get("/Subtype") != "/Widget":
+                        continue
+                    name = str(a.get("/T", ""))
+                    if not name:
+                        continue
+                    rect = a.get("/Rect", [0, 0, 0, 0])
+                    x1, y1, x2, y2 = [float(v) for v in rect]
+                    felder.append({
+                        "name": name,
+                        "seite": seite_nr + 1,
+                        "x1": x1, "y1": y1, "x2": x2, "y2": y2,
+                    })
+                except Exception:
+                    pass
+        return JsonResponse({"felder": felder, "seiten": seiten})
+    except Exception as exc:
+        logger.error("Felder-JSON Fehler (Analyse %d): %s", pk, exc)
+        return JsonResponse({"fehler": str(exc)}, status=500)
+
+
+@portal_login_required
 def analyse_status_json(request, pk):
     """Polling-Endpunkt für JavaScript."""
     account = request.user.portal_account
@@ -310,12 +445,12 @@ def analyse_pruefen(request, pk):
     account = request.user.portal_account
     analyse = get_object_or_404(FormularAnalyse, pk=pk, account=account)
 
-    if analyse.status == FormularAnalyse.STATUS_IMPORTIERT and analyse.importierter_pfad_pk:
-        messages.info(request, "Dieser Entwurf wurde bereits importiert.")
-        return redirect(f"/formulare/editor/{analyse.importierter_pfad_pk}/")
-
-    if analyse.status != FormularAnalyse.STATUS_FERTIG:
+    if analyse.status not in (FormularAnalyse.STATUS_FERTIG, FormularAnalyse.STATUS_IMPORTIERT):
         messages.error(request, "Analyse noch nicht abgeschlossen.")
+        return redirect(reverse("portal:analyse_detail", args=[pk]))
+
+    if not analyse.ergebnis_json:
+        messages.error(request, "Kein Analyseergebnis vorhanden.")
         return redirect(reverse("portal:analyse_detail", args=[pk]))
 
     if request.method == "POST":
@@ -335,10 +470,12 @@ def analyse_pruefen(request, pk):
 
     import json as _json
     ergebnis_json_str = _json.dumps(analyse.ergebnis_json, ensure_ascii=False)
+    bereits_importiert = analyse.status == FormularAnalyse.STATUS_IMPORTIERT
     return render(request, "portal/analyse_pruefen.html", {
         "account": account,
         "analyse": analyse,
         "ergebnis_json_str": ergebnis_json_str,
+        "bereits_importiert": bereits_importiert,
     })
 
 

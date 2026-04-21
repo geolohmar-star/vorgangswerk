@@ -594,6 +594,8 @@
         if (cbs.length > 0) return Array.from(cbs).map(function(c){ return c.value; });
         var radio = document.querySelector('input[type="radio"][name="' + feldId + '"]:checked');
         if (radio) return radio.value;
+        // Radio-Gruppe ohne Auswahl → leer zurückgeben (NICHT ersten Wert nehmen)
+        if (document.querySelector('input[type="radio"][name="' + feldId + '"]')) return "";
         var el = document.querySelector('[name="' + feldId + '"]');
         return el ? el.value : "";
     }

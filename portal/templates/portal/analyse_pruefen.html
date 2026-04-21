@@ -3,97 +3,224 @@
 
 {% block extra_css %}
 <style>
+/* Layout */
+.pruef-layout {
+  display: flex;
+  gap: 0;
+  height: calc(100vh - 80px);
+  overflow: hidden;
+}
+.pdf-panel {
+  width: 42%;
+  min-width: 320px;
+  background: #e9ecef;
+  overflow-y: auto;
+  overflow-x: auto;
+  border-right: 2px solid #dee2e6;
+  flex-shrink: 0;
+}
+.editor-panel {
+  flex: 1;
+  overflow-y: auto;
+  padding: 1rem 1.25rem;
+}
+
+/* PDF-Seiten */
+.pdf-seite-wrap {
+  position: relative;
+  margin: .75rem auto;
+  max-width: 98%;
+  box-shadow: 0 2px 8px rgba(0,0,0,.25);
+  background: #fff;
+}
+.pdf-seite-wrap img { display: block; width: 100%; }
+.pdf-overlay {
+  position: absolute;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  pointer-events: none;
+}
+.pdf-overlay rect {
+  fill: rgba(13,110,253,.12);
+  stroke: rgba(13,110,253,.55);
+  stroke-width: 1.5;
+  cursor: pointer;
+  pointer-events: all;
+  transition: fill .15s, stroke .15s;
+}
+.pdf-overlay rect:hover,
+.pdf-overlay rect.aktiv {
+  fill: rgba(255,165,0,.35);
+  stroke: rgba(200,100,0,.9);
+  stroke-width: 2.5;
+}
+.pdf-overlay rect.highlight {
+  fill: rgba(255,230,0,.45);
+  stroke: rgba(180,130,0,.95);
+  stroke-width: 2.5;
+}
+.pdf-overlay text {
+  font-size: 9px;
+  fill: #084298;
+  pointer-events: none;
+  dominant-baseline: hanging;
+}
+.seite-nr {
+  text-align: center;
+  font-size: .7rem;
+  color: #6c757d;
+  padding: .2rem 0 .4rem;
+}
+
+/* Editor */
 .schritt-card { border: 1px solid #dee2e6; border-radius: 8px; margin-bottom: 1rem; }
 .schritt-header { background: #f8f9fa; border-radius: 8px 8px 0 0; padding: .6rem 1rem; display: flex; align-items: center; gap: .5rem; cursor: pointer; user-select: none; }
 .schritt-header:hover { background: #e9ecef; }
-.schritt-body { padding: 1rem; }
-.feld-row { display: grid; grid-template-columns: 1fr 2fr 1fr auto auto; gap: .5rem; align-items: start; padding: .4rem 0; border-bottom: 1px solid #f0f0f0; }
+.schritt-body { padding: .75rem; }
+.feld-row { display: grid; grid-template-columns: 1fr 1.6fr 1fr 4.5rem auto auto; gap: .4rem; align-items: start; padding: .35rem 0; border-bottom: 1px solid #f0f0f0; }
 .feld-row:last-child { border-bottom: none; }
-.feld-row-header { display: grid; grid-template-columns: 1fr 2fr 1fr auto auto; gap: .5rem; padding: .25rem 0; font-size: .75rem; font-weight: 600; text-transform: uppercase; color: #6c757d; border-bottom: 2px solid #dee2e6; margin-bottom: .25rem; }
+.feld-row-header { display: grid; grid-template-columns: 1fr 1.6fr 1fr 4.5rem auto auto; gap: .4rem; padding: .25rem 0; font-size: .7rem; font-weight: 600; text-transform: uppercase; color: #6c757d; border-bottom: 2px solid #dee2e6; margin-bottom: .25rem; }
+.acro-input { font-family: monospace; font-size: .72rem; background: #f0f4ff; border-color: #b8caff; color: #084298; }
+.acro-input:focus { background: #fff; border-color: #0d6efd; }
+.feld-row.feld-highlight { background: #fff9e6; border-radius: 4px; }
 .optionen-editor { grid-column: 1 / -1; margin-top: .25rem; background: #f8f9fa; border-radius: 6px; padding: .5rem; }
 .option-item { display: flex; align-items: center; gap: .4rem; margin-bottom: .3rem; }
 .badge-typ { font-size: .7rem; }
 .loop-badge { background: #cfe2ff; color: #084298; font-size: .7rem; padding: 2px 6px; border-radius: 4px; }
 .pflicht-toggle { display: flex; align-items: center; justify-content: center; gap: 4px; font-size: .8rem; }
 input[type="checkbox"].form-check-input { cursor: pointer; }
-.feld-id-badge { font-family: monospace; font-size: .75rem; color: #6c757d; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.feld-id-badge { font-family: monospace; font-size: .72rem; color: #6c757d; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .sonderwert-input { grid-column: 1 / -1; margin-top: .25rem; }
-.transitionen-info { font-size: .8rem; color: #6c757d; }
+.acro-input.acro-fokus-aktiv {
+  background: #fff3cd !important;
+  border-color: #ff8c00 !important;
+  box-shadow: 0 0 0 2px rgba(255,140,0,.3) !important;
+}
+.pdf-panel.link-modus .pdf-overlay rect {
+  cursor: crosshair;
+}
+#link-hinweis {
+  background: #fff3cd;
+  border-bottom: 2px solid #ff8c00;
+  color: #7a4700;
+  font-size: .78rem;
+  text-align: center;
+  padding: 3px 8px;
+  font-weight: 600;
+  display: none;
+}
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="row justify-content-center">
-  <div class="col-md-10">
+<nav aria-label="breadcrumb" class="mb-2 px-3 pt-2">
+  <ol class="breadcrumb mb-0">
+    <li class="breadcrumb-item"><a href="{% url 'portal:dashboard' %}">Dashboard</a></li>
+    <li class="breadcrumb-item"><a href="{% url 'portal:analyse_detail' analyse.pk %}">Analyse</a></li>
+    <li class="breadcrumb-item active">Felder prüfen</li>
+  </ol>
+</nav>
 
-    <nav aria-label="breadcrumb" class="mb-3">
-      <ol class="breadcrumb">
-        <li class="breadcrumb-item"><a href="{% url 'portal:dashboard' %}">Dashboard</a></li>
-        <li class="breadcrumb-item"><a href="{% url 'portal:analyse_detail' analyse.pk %}">Analyse</a></li>
-        <li class="breadcrumb-item active">Felder prüfen</li>
-      </ol>
-    </nav>
+<div class="pruef-layout">
 
-    <div class="card mb-3">
-      <div class="card-header py-3">
-        <h5 class="mb-0">Felder prüfen &amp; anpassen</h5>
-      </div>
-      <div class="card-body">
-        <p class="text-muted small mb-3">
-          Prüfe die erkannten Felder und passe Typen an. Insbesondere <strong>radio</strong>-
-          und <strong>checkboxen</strong>-Felder brauchen Auswahloptionen.
-          Alles Weitere kann danach im Editor bearbeitet werden.
-        </p>
-
-        <form id="review-form" method="post">
-          {% csrf_token %}
-          <input type="hidden" name="ergebnis_json" id="ergebnis-json-input">
-
-          <!-- Metadaten -->
-          <div class="row g-2 mb-4">
-            <div class="col-md-6">
-              <label class="form-label fw-semibold small">Formularname</label>
-              <input type="text" class="form-control form-control-sm" id="meta-name" required>
-            </div>
-            <div class="col-md-2">
-              <label class="form-label fw-semibold small">Kürzel</label>
-              <input type="text" class="form-control form-control-sm" id="meta-kuerzel" maxlength="10">
-            </div>
-            <div class="col-md-4">
-              <label class="form-label fw-semibold small">Beschreibung</label>
-              <input type="text" class="form-control form-control-sm" id="meta-beschreibung">
-            </div>
-          </div>
-
-          <!-- Schritte -->
-          <div id="schritte-container"></div>
-
-          <!-- Aktionsleiste -->
-          <div class="d-flex gap-2 mt-3 pt-3 border-top">
-            <button type="submit" class="btn btn-primary btn-lg flex-grow-1" id="import-btn">
-              Jetzt importieren &rarr;
-            </button>
-            <a href="{% url 'portal:analyse_detail' analyse.pk %}" class="btn btn-outline-secondary btn-lg">
-              Abbrechen
-            </a>
-          </div>
-          <p class="text-muted small text-center mt-2">
-            Der Pfad wird als Entwurf angelegt und ist zunächst nicht öffentlich.
-          </p>
-        </form>
+  <!-- PDF-Viewer (links) -->
+  <div class="pdf-panel" id="pdf-panel">
+    <div class="px-2 py-1 bg-white border-bottom d-flex align-items-center gap-2 flex-wrap" style="position: sticky; top: 0; z-index: 10;">
+      <span class="small fw-semibold text-truncate" style="max-width: 160px;" title="{{ analyse.dateiname }}">{{ analyse.dateiname }}</span>
+      <div class="d-flex align-items-center gap-1 ms-auto">
+        <button type="button" class="btn btn-outline-secondary btn-sm px-2" id="zoom-out" title="Verkleinern">&#8722;</button>
+        <span id="zoom-label" class="small" style="min-width:3rem;text-align:center;">100%</span>
+        <button type="button" class="btn btn-outline-secondary btn-sm px-2" id="zoom-in" title="Vergrößern">&#43;</button>
+        <button type="button" class="btn btn-outline-secondary btn-sm px-2" id="zoom-reset" title="Zurücksetzen">&#8634;</button>
+        <a href="{% url 'portal:analyse_diagnose_pdf' analyse.pk %}" class="btn btn-outline-secondary btn-sm ms-1" title="PDF mit eingetragenen Feldnamen herunterladen">
+          &#128196; Diagnose
+        </a>
       </div>
     </div>
+    <div id="link-hinweis">&#8594; Klick auf ein PDF-Feld um es dem markierten Formularfeld zuzuweisen</div>
+    <div id="pdf-seiten-container">
+      <div class="text-center text-muted small py-4" id="pdf-ladehinweis">&#8987; PDF wird geladen&hellip;</div>
+    </div>
+  </div>
 
+  <!-- Editor (rechts) -->
+  <div class="editor-panel">
+    <h6 class="fw-semibold mb-2">Felder prüfen &amp; anpassen
+      <small class="text-muted fw-normal fs-6"> – Typen und Labels korrigieren, dann importieren</small>
+    </h6>
+
+    <form id="review-form" method="post">
+      {% csrf_token %}
+      <input type="hidden" name="ergebnis_json" id="ergebnis-json-input">
+
+      <!-- Metadaten -->
+      <div class="row g-2 mb-3">
+        <div class="col-md-6">
+          <label class="form-label fw-semibold small mb-1">Formularname</label>
+          <input type="text" class="form-control form-control-sm" id="meta-name" required>
+        </div>
+        <div class="col-md-2">
+          <label class="form-label fw-semibold small mb-1">Kürzel</label>
+          <input type="text" class="form-control form-control-sm" id="meta-kuerzel" maxlength="10">
+        </div>
+        <div class="col-md-4">
+          <label class="form-label fw-semibold small mb-1">Beschreibung</label>
+          <input type="text" class="form-control form-control-sm" id="meta-beschreibung">
+        </div>
+      </div>
+
+      <!-- Globale Schnellaktionen -->
+      <div class="d-flex align-items-center gap-3 mb-3 p-2 bg-light rounded border">
+        <span class="small fw-semibold text-muted">Alle Felder:</span>
+        <div class="form-check form-switch mb-0">
+          <input class="form-check-input" type="checkbox" role="switch" id="toggle-alle-pflicht">
+          <label class="form-check-label small" for="toggle-alle-pflicht">Pflichtfelder alle an</label>
+        </div>
+        <span class="small text-muted ms-auto">
+          AcroForm-Feld anklicken → dann PDF-Feld anklicken um es zuzuweisen.
+        </span>
+      </div>
+
+      <!-- Schritte -->
+      <div id="schritte-container"></div>
+
+      <!-- Aktionsleiste -->
+      <div class="d-flex gap-2 mt-3 pt-3 border-top">
+        {% if bereits_importiert %}
+        <div class="alert alert-info mb-0 flex-grow-1 py-2">
+          &#10003; Bereits importiert.
+          {% if analyse.importierter_pfad_pk %}
+          <a href="/formulare/editor/{{ analyse.importierter_pfad_pk }}/" class="alert-link ms-2">Im Editor öffnen &rarr;</a>
+          {% endif %}
+        </div>
+        {% else %}
+        <button type="submit" class="btn btn-primary btn-lg flex-grow-1" id="import-btn">
+          Jetzt importieren &rarr;
+        </button>
+        {% endif %}
+        <a href="{% url 'portal:analyse_diagnose_pdf' analyse.pk %}" class="btn btn-outline-secondary btn-lg" title="PDF mit eingetragenen Feldnamen herunterladen">
+          &#128196; Diagnose-PDF
+        </a>
+        <a href="{% url 'portal:analyse_detail' analyse.pk %}" class="btn btn-outline-secondary btn-lg">
+          Zurück
+        </a>
+      </div>
+      {% if not bereits_importiert %}
+      <p class="text-muted small text-center mt-2">
+        Der Pfad wird als Entwurf angelegt und ist zunächst nicht öffentlich.
+      </p>
+      {% endif %}
+    </form>
   </div>
 </div>
 {% endblock %}
 
 {% block extra_js %}
 <script>
-// Rohdaten von der KI-Analyse (Pydantic-validiert, sicher)
 const DATEN = {{ ergebnis_json_str|safe }};
+const FELDER_JSON_URL = "{% url 'portal:analyse_felder_json' analyse.pk %}";
+const SEITE_PNG_URL_TMPL = "{% url 'portal:analyse_seite_png' analyse.pk 999 %}".replace("/999.png", "/{n}.png");
 
-// Feldtypen mit Beschriftungen und Sonderwert-Hinweisen
 const TYPEN = [
   { wert: "text",             label: "Text (einzeilig)" },
   { wert: "mehrzeil",         label: "Text (mehrzeilig)" },
@@ -112,16 +239,15 @@ const TYPEN = [
   { wert: "textblock",        label: "Infotext / Hinweis" },
   { wert: "abschnitt",        label: "Abschnittsüberschrift" },
   { wert: "systemfeld",       label: "Systemfeld (intern)" },
+  { wert: "berechnung",       label: "Berechnung (auto.)" },
   { wert: "zusammenfassung",  label: "Zusammenfassung" },
 ];
 
-// Typen die optionen[] brauchen
 const BRAUCHT_OPTIONEN = new Set(["radio", "checkboxen"]);
-// Typen die text brauchen
-const BRAUCHT_TEXT = new Set(["textblock", "einwilligung", "abschnitt"]);
+const BRAUCHT_TEXT     = new Set(["textblock", "einwilligung", "abschnitt"]);
+const STRUKTUR_TYPEN   = new Set(["textblock", "abschnitt", "zusammenfassung", "systemfeld", "quizergebnis"]);
 
-// Zustand – wir bearbeiten DATEN direkt
-const state = JSON.parse(JSON.stringify(DATEN));  // deep copy
+const state = JSON.parse(JSON.stringify(DATEN));
 
 // ---- Hilfsfunktionen ----
 
@@ -138,6 +264,160 @@ function el(tag, attrs={}, ...children) {
   }
   return e;
 }
+
+// ---- PDF-Viewer ----
+
+let pdfFelder = [];   // [{name, seite, x1, y1, x2, y2}]
+let pdfSeiten = [];   // [{breite, hoehe}]
+const acroRects = {};  // acroform_name → [SVG rect]
+
+// Linking-Modus: welches acro-input wartet auf einen PDF-Klick?
+let fokussiertesAcroInput = null;
+
+function setLinkFokus(inp) {
+  if (fokussiertesAcroInput && fokussiertesAcroInput !== inp) {
+    fokussiertesAcroInput.classList.remove("acro-fokus-aktiv");
+  }
+  fokussiertesAcroInput = inp;
+  const panel = document.getElementById("pdf-panel");
+  const hinweis = document.getElementById("link-hinweis");
+  if (inp) {
+    panel.classList.add("link-modus");
+    hinweis.style.display = "";
+    inp.classList.add("acro-fokus-aktiv");
+  } else {
+    panel.classList.remove("link-modus");
+    hinweis.style.display = "none";
+  }
+}
+
+function weiseAcroNameZu(name) {
+  if (!fokussiertesAcroInput) return false;
+  const inp = fokussiertesAcroInput;
+  inp.value = name;
+  inp.dispatchEvent(new Event("input"));
+  // wrapper data-acroform aktualisieren (für Hover)
+  const wrapper = inp.closest("[data-acroform]");
+  if (wrapper) wrapper.setAttribute("data-acroform", name);
+  setLinkFokus(null);
+  // Nächstes acro-input fokussieren
+  const alle = [...document.querySelectorAll(".acro-input")];
+  const i = alle.indexOf(inp);
+  if (i >= 0 && i < alle.length - 1) alle[i + 1].focus();
+  return true;
+}
+
+function seiteUrl(n) {
+  return SEITE_PNG_URL_TMPL.replace("{n}", n);
+}
+
+function pdfKoord(feld, seiteDim, svgBreite, svgHoehe) {
+  // PDF-Koordinaten: Ursprung unten-links, y steigt aufwärts
+  const sx = feld.x1 / seiteDim.breite * svgBreite;
+  const sy = (seiteDim.hoehe - feld.y2) / seiteDim.hoehe * svgHoehe;
+  const sw = (feld.x2 - feld.x1) / seiteDim.breite * svgBreite;
+  const sh = (feld.y2 - feld.y1) / seiteDim.hoehe * svgHoehe;
+  return { x: sx, y: sy, w: sw, h: sh };
+}
+
+async function ladePdfViewer() {
+  try {
+    const resp = await fetch(FELDER_JSON_URL);
+    const daten = await resp.json();
+    pdfFelder = daten.felder || [];
+    pdfSeiten = daten.seiten || [];
+  } catch(e) {
+    document.getElementById("pdf-ladehinweis").textContent = "Fehler beim Laden der Felder.";
+    return;
+  }
+
+  const container = document.getElementById("pdf-seiten-container");
+  container.innerHTML = "";
+
+  const anzahlSeiten = pdfSeiten.length || 1;
+
+  for (let s = 1; s <= anzahlSeiten; s++) {
+    const dim = pdfSeiten[s-1] || { breite: 595, hoehe: 842 };
+    const seitenFelder = pdfFelder.filter(f => f.seite === s);
+
+    const wrap = el("div", { class: "pdf-seite-wrap" });
+    const img  = el("img", { src: seiteUrl(s), alt: `Seite ${s}` });
+
+    // SVG-Overlay
+    const ns = "http://www.w3.org/2000/svg";
+    const svg = document.createElementNS(ns, "svg");
+    svg.setAttribute("class", "pdf-overlay");
+    svg.setAttribute("viewBox", `0 0 ${dim.breite} ${dim.hoehe}`);
+    svg.setAttribute("preserveAspectRatio", "none");
+
+    for (const feld of seitenFelder) {
+      const { x, y, w, h } = pdfKoord(feld, dim, dim.breite, dim.hoehe);
+      const rect = document.createElementNS(ns, "rect");
+      rect.setAttribute("x", x); rect.setAttribute("y", y);
+      rect.setAttribute("width", w); rect.setAttribute("height", h);
+      rect.setAttribute("data-name", feld.name);
+      rect.title = feld.name;
+
+      rect.addEventListener("click", () => {
+        if (weiseAcroNameZu(feld.name)) {
+          // Visuelles Feedback: kurz aufleuchten
+          rect.classList.add("aktiv");
+          setTimeout(() => rect.classList.remove("aktiv"), 600);
+        } else {
+          highlightFeldImEditor(feld.name);
+        }
+      });
+      rect.addEventListener("mouseenter", () => hoverAcroRect(feld.name, true));
+      rect.addEventListener("mouseleave", () => hoverAcroRect(feld.name, false));
+      svg.appendChild(rect);
+
+      if (!acroRects[feld.name]) acroRects[feld.name] = [];
+      acroRects[feld.name].push(rect);
+
+      // Feldname als kleinen Text
+      const txt = document.createElementNS(ns, "text");
+      txt.setAttribute("x", x + 2); txt.setAttribute("y", y + 1);
+      txt.textContent = feld.name;
+      svg.appendChild(txt);
+    }
+
+    wrap.append(img, svg);
+    container.append(el("div", { class: "seite-nr" }, `Seite ${s}`), wrap);
+  }
+
+  document.getElementById("pdf-ladehinweis")?.remove();
+}
+
+function highlightFeldImEditor(acroName) {
+  // Alle vorherigen Highlights entfernen
+  document.querySelectorAll(".feld-highlight").forEach(e => e.classList.remove("feld-highlight"));
+  // Zeile suchen
+  const zeile = document.querySelector(`[data-acroform="${acroName}"]`);
+  if (zeile) {
+    zeile.classList.add("feld-highlight");
+    zeile.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }
+}
+
+function hoverAcroRect(acroName, an) {
+  (acroRects[acroName] || []).forEach(r => {
+    if (an) r.classList.add("highlight");
+    else r.classList.remove("highlight");
+  });
+}
+
+function highlightAcroInPdf(acroName, an) {
+  (acroRects[acroName] || []).forEach(r => {
+    if (an) r.classList.add("aktiv");
+    else r.classList.remove("aktiv");
+    if (an) {
+      // Zur Seite scrollen
+      r.closest(".pdf-seite-wrap")?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }
+  });
+}
+
+// ---- Feld-Editor ----
 
 function typenSelect(aktuellerTyp, onChange) {
   const sel = el("select", { class: "form-select form-select-sm" });
@@ -156,7 +436,6 @@ function optionenEditor(feld) {
   wrap.append(titel);
 
   function renderOptionen() {
-    // Optionen-Liste neu rendern
     const liste = wrap.querySelector(".opt-liste") || el("div", { class: "opt-liste" });
     liste.innerHTML = "";
     const optionen = feld.optionen || [];
@@ -191,7 +470,6 @@ function optionenEditor(feld) {
 
 function sonderwertEditor(feld) {
   const wrap = el("div", { class: "sonderwert-input" });
-
   if (BRAUCHT_TEXT.has(feld.typ)) {
     const lbl = el("label", { class: "small text-muted" }, "Text / Inhalt:");
     const ta = el("textarea", { class: "form-control form-control-sm mt-1", rows: "2" });
@@ -211,12 +489,12 @@ function sonderwertEditor(feld) {
     inp.addEventListener("input", () => { feld.systemwert = inp.value; });
     wrap.append(lbl, inp);
   }
-
   return wrap;
 }
 
 function feldZeile(feld) {
-  const wrapper = el("div", {});
+  const acroName = feld.acroform_name || "";
+  const wrapper = el("div", { "data-acroform": acroName });
 
   const row = el("div", { class: "feld-row" });
 
@@ -236,12 +514,9 @@ function feldZeile(feld) {
 
   const typSel = typenSelect(feld.typ || "text", (neuerTyp) => {
     feld.typ = neuerTyp;
-    // Sonder-Editor aktualisieren
     if (sonderEditor) sonderEditor.remove();
     if (optEditor) optEditor.remove();
-    sonderEditor = null;
-    optEditor = null;
-
+    sonderEditor = null; optEditor = null;
     if (BRAUCHT_OPTIONEN.has(neuerTyp)) {
       if (!feld.optionen || feld.optionen.length === 0) feld.optionen = [];
       optEditor = optionenEditor(feld);
@@ -253,7 +528,27 @@ function feldZeile(feld) {
   });
   row.append(typSel);
 
-  // Spalte 4: Pflicht
+  // Spalte 4: AcroForm-Name (editierbar)
+  const acroInp = el("input", {
+    type: "text",
+    class: "form-control form-control-sm acro-input",
+    value: acroName,
+    placeholder: "–",
+    title: "AcroForm-Feldname im Original-PDF",
+  });
+  acroInp.addEventListener("input", () => {
+    const neu = acroInp.value.trim();
+    feld.acroform_name = neu;
+    wrapper.setAttribute("data-acroform", neu);
+  });
+  acroInp.addEventListener("focus", () => setLinkFokus(acroInp));
+  acroInp.addEventListener("blur", () => {
+    // Kurze Verzögerung damit PDF-Rect-Click noch feuern kann
+    setTimeout(() => { if (fokussiertesAcroInput === acroInp) setLinkFokus(null); }, 250);
+  });
+  row.append(acroInp);
+
+  // Spalte 5: Pflicht
   const pflichtWrap = el("div", { class: "pflicht-toggle" });
   const pflichtCb = el("input", { type: "checkbox", class: "form-check-input", id: `p_${feld.id}` });
   pflichtCb.checked = !!feld.pflicht;
@@ -271,7 +566,15 @@ function feldZeile(feld) {
 
   wrapper.append(row);
 
-  // Sonder-Editoren direkt anzeigen wenn nötig
+  // Hover: Feld im PDF hervorheben (dynamisch, funktioniert auch nach Zuweisung)
+  wrapper.addEventListener("mouseenter", () => {
+    const n = wrapper.dataset.acroform; if (n) highlightAcroInPdf(n, true);
+  });
+  wrapper.addEventListener("mouseleave", () => {
+    const n = wrapper.dataset.acroform; if (n) highlightAcroInPdf(n, false);
+  });
+
+  // Sonder-Editoren
   if (BRAUCHT_OPTIONEN.has(feld.typ)) {
     optEditor = optionenEditor(feld);
     wrapper.append(optEditor);
@@ -285,18 +588,14 @@ function feldZeile(feld) {
 
 function schrittKarte(schritt, idx) {
   const karte = el("div", { class: "schritt-card" });
-
-  // Header
   const header = el("div", { class: "schritt-header" });
-
   const numBadge = el("span", { class: "badge bg-secondary" }, `${idx + 1}`);
   const nodeBadge = el("span", { class: "badge bg-light text-dark border" }, schritt.node_id || "");
 
   const titelInp = el("input", {
-    type: "text",
-    class: "form-control form-control-sm",
+    type: "text", class: "form-control form-control-sm",
     value: schritt.titel || "Schritt",
-    style: "max-width: 300px; font-weight: 600;",
+    style: "max-width: 280px; font-weight: 600;",
     placeholder: "Schritttitel",
     onclick: (e) => e.stopPropagation(),
   });
@@ -305,23 +604,18 @@ function schrittKarte(schritt, idx) {
   const badges = el("div", { class: "ms-auto d-flex gap-1 align-items-center" });
   if (schritt.ist_start) badges.append(el("span", { class: "badge bg-success" }, "Start"));
   if (schritt.ist_ende) badges.append(el("span", { class: "badge bg-warning text-dark" }, "Ende"));
-  if (schritt.loop_bezeichnung) {
-    badges.append(el("span", { class: "loop-badge" }, `Loop: ${schritt.loop_bezeichnung}`));
-  }
+  if (schritt.loop_bezeichnung) badges.append(el("span", { class: "loop-badge" }, `Loop: ${schritt.loop_bezeichnung}`));
   const feldAnz = el("span", { class: "text-muted small ms-2" },
-                      `${(schritt.felder_json || []).length} Feld${(schritt.felder_json||[]).length !== 1 ? "er" : ""}`);
+    `${(schritt.felder_json || []).length} Feld${(schritt.felder_json||[]).length !== 1 ? "er" : ""}`);
   badges.append(feldAnz);
-
   const chevron = el("span", {}, "▾");
   badges.append(chevron);
 
   header.append(numBadge, nodeBadge, titelInp, badges);
   karte.append(header);
 
-  // Body (collapsible)
   const body = el("div", { class: "schritt-body" });
   let offen = true;
-
   header.addEventListener("click", (e) => {
     if (e.target === titelInp) return;
     offen = !offen;
@@ -333,52 +627,85 @@ function schrittKarte(schritt, idx) {
   if (felder.length === 0) {
     body.append(el("p", { class: "text-muted small mb-0" }, "Keine Felder in diesem Schritt."));
   } else {
-    // Spalten-Header
     const hdr = el("div", { class: "feld-row-header" });
     hdr.append(
       el("span", {}, "Feld-ID"),
       el("span", {}, "Beschriftung"),
       el("span", {}, "Typ"),
+      el("span", { title: "AcroForm-Feldname im Original-PDF (editierbar)" }, "AcroForm"),
       el("span", { title: "Pflichtfeld" }, "Pflicht"),
       el("span", { title: "In PDF ausblenden" }, "PDF"),
     );
     body.append(hdr);
-
-    for (const feld of felder) {
-      body.append(feldZeile(feld));
-    }
+    for (const feld of felder) body.append(feldZeile(feld));
   }
 
   karte.append(body);
   return karte;
 }
 
-// ---- Rendern ----
-
 function init() {
-  // Metadaten
   document.getElementById("meta-name").value = state.name || "";
   document.getElementById("meta-kuerzel").value = state.kuerzel || "";
   document.getElementById("meta-beschreibung").value = state.beschreibung || "";
-
   document.getElementById("meta-name").addEventListener("input", e => { state.name = e.target.value; });
   document.getElementById("meta-kuerzel").addEventListener("input", e => { state.kuerzel = e.target.value; });
   document.getElementById("meta-beschreibung").addEventListener("input", e => { state.beschreibung = e.target.value; });
 
-  // Schritte
   const container = document.getElementById("schritte-container");
-  (state.schritte || []).forEach((s, i) => {
-    container.append(schrittKarte(s, i));
-  });
+  (state.schritte || []).forEach((s, i) => container.append(schrittKarte(s, i)));
 }
 
-// ---- Submit ----
+document.getElementById("review-form").addEventListener("submit", function() {
+  document.getElementById("ergebnis-json-input").value = JSON.stringify(state);
+});
 
-document.getElementById("review-form").addEventListener("submit", function(e) {
-  const jsonStr = JSON.stringify(state);
-  document.getElementById("ergebnis-json-input").value = jsonStr;
+// Alle-Pflicht-Toggle
+document.getElementById("toggle-alle-pflicht").addEventListener("change", function() {
+  const an = this.checked;
+  this.nextElementSibling.textContent = an ? "Pflichtfelder alle an" : "Pflichtfelder alle aus";
+  for (const schritt of (state.schritte || [])) {
+    for (const feld of (schritt.felder_json || [])) {
+      if (!STRUKTUR_TYPEN.has(feld.typ)) feld.pflicht = an;
+    }
+  }
+  document.querySelectorAll("input[id^='p_']").forEach(cb => {
+    const feldId = cb.id.slice(2);
+    let typ = null;
+    for (const schritt of (state.schritte || [])) {
+      const f = (schritt.felder_json || []).find(f => f.id === feldId);
+      if (f) { typ = f.typ; break; }
+    }
+    if (!typ || !STRUKTUR_TYPEN.has(typ)) cb.checked = an;
+  });
 });
 
 init();
+ladePdfViewer();
+
+// Zoom-Steuerung
+(function() {
+  const STUFEN = [50, 75, 100, 125, 150, 175, 200, 250, 300];
+  let idx = 2; // 100%
+
+  function applyZoom() {
+    const pct = STUFEN[idx];
+    document.getElementById("zoom-label").textContent = pct + "%";
+    const container = document.getElementById("pdf-seiten-container");
+    // Breite der Seiten-Wrapper setzen (overflow im Panel scrollt horizontal)
+    container.style.width = pct === 100 ? "" : pct + "%";
+    container.style.minWidth = pct < 100 ? "" : pct + "%";
+  }
+
+  document.getElementById("zoom-in").addEventListener("click", () => {
+    if (idx < STUFEN.length - 1) { idx++; applyZoom(); }
+  });
+  document.getElementById("zoom-out").addEventListener("click", () => {
+    if (idx > 0) { idx--; applyZoom(); }
+  });
+  document.getElementById("zoom-reset").addEventListener("click", () => {
+    idx = 2; applyZoom();
+  });
+})();
 </script>
 {% endblock %}

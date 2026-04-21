@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<style>
+  @page { size: A4; margin: 2cm 2cm 2.5cm 2cm; }
+  body { font-family: Arial, sans-serif; font-size: 10pt; color: #1a1a1a; }
+  .kopf { border-bottom: 2px solid #1a4d2e; padding-bottom: 8px; margin-bottom: 16px; }
+  .kopf h1 { font-size: 13pt; color: #1a4d2e; margin: 0 0 3px 0; }
+  .kopf .meta { font-size: 9pt; color: #555; }
+  .hinweis { background: #fff8e1; border-left: 4px solid #f59e0b; padding: 6px 10px;
+             font-size: 9pt; margin-bottom: 16px; }
+  .gruppe { margin-bottom: 14px; page-break-inside: avoid; }
+  .gruppe-titel { font-size: 10pt; font-weight: bold; color: #1a4d2e;
+                  background: #f0f7f0; border-left: 3px solid #1a4d2e;
+                  padding: 4px 8px; margin-bottom: 6px; }
+  table { width: 100%; border-collapse: collapse; font-size: 9.5pt; }
+  td { padding: 3px 6px; border-bottom: 1px solid #e5e5e5; vertical-align: top; }
+  td.label { width: 38%; color: #555; }
+  td.wert  { font-weight: 500; }
+  .fusszeile { position: fixed; bottom: 0; left: 0; right: 0;
+               font-size: 8pt; color: #888; text-align: center;
+               border-top: 1px solid #ddd; padding: 4px 0; }
+</style>
+</head>
+<body>
+
+<div class="kopf">
+  <h1>Anlage – weitere Einträge</h1>
+  <div class="meta">
+    {% if pfad_name %}Formular: <strong>{{ pfad_name }}</strong>{% endif %}
+    {% if vorgangsnummer %} &nbsp;|&nbsp; Vorgangsnummer: <strong>{{ vorgangsnummer }}</strong>{% endif %}
+  </div>
+</div>
+
+<div class="hinweis">
+  Dieses Beiblatt enthält Einträge, die über die Kapazität des Original-Formulars hinausgehen.
+  Es ist Bestandteil des Antrags und zusammen mit dem ausgefüllten Formular einzureichen.
+</div>
+
+{% for gruppe in gruppen %}
+<div class="gruppe">
+  <div class="gruppe-titel">{{ gruppe.loop_bezeichnung }} – Eintrag {{ gruppe.iteration }}</div>
+  <table>
+    {% for feld in gruppe.felder %}
+    <tr>
+      <td class="label">{{ feld.label }}</td>
+      <td class="wert">{{ feld.wert }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+</div>
+{% endfor %}
+
+<div class="fusszeile">Beiblatt – erstellt mit Vorgangswerk</div>
+
+</body>
+</html>

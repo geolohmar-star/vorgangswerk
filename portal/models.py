@@ -74,6 +74,7 @@ class FormularAnalyse(models.Model):
     account = models.ForeignKey(PortalAccount, on_delete=models.CASCADE, related_name="analysen")
     dateiname = models.CharField(max_length=255)
     pdf_inhalt = models.BinaryField()
+    pdf_original = models.BinaryField(null=True, blank=True)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_WARTEND)
     ergebnis_json = models.JSONField(null=True, blank=True)
     fehler_meldung = models.TextField(blank=True)

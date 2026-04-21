@@ -2366,12 +2366,23 @@ def pfad_abgeschlossen(request, sitzung_pk):
         quiz_auswertung = vorschau_ergebnis(sitzung)
     except Exception:
         pass
+    # Original-PDF-Button nur wenn Pfad per KI-Portal importiert wurde
+    hat_original_pdf = False
+    try:
+        from portal.models import FormularAnalyse
+        hat_original_pdf = FormularAnalyse.objects.filter(
+            importierter_pfad_pk=sitzung.pfad.pk
+        ).exists()
+    except Exception:
+        pass
+
     return render(request, "formulare/pfad_abgeschlossen.html", {
         "sitzung":          sitzung,
         "zusammenfassung":  _baue_zusammenfassung(sitzung),
         "email_empfaenger": email_empfaenger,
         "quiz_ergebnis":    quiz_ergebnis,
         "quiz_auswertung":  quiz_auswertung,
+        "hat_original_pdf": hat_original_pdf,
     })
 
 
@@ -2425,6 +2436,54 @@ def sitzung_pdf(request, pk):
     pdf = HTML(string=html_string).write_pdf()
     dateiname = f"{vorgangsnummer}.pdf".replace(" ", "_")
     response = HttpResponse(pdf, content_type="application/pdf")
+    response["Content-Disposition"] = f'attachment; filename="{dateiname}"'
+    return response
+
+
+@login_required
+def sitzung_original_pdf(request, pk):
+    """Liefert das Original-PDF ausgefüllt mit den Sitzungsdaten (AcroForm-Filling)."""
+    sitzung = get_object_or_404(AntrSitzung, pk=pk)
+
+    if not (request.user == sitzung.user or request.user.is_staff):
+        from django.http import HttpResponseForbidden
+        return HttpResponseForbidden()
+
+    # FormularAnalyse zum importierten Pfad suchen
+    try:
+        from portal.models import FormularAnalyse
+        from portal.pdf_fill import fuelle_acroform
+    except ImportError:
+        messages.error(request, "Portal-Modul nicht verfügbar.")
+        return redirect("formulare:meine_antraege")
+
+    analyse = (
+        FormularAnalyse.objects
+        .filter(importierter_pfad_pk=sitzung.pfad.pk)
+        .order_by("-erstellt_am")
+        .first()
+    )
+    if not analyse:
+        messages.error(request, "Kein Original-PDF vorhanden – dieser Pfad wurde nicht per KI-Portal importiert.")
+        return redirect("formulare:meine_antraege")
+
+    pdf_bytes = bytes(analyse.pdf_original if analyse.pdf_original else analyse.pdf_inhalt)
+    schritte = sitzung.pfad.schritte.all()
+    gesammelte_daten = sitzung.gesammelte_daten or {}
+
+    try:
+        filled_pdf = fuelle_acroform(
+            pdf_bytes, schritte, gesammelte_daten,
+            pfad_name=sitzung.pfad.name,
+            vorgangsnummer=sitzung.vorgangsnummer or f"ANT-{sitzung.pk:05d}",
+        )
+    except Exception as exc:
+        logger.error("sitzung_original_pdf Fehler: %s", exc)
+        messages.error(request, f"PDF-Erstellung fehlgeschlagen: {exc}")
+        return redirect("formulare:meine_antraege")
+
+    dateiname = f"ausgefuellt_{analyse.dateiname}".replace(" ", "_")
+    response = HttpResponse(filled_pdf, content_type="application/pdf")
     response["Content-Disposition"] = f'attachment; filename="{dateiname}"'
     return response
 

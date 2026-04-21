@@ -23,6 +23,10 @@ urlpatterns = [
     path("analyse/<int:pk>/importieren/", views.analyse_importieren, name="analyse_importieren"),
     path("analyse/<int:pk>/pruefen/", views.analyse_pruefen, name="analyse_pruefen"),
     path("analyse/<int:pk>/pdf/", views.analyse_pdf, name="analyse_pdf"),
+    path("analyse/<int:pk>/original-pdf-upload/", views.analyse_original_pdf_upload, name="analyse_original_pdf_upload"),
+    path("analyse/<int:pk>/diagnose-pdf/", views.analyse_diagnose_pdf, name="analyse_diagnose_pdf"),
+    path("analyse/<int:pk>/seite/<int:seite_nr>.png", views.analyse_seite_png, name="analyse_seite_png"),
+    path("analyse/<int:pk>/felder.json", views.analyse_felder_json, name="analyse_felder_json"),
 
     # Credits
     path("credits/", views.credits_kaufen, name="credits_kaufen"),

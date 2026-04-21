@@ -137,6 +137,11 @@
         <a href="{% url 'formulare:sitzung_pdf' sitzung.pk %}" class="btn btn-success">
             &#128196; PDF herunterladen
         </a>
+        {% if hat_original_pdf %}
+        <a href="{% url 'formulare:sitzung_original_pdf' sitzung.pk %}" class="btn btn-outline-success">
+            &#128196; Original-PDF ausgefüllt
+        </a>
+        {% endif %}
     </div>
 </div>
 {% endblock %}

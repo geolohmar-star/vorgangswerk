@@ -1122,16 +1122,14 @@ function zahlung_demo_bestaetigen(feldId) {
     "use strict";
 
     function _feldWert(feldId) {
-        // bool/checkbox
         var cb = document.querySelector('input[type="checkbox"][name="' + feldId + '"]');
-        if (cb) return cb.checked;
-        // checkboxen (mehrere)
+        if (cb && document.querySelectorAll('input[type="checkbox"][name="' + feldId + '"]').length === 1) return cb.checked;
         var cbs = document.querySelectorAll('input[type="checkbox"][name="' + feldId + '"]:checked');
         if (cbs.length > 0) return Array.from(cbs).map(function(c){ return c.value; });
-        // radio
         var radio = document.querySelector('input[type="radio"][name="' + feldId + '"]:checked');
         if (radio) return radio.value;
-        // text/select
+        // Radio-Gruppe ohne Auswahl → leer zurückgeben (NICHT ersten Wert nehmen)
+        if (document.querySelector('input[type="radio"][name="' + feldId + '"]')) return "";
         var el = document.querySelector('[name="' + feldId + '"]');
         return el ? el.value : "";
     }

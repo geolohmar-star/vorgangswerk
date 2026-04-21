@@ -35,13 +35,40 @@
                     <dd class="col-sm-9">{{ analyse.credits_verbraucht }}</dd>
                 </dl>
 
-                <div class="d-flex gap-2 mb-3">
+                <div class="d-flex gap-2 mb-3 flex-wrap">
                     <a href="{% url 'portal:analyse_pdf' analyse.pk %}" target="_blank"
-                       class="btn btn-outline-secondary btn-sm">PDF herunterladen</a>
+                       class="btn btn-outline-secondary btn-sm">Vorbereitetes PDF</a>
                     {% if bentopdf_url %}
                     <a href="{{ bentopdf_url }}?url={{ pdf_url|urlencode }}" target="_blank"
                        class="btn btn-outline-primary btn-sm">PDF-Werkzeuge (BentoPDF)</a>
                     {% endif %}
+                </div>
+
+                {# Original-PDF Upload #}
+                <div class="card mb-3 {% if analyse.pdf_original %}border-success{% else %}border-warning{% endif %}">
+                    <div class="card-body py-2 px-3">
+                        <div class="d-flex align-items-center justify-content-between gap-3">
+                            <div>
+                                {% if analyse.pdf_original %}
+                                <span class="text-success fw-semibold">&#10003; Original-PDF hinterlegt</span>
+                                <span class="text-muted small ms-2">(wird zum Befüllen verwendet)</span>
+                                {% else %}
+                                <span class="text-warning fw-semibold">&#9888; Kein Original-PDF</span>
+                                <span class="text-muted small ms-2">Lade das <strong>unmarkierte</strong> Original hoch, damit die Marker nicht im ausgefüllten PDF erscheinen.</span>
+                                {% endif %}
+                            </div>
+                            <form method="post" enctype="multipart/form-data"
+                                  action="{% url 'portal:analyse_original_pdf_upload' analyse.pk %}"
+                                  class="d-flex gap-2 align-items-center flex-shrink-0">
+                                {% csrf_token %}
+                                <input type="file" name="pdf_original" accept=".pdf"
+                                       class="form-control form-control-sm" style="max-width:200px" required>
+                                <button type="submit" class="btn btn-sm {% if analyse.pdf_original %}btn-outline-success{% else %}btn-warning{% endif %}">
+                                    {% if analyse.pdf_original %}Ersetzen{% else %}Hochladen{% endif %}
+                                </button>
+                            </form>
+                        </div>
+                    </div>
                 </div>
                 <hr class="mb-3">
 
@@ -125,6 +152,10 @@
                     <a href="/formulare/editor/{{ analyse.importierter_pfad_pk }}/"
                        class="btn btn-success btn-lg w-100">
                         Im Editor öffnen &rarr;
+                    </a>
+                    <a href="{% url 'portal:analyse_pruefen' analyse.pk %}"
+                       class="btn btn-outline-secondary w-100 mt-2">
+                        &#128269; PDF &amp; Felder ansehen
                     </a>
                     {% endif %}
                 </div>
