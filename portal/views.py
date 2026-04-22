@@ -391,28 +391,115 @@ def analyse_felder_json(request, pk):
         reader = pypdf.PdfReader(_io.BytesIO(bytes(analyse.pdf_inhalt)))
         seiten = []
         felder = []
+        def _resolve_name(widget_obj):
+            """Löst den vollständigen Feldnamen auf, auch bei Parent-Hierarchie."""
+            teile = []
+            obj = widget_obj
+            for _ in range(6):  # max 6 Ebenen tief
+                t = obj.get("/T")
+                if t:
+                    teile.append(str(t).strip())
+                parent_ref = obj.get("/Parent")
+                if not parent_ref:
+                    break
+                try:
+                    obj = parent_ref.get_object()
+                except Exception:
+                    break
+            if not teile:
+                return ""
+            # Letztes Element = eigener Name, davor = Parent-Namen → zusammenbauen
+            teile.reverse()
+            # Nur den Blatt-Namen zurückgeben (kein vollständiger Pfad nötig)
+            return teile[-1]
+
+        # Seiten-Dimensionen + Seiten-Index für Feldbaum-Durchlauf
+        seiten_index: dict[int, int] = {}  # pypdf page object id → seite_nr (0-based)
         for seite_nr, seite in enumerate(reader.pages):
             seiten.append({
                 "breite": float(seite.mediabox.width),
                 "hoehe": float(seite.mediabox.height),
             })
+
+        # Hilfsfunktion: Seite eines Widgets über /P ermitteln
+        def _seite_von(widget_obj) -> int:
+            p = widget_obj.get("/P")
+            if p:
+                try:
+                    page_obj = p.get_object()
+                    for i, pg in enumerate(reader.pages):
+                        if pg.indirect_reference == page_obj.indirect_reference:
+                            return i
+                except Exception:
+                    pass
+            return 0
+
+        # Erster Durchlauf: Seiten-/Annots (Standard-Weg)
+        gefunden: set[tuple] = set()  # (name, seite_nr) um Duplikate zu vermeiden
+
+        for seite_nr, seite in enumerate(reader.pages):
             for ref in (seite.get("/Annots") or []):
                 try:
                     a = ref.get_object()
                     if a.get("/Subtype") != "/Widget":
                         continue
-                    name = str(a.get("/T", ""))
+                    name = _resolve_name(a)
                     if not name:
                         continue
                     rect = a.get("/Rect", [0, 0, 0, 0])
-                    x1, y1, x2, y2 = [float(v) for v in rect]
-                    felder.append({
-                        "name": name,
-                        "seite": seite_nr + 1,
-                        "x1": x1, "y1": y1, "x2": x2, "y2": y2,
-                    })
+                    rx1, ry1, rx2, ry2 = [float(v) for v in rect]
+                    # Normalisieren: einige PDFs haben y1 > y2 (invertierte Rects)
+                    x1, x2 = min(rx1, rx2), max(rx1, rx2)
+                    y1, y2 = min(ry1, ry2), max(ry1, ry2)
+                    key = (name, seite_nr)
+                    if key not in gefunden:
+                        gefunden.add(key)
+                        felder.append({
+                            "name": name,
+                            "seite": seite_nr + 1,
+                            "x1": x1, "y1": y1, "x2": x2, "y2": y2,
+                        })
                 except Exception:
                     pass
+
+        # Zweiter Durchlauf: AcroForm-Feldbaum direkt (findet Felder ohne Seiten-Annot-Eintrag)
+        def _walk_felder(nodes):
+            for ref in (nodes or []):
+                try:
+                    obj = ref.get_object()
+                except Exception:
+                    continue
+                kids = obj.get("/Kids")
+                if kids:
+                    _walk_felder(kids)
+                # Widget mit eigenem /Rect?
+                if obj.get("/Subtype") == "/Widget" or obj.get("/Rect"):
+                    name = _resolve_name(obj)
+                    rect = obj.get("/Rect")
+                    if name and rect:
+                        try:
+                            rx1, ry1, rx2, ry2 = [float(v) for v in rect]
+                            x1, x2 = min(rx1, rx2), max(rx1, rx2)
+                            y1, y2 = min(ry1, ry2), max(ry1, ry2)
+                            s_nr = _seite_von(obj)
+                            key = (name, s_nr)
+                            if key not in gefunden:
+                                gefunden.add(key)
+                                felder.append({
+                                    "name": name,
+                                    "seite": s_nr + 1,
+                                    "x1": x1, "y1": y1, "x2": x2, "y2": y2,
+                                })
+                        except Exception:
+                            pass
+
+        root_fields = (
+            reader.trailer.get("/Root", {})
+            .get("/AcroForm", {})
+            .get("/Fields", [])
+        )
+        _walk_felder(root_fields)
+
         return JsonResponse({"felder": felder, "seiten": seiten})
     except Exception as exc:
         logger.error("Felder-JSON Fehler (Analyse %d): %s", pk, exc)

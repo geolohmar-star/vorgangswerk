@@ -96,6 +96,11 @@ input[type="checkbox"].form-check-input { cursor: pointer; }
   border-color: #ff8c00 !important;
   box-shadow: 0 0 0 2px rgba(255,140,0,.3) !important;
 }
+.acro-input.acro-vorschlag {
+  background: #fffbe6 !important;
+  border-color: #ffd666 !important;
+  border-style: dashed !important;
+}
 .pdf-panel.link-modus .pdf-overlay rect {
   cursor: crosshair;
 }
@@ -270,6 +275,16 @@ function el(tag, attrs={}, ...children) {
 let pdfFelder = [];   // [{name, seite, x1, y1, x2, y2}]
 let pdfSeiten = [];   // [{breite, hoehe}]
 const acroRects = {};  // acroform_name → [SVG rect]
+let sortierteFelder = [];  // pdfFelder räumlich sortiert (oben→unten, links→rechts)
+
+function buildSortierteFelder() {
+  sortierteFelder = [...pdfFelder].sort((a, b) => {
+    if (a.seite !== b.seite) return a.seite - b.seite;
+    const dyTop = b.y2 - a.y2;  // höheres y2 = weiter oben (PDF-Koordinaten)
+    if (Math.abs(dyTop) > 4) return dyTop;
+    return a.x1 - b.x1;
+  });
+}
 
 // Linking-Modus: welches acro-input wartet auf einen PDF-Klick?
 let fokussiertesAcroInput = null;
@@ -291,19 +306,39 @@ function setLinkFokus(inp) {
   }
 }
 
+function setAcroWert(inp, name) {
+  inp.value = name;
+  inp.dispatchEvent(new Event("input"));
+  const wrapper = inp.closest("[data-acroform]");
+  if (wrapper) wrapper.setAttribute("data-acroform", name);
+}
+
 function weiseAcroNameZu(name) {
   if (!fokussiertesAcroInput) return false;
   const inp = fokussiertesAcroInput;
-  inp.value = name;
-  inp.dispatchEvent(new Event("input"));
-  // wrapper data-acroform aktualisieren (für Hover)
-  const wrapper = inp.closest("[data-acroform]");
-  if (wrapper) wrapper.setAttribute("data-acroform", name);
+  inp.classList.remove("acro-vorschlag");
+
+  setAcroWert(inp, name);
   setLinkFokus(null);
-  // Nächstes acro-input fokussieren
+
+  // Nächstes acro-input suchen
   const alle = [...document.querySelectorAll(".acro-input")];
   const i = alle.indexOf(inp);
-  if (i >= 0 && i < alle.length - 1) alle[i + 1].focus();
+  const naechstesInp = (i >= 0 && i < alle.length - 1) ? alle[i + 1] : null;
+  if (!naechstesInp) return true;
+
+  // Nächstes PDF-Feld in räumlicher Reihenfolge ermitteln
+  const idxPdf = sortierteFelder.findIndex(f => f.name === name);
+  const naechstesFeld = (idxPdf >= 0 && idxPdf < sortierteFelder.length - 1)
+    ? sortierteFelder[idxPdf + 1] : null;
+
+  if (naechstesFeld) {
+    // Vorschlag eintragen (gestrichelt = noch nicht bestätigt)
+    setAcroWert(naechstesInp, naechstesFeld.name);
+    naechstesInp.classList.add("acro-vorschlag");
+  }
+
+  naechstesInp.focus();  // löst focus-Handler aus → Linking-Modus
   return true;
 }
 
@@ -386,6 +421,7 @@ async function ladePdfViewer() {
   }
 
   document.getElementById("pdf-ladehinweis")?.remove();
+  buildSortierteFelder();
 }
 
 function highlightFeldImEditor(acroName) {
@@ -541,7 +577,7 @@ function feldZeile(feld) {
     feld.acroform_name = neu;
     wrapper.setAttribute("data-acroform", neu);
   });
-  acroInp.addEventListener("focus", () => setLinkFokus(acroInp));
+  acroInp.addEventListener("focus", () => { acroInp.classList.remove("acro-vorschlag"); setLinkFokus(acroInp); });
   acroInp.addEventListener("blur", () => {
     // Kurze Verzögerung damit PDF-Rect-Click noch feuern kann
     setTimeout(() => { if (fokussiertesAcroInput === acroInp) setLinkFokus(null); }, 250);

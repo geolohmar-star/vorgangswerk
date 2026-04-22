@@ -15,6 +15,7 @@ urlpatterns = [
     path("neu/", views.pfad_neu, name="pfad_neu"),
     # Editor
     path("editor/<int:pk>/", views.pfad_editor, name="pfad_editor"),
+    path("editor/<int:pk>/acroform-pruefen/", views.pfad_acroform_pruefen, name="pfad_acroform_pruefen"),
     path("editor/laden/<int:pk>/", views.pfad_editor_laden, name="pfad_editor_laden"),
     path("editor/speichern/", views.pfad_editor_speichern, name="pfad_editor_speichern"),
     path("editor/scanner/", views.pfad_scanner, name="pfad_scanner"),

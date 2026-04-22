@@ -1501,6 +1501,89 @@ def pfad_editor(request, pk=None):
 
 
 @login_required
+def pfad_acroform_pruefen(request, pk):
+    """PDF-Zuordnungs-Prüfung: zeigt PDF-Viewer + acroform_name-Zuordnung für einen Pfad.
+    Liest/schreibt direkt in AntrSchritt.felder_json – unabhängig vom Analyse-Editor.
+    """
+    if not _ist_editor(request.user):
+        messages.error(request, "Kein Zugriff.")
+        return redirect("formulare:pfad_editor", pk=pk)
+
+    pfad = get_object_or_404(AntrPfad, pk=pk)
+
+    # Verknüpfte FormularAnalyse suchen
+    try:
+        from portal.models import FormularAnalyse
+        analyse = (
+            FormularAnalyse.objects
+            .filter(importierter_pfad_pk=pk)
+            .order_by("-erstellt_am")
+            .first()
+        )
+    except Exception:
+        analyse = None
+
+    if not analyse:
+        messages.error(request, "Kein Original-PDF vorhanden – dieser Pfad wurde nicht per KI-Portal importiert.")
+        return redirect("formulare:pfad_editor", pk=pk)
+
+    if request.method == "POST":
+        # Aktualisierte acroform_names aus POST empfangen: {schritt_pk: {feld_id: acroform_name}}
+        import json as _json
+        try:
+            zuordnungen = _json.loads(request.POST.get("zuordnungen", "{}"))
+        except Exception:
+            return JsonResponse({"ok": False, "fehler": "Ungültiges JSON"}, status=400)
+
+        for schritt in pfad.schritte.all():
+            mapping = zuordnungen.get(str(schritt.pk), {})
+            if not mapping:
+                continue
+            felder = schritt.felder_json or []
+            geaendert = False
+            for feld in felder:
+                fid = feld.get("id", "")
+                if fid in mapping:
+                    feld["acroform_name"] = mapping[fid]
+                    geaendert = True
+            if geaendert:
+                schritt.felder_json = felder
+                schritt.save(update_fields=["felder_json"])
+
+        return JsonResponse({"ok": True})
+
+    # Schritte + Felder für Template aufbereiten
+    schritte_daten = []
+    for schritt in pfad.schritte.order_by("pos_y", "pos_x"):
+        felder = [
+            {
+                "id": f.get("id", ""),
+                "label": f.get("label", f.get("id", "")),
+                "typ": f.get("typ", "text"),
+                "acroform_name": f.get("acroform_name", ""),
+            }
+            for f in (schritt.felder_json or [])
+            if f.get("id")
+        ]
+        if felder:
+            schritte_daten.append({
+                "pk": schritt.pk,
+                "titel": schritt.titel or f"Schritt {schritt.pk}",
+                "felder": felder,
+            })
+
+    import json as _json
+    return render(request, "formulare/pfad_acroform_pruefen.html", {
+        "pfad": pfad,
+        "analyse": analyse,
+        "schritte_json": _json.dumps(schritte_daten, ensure_ascii=False),
+        "felder_json_url": f"/portal/analyse/{analyse.pk}/felder.json",
+        "seite_png_url_tmpl": f"/portal/analyse/{analyse.pk}/seite/{{n}}.png",
+        "diagnose_pdf_url": f"/portal/analyse/{analyse.pk}/diagnose-pdf/",
+    })
+
+
+@login_required
 def pfad_editor_laden(request, pk):
     """GET: Gibt Pfad-Daten als JSON fuer den Editor zurueck."""
     pfad = get_object_or_404(AntrPfad, pk=pk)

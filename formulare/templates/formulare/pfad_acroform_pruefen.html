@@ -1,0 +1,290 @@
+{% extends "formulare/base.html" %}
+{% block title %}PDF-Zuordnung prüfen – {{ pfad.name }}{% endblock %}
+
+{% block extra_css %}
+<style>
+.pruef-layout { display: flex; gap: 0; height: calc(100vh - 56px); overflow: hidden; }
+.pdf-panel {
+  width: 45%; min-width: 320px; background: #e9ecef;
+  overflow-y: auto; overflow-x: auto;
+  border-right: 2px solid #dee2e6; flex-shrink: 0;
+}
+.editor-panel { flex: 1; overflow-y: auto; padding: 1rem 1.25rem; }
+
+.pdf-seite-wrap { position: relative; margin: .75rem auto; max-width: 98%;
+  box-shadow: 0 2px 8px rgba(0,0,0,.25); background: #fff; }
+.pdf-seite-wrap img { display: block; width: 100%; }
+.pdf-overlay { position: absolute; top:0; left:0; width:100%; height:100%; pointer-events:none; }
+.pdf-overlay rect {
+  fill: rgba(13,110,253,.1); stroke: rgba(13,110,253,.5);
+  stroke-width: 1.5; cursor: crosshair; pointer-events: all; transition: fill .15s;
+}
+.pdf-overlay rect:hover { fill: rgba(255,165,0,.3); stroke: rgba(200,100,0,.9); }
+.pdf-overlay rect.aktiv { fill: rgba(0,200,0,.3); stroke: rgba(0,150,0,.9); stroke-width:2.5; }
+.pdf-overlay rect.highlight { fill: rgba(255,230,0,.4); stroke: rgba(180,130,0,.9); stroke-width:2; }
+.pdf-overlay text { font-size:9px; fill:#084298; pointer-events:none; dominant-baseline:hanging; }
+.seite-nr { text-align:center; font-size:.7rem; color:#6c757d; padding:.2rem 0 .4rem; }
+
+.schritt-card { border:1px solid #dee2e6; border-radius:8px; margin-bottom:.75rem; }
+.schritt-header { background:#f8f9fa; border-radius:8px 8px 0 0; padding:.5rem 1rem;
+  font-weight:600; font-size:.85rem; border-bottom:1px solid #dee2e6; }
+.schritt-body { padding:.5rem .75rem; }
+.feld-row { display:grid; grid-template-columns: 1.5fr 2fr 5rem; gap:.4rem;
+  align-items:center; padding:.3rem 0; border-bottom:1px solid #f0f0f0; }
+.feld-row:last-child { border-bottom:none; }
+.feld-row-hdr { display:grid; grid-template-columns:1.5fr 2fr 5rem; gap:.4rem;
+  font-size:.7rem; font-weight:600; text-transform:uppercase; color:#6c757d;
+  border-bottom:2px solid #dee2e6; padding:.2rem 0; margin-bottom:.25rem; }
+.acro-inp { font-family:monospace; font-size:.72rem; background:#f0f4ff;
+  border:1px solid #b8caff; color:#084298; border-radius:4px; padding:2px 5px; }
+.acro-inp.fokus { background:#fff3cd !important; border-color:#ff8c00 !important;
+  box-shadow:0 0 0 2px rgba(255,140,0,.3) !important; outline:none; }
+.acro-inp.vorschlag { background:#fffbe6 !important; border-color:#ffd666 !important; border-style:dashed !important; }
+.feld-row.highlight { background:#fff9e6; border-radius:4px; }
+#link-hinweis { background:#fff3cd; border-bottom:2px solid #ff8c00;
+  color:#7a4700; font-size:.78rem; text-align:center; padding:3px 8px;
+  font-weight:600; display:none; position:sticky; top:40px; z-index:9; }
+.toolbar { position:sticky; top:0; z-index:10; background:#fff;
+  border-bottom:1px solid #dee2e6; padding:4px 8px;
+  display:flex; align-items:center; gap:6px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="pruef-layout">
+
+  <!-- PDF links -->
+  <div class="pdf-panel" id="pdf-panel">
+    <div class="toolbar">
+      <span class="small fw-semibold text-truncate" style="max-width:160px" title="{{ analyse.dateiname }}">{{ analyse.dateiname }}</span>
+      <div class="d-flex align-items-center gap-1 ms-auto">
+        <button type="button" class="btn btn-outline-secondary btn-sm px-2" id="zoom-out">&#8722;</button>
+        <span id="zoom-label" class="small" style="min-width:3rem;text-align:center;">100%</span>
+        <button type="button" class="btn btn-outline-secondary btn-sm px-2" id="zoom-in">&#43;</button>
+        <button type="button" class="btn btn-outline-secondary btn-sm px-2" id="zoom-reset">&#8634;</button>
+        <a href="{{ diagnose_pdf_url }}" target="_blank" class="btn btn-outline-secondary btn-sm ms-1">&#128196; Diagnose</a>
+      </div>
+    </div>
+    <div id="link-hinweis">&#8594; Klick auf PDF-Feld um es zuzuweisen</div>
+    <div id="pdf-container">
+      <div class="text-center text-muted small py-4" id="pdf-ladehinweis">&#8987; PDF wird geladen…</div>
+    </div>
+  </div>
+
+  <!-- Felder rechts -->
+  <div class="editor-panel">
+    <div class="d-flex align-items-center justify-content-between mb-3">
+      <div>
+        <h6 class="fw-semibold mb-0">PDF-Zuordnung – {{ pfad.name }}</h6>
+        <small class="text-muted">AcroForm-Feld anklicken → dann PDF-Feld anklicken.</small>
+      </div>
+      <div class="d-flex gap-2">
+        <button id="speichern-btn" class="btn btn-primary btn-sm">&#10003; Speichern</button>
+        <a href="{% url 'formulare:pfad_editor' pfad.pk %}" class="btn btn-outline-secondary btn-sm">Zurück zum Editor</a>
+      </div>
+    </div>
+    <div id="speichern-info" class="alert alert-success py-1 small mb-2" style="display:none">Gespeichert.</div>
+    <div id="schritte-container"></div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const SCHRITTE   = {{ schritte_json|safe }};
+const FELDER_URL = "{{ felder_json_url }}";
+const SEITE_TMPL = "{{ seite_png_url_tmpl }}";
+const SAVE_URL   = "{% url 'formulare:pfad_acroform_pruefen' pfad.pk %}";
+const CSRF       = "{{ csrf_token }}";
+
+let pdfFelder = [], pdfSeiten = [], sortiert = [];
+const acroRects = {};
+let fokus = null;
+
+// ---- Linking ----
+function setFokus(inp) {
+  if (fokus && fokus !== inp) fokus.classList.remove("fokus");
+  fokus = inp;
+  const panel = document.getElementById("pdf-panel");
+  const hint  = document.getElementById("link-hinweis");
+  if (inp) { panel.classList.add("link-modus"); hint.style.display = ""; inp.classList.add("fokus"); }
+  else      { panel.classList.remove("link-modus"); hint.style.display = "none"; }
+}
+
+function setWert(inp, name) {
+  inp.value = name;
+  inp.dataset.acroform = name;
+  const row = inp.closest("[data-acroform-row]");
+  if (row) row.setAttribute("data-acroform", name);
+}
+
+function weise(name) {
+  if (!fokus) return false;
+  const inp = fokus;
+  inp.classList.remove("vorschlag");
+  setWert(inp, name);
+
+  const idx = sortiert.findIndex(f => f.name === name);
+  const next = idx >= 0 && idx < sortiert.length - 1 ? sortiert[idx + 1] : null;
+
+  setFokus(null);
+
+  const alle = [...document.querySelectorAll(".acro-inp")];
+  const i = alle.indexOf(inp);
+  const nextInp = i >= 0 && i < alle.length - 1 ? alle[i + 1] : null;
+  if (nextInp) {
+    if (next) { setWert(nextInp, next.name); nextInp.classList.add("vorschlag"); }
+    nextInp.focus();
+  }
+  // Rect kurz aufleuchten
+  (acroRects[name] || []).forEach(r => {
+    r.classList.add("aktiv"); setTimeout(() => r.classList.remove("aktiv"), 600);
+  });
+  return true;
+}
+
+function hoverPdf(name, an) {
+  (acroRects[name] || []).forEach(r => an ? r.classList.add("highlight") : r.classList.remove("highlight"));
+}
+
+// ---- PDF-Viewer ----
+function buildSortiert() {
+  sortiert = [...pdfFelder].sort((a, b) => {
+    if (a.seite !== b.seite) return a.seite - b.seite;
+    if (Math.abs(b.y2 - a.y2) > 4) return b.y2 - a.y2;
+    return a.x1 - b.x1;
+  });
+}
+
+function scrollZuFeld(name) {
+  const row = document.querySelector(`[data-acroform="${CSS.escape(name)}"]`);
+  if (row) { row.classList.add("highlight"); row.scrollIntoView({ behavior:"smooth", block:"nearest" }); setTimeout(() => row.classList.remove("highlight"), 1200); }
+}
+
+async function ladePdf() {
+  try {
+    const r = await fetch(FELDER_URL);
+    const d = await r.json();
+    pdfFelder = d.felder || []; pdfSeiten = d.seiten || [];
+  } catch { document.getElementById("pdf-ladehinweis").textContent = "PDF-Felder konnten nicht geladen werden."; return; }
+
+  buildSortiert();
+  const ns = "http://www.w3.org/2000/svg";
+  const container = document.getElementById("pdf-container");
+  container.innerHTML = "";
+
+  for (let s = 1; s <= pdfSeiten.length; s++) {
+    const dim = pdfSeiten[s-1] || { breite:595, hoehe:842 };
+    const felder = pdfFelder.filter(f => f.seite === s);
+    const wrap = document.createElement("div"); wrap.className = "pdf-seite-wrap";
+    const img = document.createElement("img"); img.src = SEITE_TMPL.replace("{n}", s); img.alt = `Seite ${s}`;
+    const svg = document.createElementNS(ns, "svg");
+    svg.setAttribute("class", "pdf-overlay");
+    svg.setAttribute("viewBox", `0 0 ${dim.breite} ${dim.hoehe}`);
+    svg.setAttribute("preserveAspectRatio", "none");
+
+    for (const f of felder) {
+      const x = f.x1 / dim.breite * dim.breite;
+      const y = (dim.hoehe - f.y2) / dim.hoehe * dim.hoehe;
+      const w = (f.x2 - f.x1) / dim.breite * dim.breite;
+      const h = (f.y2 - f.y1) / dim.hoehe * dim.hoehe;
+      const rect = document.createElementNS(ns, "rect");
+      rect.setAttribute("x", x); rect.setAttribute("y", y);
+      rect.setAttribute("width", w); rect.setAttribute("height", h);
+      rect.title = f.name;
+      rect.addEventListener("click", () => { if (!weise(f.name)) scrollZuFeld(f.name); });
+      rect.addEventListener("mouseenter", () => hoverPdf(f.name, true));
+      rect.addEventListener("mouseleave", () => hoverPdf(f.name, false));
+      svg.appendChild(rect);
+      if (!acroRects[f.name]) acroRects[f.name] = [];
+      acroRects[f.name].push(rect);
+      const txt = document.createElementNS(ns, "text");
+      txt.setAttribute("x", x+2); txt.setAttribute("y", y+1); txt.textContent = f.name;
+      svg.appendChild(txt);
+    }
+    wrap.append(img, svg);
+    const nr = document.createElement("div"); nr.className = "seite-nr"; nr.textContent = `Seite ${s}`;
+    container.append(nr, wrap);
+  }
+  document.getElementById("pdf-ladehinweis")?.remove();
+}
+
+// ---- Editor aufbauen ----
+function el(tag, attrs={}, ...kids) {
+  const e = document.createElement(tag);
+  for (const [k,v] of Object.entries(attrs)) {
+    if (k==="class") e.className=v;
+    else e.setAttribute(k,v);
+  }
+  kids.forEach(k => k != null && e.append(typeof k==="string" ? document.createTextNode(k) : k));
+  return e;
+}
+
+function buildEditor() {
+  const container = document.getElementById("schritte-container");
+  for (const schritt of SCHRITTE) {
+    const card = el("div", { class:"schritt-card" });
+    card.append(el("div", { class:"schritt-header" }, schritt.titel));
+    const body = el("div", { class:"schritt-body" });
+    const hdr = el("div", { class:"feld-row-hdr" });
+    hdr.append(el("span",{},"Feld-ID"), el("span",{},"Beschriftung"), el("span",{title:"AcroForm-Feldname"},"AcroForm"));
+    body.append(hdr);
+    for (const feld of schritt.felder) {
+      const row = el("div", { class:"feld-row", "data-acroform-row":"", "data-acroform": feld.acroform_name || "" });
+      row.append(
+        el("div", { class:"small text-muted text-truncate", title:feld.id }, feld.id),
+        el("div", { class:"small text-truncate" }, feld.label),
+      );
+      const inp = el("input", {
+        type:"text", class:"acro-inp form-control form-control-sm",
+        value: feld.acroform_name || "",
+        "data-schritt": schritt.pk,
+        "data-feld": feld.id,
+        placeholder:"–",
+      });
+      inp.addEventListener("focus", () => { inp.classList.remove("vorschlag"); setFokus(inp); });
+      inp.addEventListener("blur", () => setTimeout(() => { if (fokus===inp) setFokus(null); }, 250));
+      inp.addEventListener("input", () => { row.setAttribute("data-acroform", inp.value.trim()); inp.dataset.acroform = inp.value.trim(); });
+      row.append(inp);
+      // Hover
+      row.addEventListener("mouseenter", () => { const n=row.dataset.acroform; if(n) hoverPdf(n,true); });
+      row.addEventListener("mouseleave", () => { const n=row.dataset.acroform; if(n) hoverPdf(n,false); });
+      body.append(row);
+    }
+    card.append(body);
+    container.append(card);
+  }
+}
+
+// ---- Speichern ----
+document.getElementById("speichern-btn").addEventListener("click", async () => {
+  const zuordnungen = {};
+  document.querySelectorAll(".acro-inp").forEach(inp => {
+    const s = inp.dataset.schritt, f = inp.dataset.feld;
+    if (!zuordnungen[s]) zuordnungen[s] = {};
+    zuordnungen[s][f] = inp.value.trim();
+  });
+  const fd = new FormData();
+  fd.append("zuordnungen", JSON.stringify(zuordnungen));
+  fd.append("csrfmiddlewaretoken", CSRF);
+  const r = await fetch(SAVE_URL, { method:"POST", body:fd });
+  const info = document.getElementById("speichern-info");
+  if ((await r.json()).ok) {
+    info.style.display = ""; setTimeout(() => info.style.display = "none", 2500);
+  }
+});
+
+// ---- Zoom ----
+(function(){
+  const STUFEN=[50,75,100,125,150,175,200,250,300]; let idx=2;
+  function apply(){ const p=STUFEN[idx]; document.getElementById("zoom-label").textContent=p+"%";
+    const c=document.getElementById("pdf-container"); c.style.width=p===100?"":p+"%"; c.style.minWidth=p<100?"":p+"%"; }
+  document.getElementById("zoom-in").onclick=()=>{if(idx<STUFEN.length-1){idx++;apply();}};
+  document.getElementById("zoom-out").onclick=()=>{if(idx>0){idx--;apply();}};
+  document.getElementById("zoom-reset").onclick=()=>{idx=2;apply();};
+})();
+
+buildEditor();
+ladePdf();
+</script>
+{% endblock %}

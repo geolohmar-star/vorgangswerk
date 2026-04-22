@@ -208,7 +208,7 @@ Farbcode:
 - **TÜRKIS/CYAN** (türkiser Hintergrund, dunkle Schrift) → AUTOFILL-Marker
 - **GELB** (gelber Hintergrund, schwarze Schrift) → SPLIT-Marker: kombiniertes Feld in separate Einzelfelder aufteilen
 - **VIOLETT/LILA** (violetter/lilaner Hintergrund, weiße oder dunkle Schrift) → ZEIGE_WENN-Marker: Feld nur einblenden wenn Bedingung erfüllt
-- **BRAUN** (brauner/dunkelorangener Hintergrund, weiße oder dunkle Schrift) → BERECHNUNG-Marker, **aber nur wenn der Marker-Text ein `=` enthält** (z.B. `summanden = summe`, `a + b = c`). Enthält der braune Marker kein `=`, handelt es sich um eine visuelle Gruppenmarkierung – behandle die eingeschlossenen Felder je nach Kontext (wiederholende Zeilen → Loop, statische Gruppe → normale Felder).
+- **BRAUN** (brauner/dunkelorangener Hintergrund, weiße oder dunkle Schrift) → BERECHNUNG-Marker in zwei Varianten: (1) Marker-Text enthält `=` (z.B. `summanden = summe`) → explizite Formel. (2) Marker-Text enthält ein Summen-Schlüsselwort wie `Summe`, `Gesamt`, `Total`, `Summe EUR`, `Gesamtbetrag` ohne `=` → erzeuge ein `berechnung`-Feld das alle Zahlenfelder im selben Schritt/Kontext addiert. Enthält der braune Marker weder `=` noch ein Summen-Schlüsselwort, handelt es sich um eine visuelle Gruppenmarkierung – behandle die eingeschlossenen Felder je nach Kontext.
 
 ### LOOP-Marker (blauer Rahmen oder blaue Fläche)
 Erkennst du einen blauen Rahmen oder eine blaue Fläche um einen Bereich, ist das immer ein LOOP-Marker – egal ob der Text mit "LOOP:" beginnt oder nicht.
@@ -303,8 +303,12 @@ Typisches Muster:
 
 Auch ohne orangen Marker: Siehst du im PDF eine typische Ja/Nein-Frage gefolgt von einem Feld das nur bei "ja" relevant ist (z.B. "Falls ja, tragen Sie bitte ein:"), setze `zeige_wenn` automatisch.
 
-### BERECHNUNG-Marker (brauner/dunkelorangener Rahmen oder Fläche mit `=` im Text)
-Erkennst du einen braunen Marker **der ein `=` im Text enthält**, erzeuge ein `berechnung`-Feld. Enthält der braune Marker kein `=`, ignoriere ihn als BERECHNUNG-Signal und lies die eingeschlossenen Felder normal aus (wiederholende Zeilen → Loop, sonstige → `zahl` oder passender Typ).
+### BERECHNUNG-Marker (brauner/dunkelorangener Rahmen oder Fläche)
+Erkennst du einen braunen Marker, erzeuge ein `berechnung`-Feld wenn einer dieser Fälle zutrifft:
+- **Mit `=`:** explizite Formel (z.B. `summanden = summe`, `a - b = c`)
+- **Mit Summen-Schlüsselwort** (`Summe`, `Gesamt`, `Total`, `Gesamtbetrag`, `Summe EUR` o.ä.) ohne `=`: erzeuge ein Additionsfeld das alle `zahl`-Felder im Kontext (gleicher Schritt oder sichtbar umschlossen) summiert; `formel = "feld1 + feld2 + ..."`, `id` = sinnvoller Bezeichner (z.B. `summe_brutto`), label = Text des Markers.
+
+Enthält der braune Marker weder `=` noch ein Summen-Schlüsselwort: visuelle Gruppenmarkierung, Felder normal auslesen.
 Die Notation im Marker bestimmt die Operation:
 
 **Syntax:** `ausdruck = ergebnis_id`
@@ -391,6 +395,7 @@ Erstelle eine JSON-Pfad-Definition mit exakt dieser Struktur:
 - "pdf_ausblenden": true – Feld erscheint nicht in der PDF-Zusammenfassung (z.B. Loop-Steuerungsfelder wie "Weiteres Kind?")
 - "vorausgefuellt": "{{variable}}" – Feld wird automatisch aus einer anderen Feldvariablen vorbelegt (Nutzer kann ändern); nur setzen wenn türkiser AUTOFILL-Marker vorhanden
 - "acroform_name": "OriginalFeldname" – AcroForm-Feldname aus dem Original-PDF (exakt wie in der Liste oben); leer lassen wenn kein passendes AcroForm-Feld vorhanden
+- "acroform_name": "Feld1,Feld2,Feld3" – **Zeichen-Split**: Siehst du mehrere nebeneinanderliegende Einzelkästchen die zusammen einen Wert ergeben (z.B. Wohngeld-Nummer, Steuernummer, IBAN-Ziffern, Aktenzeichen), fasse sie als EIN Formularfeld zusammen und trage alle AcroForm-Feldnamen kommagetrennt ein. Beim Ausfüllen wird der eingegebene Wert zeichenweise auf die Kästchen verteilt. Beispiel: Wohngeld-Nummer mit 6 Kästchen (AcroForm-Namen „1","2","3","4","5","6") → `"acroform_name": "1,2,3,4,5,6"`. **Wichtig:** Diese Kästchen zählen als EIN Formularfeld, nicht als sechs – die AcroForm-Feldliste enthält sie trotzdem, sie sind aber keine eigenen Formularfelder im digitalen Prozess.
 - "acroform_name": "loop:Slot1,Slot2,Slot3" – für Loop-Felder: kommagetrennte Liste der AcroForm-Feldnamen je Iteration (Iteration 1→Slot1, 2→Slot2, …). Einträge über die Slot-Anzahl hinaus landen automatisch auf einem Beiblatt. Erkennst du im PDF mehrere gleichartige Feldgruppen (z.B. „Kind 1 Vorname", „Kind 2 Vorname", „Kind 3 Vorname"), trage alle als loop:-Liste ein.
 
 ## Quiz-Erkennung

@@ -66,6 +66,10 @@ html, body { overflow: hidden; height: 100%; }
                class="btn btn-sm btn-outline-primary" target="_blank">&#9707; Blockansicht</a>
             {% endif %}
             {% if pfad %}
+            <a href="{% url 'formulare:pfad_acroform_pruefen' pfad.pk %}"
+               class="btn btn-sm btn-outline-info" title="PDF-Feldzuordnung prüfen und anpassen">&#128462; PDF-Zuordnung</a>
+            {% endif %}
+            {% if pfad %}
             <button id="btn-versionen" class="btn btn-sm btn-outline-secondary" title="Versionshistorie">&#128336; Versionen</button>
             {% endif %}
             {% if pfad %}
