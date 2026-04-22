@@ -90,7 +90,8 @@
                 {% if feld.versteckt %}
                 {% if feld.typ == "berechnung" %}
                 <input type="hidden" name="{{ feld.id }}" id="berechnung-hidden-{{ feld.id }}"
-                       data-berechnung-id="{{ feld.id }}" data-formel="{{ feld.formel }}">
+                       data-berechnung-id="{{ feld.id }}" data-formel="{{ feld.formel }}"
+                       value="{{ vorwerte|get_item:feld.id }}">
                 {% else %}
                 <input type="hidden" name="{{ feld.id }}" value="{{ vorwerte|get_item:feld.id }}">
                 {% endif %}
@@ -396,12 +397,15 @@
                     <label class="form-label fw-semibold text-muted">{{ label }}</label>
                     <div class="input-group">
                         <input type="text" class="form-control bg-light fw-semibold"
-                               id="berechnung-{{ id }}" readonly placeholder="wird berechnet …"
+                               id="berechnung-{{ id }}" readonly
+                               placeholder="wird berechnet …"
+                               value="{{ vorwerte|get_item:id }}"
                                data-berechnung-id="{{ id }}"
                                data-formel="{{ feld.formel }}">
                         {% if feld.einheit %}<span class="input-group-text">{{ feld.einheit }}</span>{% endif %}
                     </div>
-                    <input type="hidden" name="{{ id }}" id="berechnung-hidden-{{ id }}">
+                    <input type="hidden" name="{{ id }}" id="berechnung-hidden-{{ id }}"
+                           value="{{ vorwerte|get_item:id }}">
                 </div>
 
                 {% elif typ == "autofill" %}
@@ -1166,6 +1170,62 @@ function zahlung_demo_bestaetigen(feldId) {
         _aktualisiere();
         document.addEventListener("change", _aktualisiere);
         document.addEventListener("input", _aktualisiere);
+    });
+}());
+</script>
+
+<script>
+// Live-Berechnung für berechnung-Felder
+(function () {
+    "use strict";
+
+    function _feldWertRoh(id) {
+        var el = document.querySelector('[name="' + id + '"]');
+        return el ? el.value.trim() : "";
+    }
+
+    function _quote(v) {
+        if (v === "") return "0";
+        var n = parseFloat(v.replace(",", "."));
+        if (!isNaN(n) && isFinite(n) && String(n) === v.replace(",", ".")) return String(n);
+        return '"' + v.replace(/\\/g, "\\\\").replace(/"/g, '\\"') + '"';
+    }
+
+    function _berechne(formel) {
+        var ausdruck = formel.replace(/\{\{(\w+)\}\}/g, function (_, id) {
+            return _quote(_feldWertRoh(id));
+        });
+        ausdruck = ausdruck.replace(/\b([a-zA-Z_]\w*)\b(?=(?:[^"]*"[^"]*")*[^"]*$)/g, function (_, id) {
+            return _quote(_feldWertRoh(id));
+        });
+        try {
+            var result = Function('"use strict"; return (' + ausdruck + ')')();
+            if (typeof result === "number" && isFinite(result)) {
+                return result % 1 === 0 ? String(result) : result.toFixed(2);
+            }
+            return String(result);
+        } catch (e) {
+            return "";
+        }
+    }
+
+    function _aktualisiereBerechnung() {
+        document.querySelectorAll("[data-berechnung-id]").forEach(function (hidden) {
+            var id = hidden.dataset.berechnungId;
+            var formel = hidden.dataset.formel || "";
+            if (!formel) return;
+            var wert = _berechne(formel);
+            hidden.value = wert;
+            // Sichtbares Anzeigefeld
+            var anzeige = document.getElementById("berechnung-" + id);
+            if (anzeige) anzeige.value = wert;
+        });
+    }
+
+    document.addEventListener("DOMContentLoaded", function () {
+        _aktualisiereBerechnung();
+        document.addEventListener("input", _aktualisiereBerechnung);
+        document.addEventListener("change", _aktualisiereBerechnung);
     });
 }());
 </script>

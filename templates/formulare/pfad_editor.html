@@ -523,7 +523,7 @@ html, body { overflow: hidden; height: 100%; }
                     <small class="text-muted">
                         Referenziert Feld-IDs mit <code>{{name}}</code>. Operatoren: + - * /
                         <span class="ms-2" data-bs-toggle="tooltip" data-bs-placement="right" data-bs-html="true"
-                              title="&lt;b&gt;Zahlen:&lt;/b&gt; &lt;code&gt;{{betrag_a}} + {{betrag_b}}&lt;/code&gt;&lt;br&gt;&lt;b&gt;Text / Datum verbinden:&lt;/b&gt; &lt;code&gt;{{datum_von}} + &quot; – &quot; + {{datum_bis}}&lt;/code&gt;&lt;br&gt;&lt;br&gt;Tipp: Wenn ein einzelnes PDF-Feld einen Zeitraum enthält (z.B. &lt;em&gt;von … bis&lt;/em&gt;), lege zwei Datumsfelder + dieses Berechnungsfeld an und weise dem Berechnungsfeld den AcroForm-Namen zu. &lt;code&gt;pdf_ausblenden: true&lt;/code&gt; setzen damit es nicht in der Zusammenfassung erscheint."
+                              title="&lt;b&gt;Zahlen addieren:&lt;/b&gt;&lt;br&gt;&lt;code&gt;{{betrag_a}} + {{betrag_b}}&lt;/code&gt;&lt;br&gt;&lt;br&gt;&lt;b&gt;Von–bis Datum in ein PDF-Feld:&lt;/b&gt;&lt;br&gt;&lt;code&gt;{{datum_von}} + &quot; - &quot; + {{datum_bis}}&lt;/code&gt;&lt;br&gt;Ergibt z.B.: &lt;em&gt;01.01.2026 - 31.12.2026&lt;/em&gt;&lt;br&gt;&lt;br&gt;Dazu: Typ = Berechnungsfeld, AcroForm-Name = PDF-Feldname, PDF ausblenden ✓"
                               style="cursor:help;">&#9432;</span>
                     </small>
                 </div>
@@ -1343,26 +1343,18 @@ Was ist die Hauptstadt von Deutschland?;Berlin;München;Hamburg;Köln;Berlin ist
     </div>
 </div>
 
-<!-- Summen-Assistent Modal -->
-<div class="modal fade" id="summen-modal" tabindex="-1">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">&#931; Summenformel erstellen</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                <p class="text-muted small mb-2">Felder auswählen die summiert werden sollen:</p>
-                <div id="summen-felder-liste" class="border rounded p-2" style="max-height:320px;overflow-y:auto;">
-                    <em class="text-muted small">Keine Zahlenfelder gefunden.</em>
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Abbrechen</button>
-                <button type="button" class="btn btn-primary" id="summen-uebernehmen-btn">&#10003; Formel übernehmen</button>
-            </div>
-        </div>
+<!-- Summen-Assistent Panel (inline, kein Modal) -->
+<div id="summen-panel" style="display:none; position:fixed; z-index:9999; background:#fff;
+     border:1px solid #dee2e6; border-radius:8px; box-shadow:0 4px 16px rgba(0,0,0,.15);
+     width:380px; padding:1rem;">
+    <div class="d-flex align-items-center justify-content-between mb-2">
+        <strong class="small">&#931; Felder für Summe auswählen</strong>
+        <button type="button" class="btn-close btn-sm" id="summen-schliessen-btn"></button>
     </div>
+    <div id="summen-felder-liste" class="border rounded p-2 mb-2" style="max-height:280px;overflow-y:auto;">
+        <em class="text-muted small">Keine Zahlenfelder gefunden.</em>
+    </div>
+    <button type="button" class="btn btn-primary btn-sm w-100" id="summen-uebernehmen-btn">&#10003; Formel übernehmen</button>
 </div>
 
 {% endblock %}
@@ -1502,7 +1494,7 @@ document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(el => new bootst
     function getAlleZahlFelder() {
         const felder = [];
         // schritte ist die globale Map aus formulare_editor.js
-        if (typeof schritte === "undefined") return felder;
+        var schritte = window._getEditorSchritte ? window._getEditorSchritte() : {};
         Object.values(schritte).forEach(function (s) {
             (s.felder_json || []).forEach(function (f) {
                 if (ZAHL_TYPEN.has(f.typ) && f.id) {
@@ -1513,31 +1505,49 @@ document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(el => new bootst
         return felder;
     }
 
-    document.getElementById("btn-summen-assistent").addEventListener("click", function () {
-        const liste = document.getElementById("summen-felder-liste");
-        const zahlFelder = getAlleZahlFelder();
+    var summenPanel = document.getElementById("summen-panel");
+
+    function summenPanelSchliessen() { summenPanel.style.display = "none"; }
+
+    document.getElementById("btn-summen-assistent").addEventListener("click", function (e) {
+        e.stopPropagation();
+        var liste = document.getElementById("summen-felder-liste");
+        var zahlFelder = getAlleZahlFelder();
         if (zahlFelder.length === 0) {
             liste.innerHTML = '<em class="text-muted small">Keine Zahlenfelder im Pfad gefunden.</em>';
         } else {
             liste.innerHTML = zahlFelder.map(function (f) {
-                return `<div class="form-check">
-                    <input class="form-check-input summen-cb" type="checkbox" value="${f.id}" id="scb-${f.id}">
-                    <label class="form-check-label small" for="scb-${f.id}">
-                        <code>${f.id}</code> <span class="text-muted">– ${f.label}</span>
-                        <span class="badge bg-light text-secondary border ms-1" style="font-size:.65rem;">${f.schritt}</span>
-                    </label>
-                </div>`;
+                var eid = "scb-" + f.id;
+                return '<div class="form-check">'
+                    + '<input class="form-check-input summen-cb" type="checkbox" value="' + f.id + '" id="' + eid + '">'
+                    + '<label class="form-check-label small" for="' + eid + '">'
+                    + '<code>' + f.id + '</code> <span class="text-muted">&ndash; ' + f.label + '</span>'
+                    + '<span class="badge bg-light text-secondary border ms-1" style="font-size:.65rem;">' + f.schritt + '</span>'
+                    + '</label></div>';
             }).join("");
         }
-        new bootstrap.Modal(document.getElementById("summen-modal")).show();
+        // Panel unter dem Button positionieren
+        var rect = this.getBoundingClientRect();
+        summenPanel.style.top = (rect.bottom + window.scrollY + 4) + "px";
+        summenPanel.style.left = Math.max(8, rect.left + window.scrollX - 200) + "px";
+        summenPanel.style.display = "block";
     });
 
+    document.getElementById("summen-schliessen-btn").addEventListener("click", summenPanelSchliessen);
+
     document.getElementById("summen-uebernehmen-btn").addEventListener("click", function () {
-        const ausgewaehlt = [...document.querySelectorAll(".summen-cb:checked")].map(cb => cb.value);
+        var ausgewaehlt = Array.from(document.querySelectorAll(".summen-cb:checked")).map(function(cb) { return cb.value; });
         if (ausgewaehlt.length === 0) return;
-        const formel = ausgewaehlt.map(id => `{{${id}}}`).join(" + ");
+        var OB = "{" + "{", CB = "}" + "}";
+        var formel = ausgewaehlt.map(function(id) { return OB + id + CB; }).join(" + ");
         document.getElementById("feld-formel").value = formel;
-        bootstrap.Modal.getInstance(document.getElementById("summen-modal")).hide();
+        summenPanelSchliessen();
+    });
+
+    document.addEventListener("click", function(e) {
+        if (!summenPanel.contains(e.target) && e.target.id !== "btn-summen-assistent") {
+            summenPanelSchliessen();
+        }
     });
 })();
 </script>

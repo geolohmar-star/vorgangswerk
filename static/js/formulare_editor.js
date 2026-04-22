@@ -22,6 +22,7 @@
     var edges = null;           // vis.DataSet
 
     var schritte = {};          // node_id → { node_id, titel, felder_json, ist_start, ist_ende }
+    window._getEditorSchritte = function() { return schritte; };
     var transitionen = [];      // [{ id, von, zu, bedingung, label, reihenfolge }]
     var pfadVariablen = {};     // { name: { typ, wert, beschreibung } }
 

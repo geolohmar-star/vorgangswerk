@@ -118,6 +118,27 @@ def _berechne_formel(formel, werte):
     if not formel or not formel.strip():
         return None
 
+    def _summe_loop(feld_id):
+        """Summiert alle Loop-Iterationen eines Feldes: __loop_N__feld_id."""
+        gesamt = 0.0
+        if feld_id in werte and werte[feld_id] not in ("", None):
+            try:
+                gesamt += float(str(werte[feld_id]).replace(",", "."))
+            except (ValueError, TypeError):
+                pass
+        i = 0
+        while True:
+            key = f"__loop_{i}__{feld_id}"
+            if key not in werte:
+                break
+            try:
+                gesamt += float(str(werte[key]).replace(",", "."))
+            except (ValueError, TypeError):
+                pass
+            i += 1
+        result = int(gesamt) if gesamt == int(gesamt) else round(gesamt, 2)
+        return str(result)
+
     def _var_ersetzen(match):
         v = werte.get(match.group(1))
         if v in ("", None):
@@ -125,12 +146,17 @@ def _berechne_formel(formel, werte):
         try:
             return str(float(str(v).replace(",", ".")))
         except (ValueError, TypeError):
-            # Nicht-numerischer Wert (z.B. Datum) → als String-Literal
             escaped = str(v).replace("\\", "\\\\").replace('"', '\\"')
             return f'"{escaped}"'
 
+    # SUMME(feld_id) expandieren bevor andere Substitutionen
+    ausdruck = re.sub(
+        r'SUMME\(\s*(\w+)\s*\)',
+        lambda m: _summe_loop(m.group(1)),
+        formel.replace(";", ","),
+    )
     # {{feld_id}}-Syntax ersetzen
-    ausdruck = re.sub(r"\{\{(\w+)\}\}", _var_ersetzen, formel.replace(";", ","))
+    ausdruck = re.sub(r"\{\{(\w+)\}\}", _var_ersetzen, ausdruck)
     # Bare Feld-IDs ersetzen (z.B. monat_1 + monat_2, erzeugt vom KI-Import)
     ausdruck = re.sub(r"\b([a-zA-Z_]\w*)\b", _var_ersetzen, ausdruck)
     try:
@@ -2392,6 +2418,19 @@ def pfad_schritt(request, sitzung_pk):
         elif _systemwert == "heute":
             import datetime as _dt
             vorwerte_get[_feld_id] = _dt.date.today().isoformat()
+    # Berechnungsfelder vorausberechnen (z.B. SUMME über Loop-Iterationen)
+    _alle_werte_get = _variablen_werte(sitzung.pfad) if sitzung.pfad else {}
+    _alle_werte_get.update(vorwerte_get)
+    for _feld in felder_render:
+        if _feld.get("typ") != "berechnung":
+            continue
+        _feld_id = _feld.get("id")
+        _formel = _feld.get("formel", "")
+        if not _feld_id or not _formel:
+            continue
+        _ergebnis = _berechne_formel(_formel, _alle_werte_get)
+        if _ergebnis is not None:
+            vorwerte_get[_feld_id] = _ergebnis
     return _render_schritt([], vorwerte_get, vorwerte_get)
 
 
@@ -3052,6 +3091,19 @@ def antrag_oeffentlich_schritt(request, sitzung_pk):
         elif _systemwert == "heute":
             import datetime as _dt
             vorwerte_get_pub[_feld_id] = _dt.date.today().isoformat()
+    # Berechnungsfelder vorausberechnen (z.B. SUMME über Loop-Iterationen)
+    _alle_werte_pub = _variablen_werte(sitzung.pfad) if sitzung.pfad else {}
+    _alle_werte_pub.update(vorwerte_get_pub)
+    for _feld in felder_render:
+        if _feld.get("typ") != "berechnung":
+            continue
+        _feld_id = _feld.get("id")
+        _formel = _feld.get("formel", "")
+        if not _feld_id or not _formel:
+            continue
+        _ergebnis = _berechne_formel(_formel, _alle_werte_pub)
+        if _ergebnis is not None:
+            vorwerte_get_pub[_feld_id] = _ergebnis
     return _render_pub([], vorwerte_get_pub, vorwerte_get_pub)
 
 

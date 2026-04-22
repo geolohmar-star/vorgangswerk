@@ -11,8 +11,19 @@ Unterstützte acroform_name-Formate:
 """
 import io
 import logging
+import re
+import secrets
 
 logger = logging.getLogger("vorgangswerk.portal")
+
+_ISO_DATUM = re.compile(r"^(\d{4})-(\d{2})-(\d{2})$")
+
+def _format_wert(wert: str) -> str:
+    """Konvertiert ISO-Datum yyyy-mm-dd → dd.mm.yyyy für PDF-Ausgabe."""
+    m = _ISO_DATUM.match(wert)
+    if m:
+        return f"{m.group(3)}.{m.group(2)}.{m.group(1)}"
+    return wert
 
 
 # Werte die als „angehakt" gelten
@@ -74,6 +85,29 @@ def _checkbox_on_states(pdf_bytes: bytes) -> dict[str, str]:
 
     logger.debug("_checkbox_on_states: %d Checkbox-Felder gefunden", len(result))
     return result
+
+
+def _flatten_pdf(pdf_bytes: bytes, dpi: int = 150) -> bytes:
+    """Rendert jede Seite als Bild → neues PDF ohne editierbare Felder."""
+    try:
+        from pdf2image import convert_from_bytes
+        from pypdf import PdfWriter as _PdfWriter
+        from PIL import Image as _Image
+
+        bilder = convert_from_bytes(pdf_bytes, dpi=dpi)
+        writer = _PdfWriter()
+        for bild in bilder:
+            img_buf = io.BytesIO()
+            bild.save(img_buf, format="PDF", resolution=dpi)
+            img_buf.seek(0)
+            from pypdf import PdfReader as _PdfReader
+            writer.append(_PdfReader(img_buf))
+        out = io.BytesIO()
+        writer.write(out)
+        return out.getvalue()
+    except Exception as exc:
+        logger.warning("_flatten_pdf fehlgeschlagen, original zurückgegeben: %s", exc)
+        return pdf_bytes
 
 
 def _merge_pdfs(pdf1: bytes, pdf2: bytes) -> bytes:
@@ -236,10 +270,9 @@ def fuelle_acroform(
     for k, v in field_map.items():
         joined = " ".join(v).strip()
         if k in on_states:
-            # Checkbox: truthy → on-state-Wert (z.B. "/Yes"), sonst "/Off"
             final_map[k] = on_states[k] if joined.lower() in _TRUTHY else "/Off"
         else:
-            final_map[k] = joined
+            final_map[k] = _format_wert(joined)
 
     if not final_map:
         logger.warning("fuelle_acroform: keine Zuordnungen – PDF unverändert")
@@ -260,7 +293,7 @@ def fuelle_acroform(
 
     buf = io.BytesIO()
     writer.write(buf)
-    filled_bytes = buf.getvalue()
+    filled_bytes = _flatten_pdf(buf.getvalue())
 
     # Beiblatt anhängen wenn Overflow vorhanden
     if overflow_eintraege:
