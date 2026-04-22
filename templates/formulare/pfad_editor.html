@@ -71,7 +71,7 @@ html, body { overflow: hidden; height: 100%; }
             &#9641; URL / Einbetten
         </button>
         {% endif %}
-        <div class="ms-auto d-flex gap-2">
+        <div class="ms-auto d-flex gap-2 align-items-center">
             {% if user.is_staff %}
             <button id="btn-pdf-scanner" class="btn btn-sm btn-outline-secondary"
                     title="AcroForm-Felder aus einer PDF-Datei als Pfad importieren">
@@ -83,12 +83,17 @@ html, body { overflow: hidden; height: 100%; }
             </button>
             {% endif %}
             {% if pfad %}
-            <a id="btn-blockansicht" href="{% url 'formulare:pfad_blockansicht' pfad.pk %}"
-               class="btn btn-sm btn-outline-primary" target="_blank">&#9707; Blockansicht</a>
-            {% endif %}
-            {% if pfad %}
-            <button id="btn-versionen" class="btn btn-sm btn-outline-secondary"
-                    title="Versionshistorie">&#128336; Versionen</button>
+            <div class="dropdown">
+                <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                    &#8942; Mehr
+                </button>
+                <ul class="dropdown-menu dropdown-menu-end">
+                    <li><a class="dropdown-item" href="{% url 'formulare:pfad_acroform_pruefen' pfad.pk %}">&#128462; PDF-Zuordnung prüfen</a></li>
+                    <li><a class="dropdown-item" href="{% url 'formulare:pfad_blockansicht' pfad.pk %}" target="_blank">&#9707; Blockansicht</a></li>
+                    <li><hr class="dropdown-divider"></li>
+                    <li><button class="dropdown-item" id="btn-versionen">&#128336; Versionen</button></li>
+                </ul>
+            </div>
             {% endif %}
             <button id="btn-variablen" class="btn btn-sm btn-outline-warning"
                     data-bs-toggle="modal" data-bs-target="#variablen-modal"
@@ -508,9 +513,19 @@ html, body { overflow: hidden; height: 100%; }
                             <em class="text-muted small">Noch keine Variablen definiert.</em>
                         </span>
                     </div>
-                    <input type="text" class="form-control font-monospace" id="feld-formel"
-                           placeholder="z.B. {{anzahl}} * {{preis}}">
-                    <small class="text-muted">Referenziert Feld-IDs mit <code>{{name}}</code>. Operatoren: + - * /</small>
+                    <div class="input-group">
+                        <input type="text" class="form-control font-monospace" id="feld-formel"
+                               placeholder="z.B. {{anzahl}} * {{preis}}">
+                        <button type="button" class="btn btn-outline-secondary" id="btn-summen-assistent"
+                                data-bs-toggle="tooltip" data-bs-placement="top"
+                                title="Alle Zahlenfelder des Pfades auswählen – die Formel wird automatisch zusammengestellt.">&#931; Summe</button>
+                    </div>
+                    <small class="text-muted">
+                        Referenziert Feld-IDs mit <code>{{name}}</code>. Operatoren: + - * /
+                        <span class="ms-2" data-bs-toggle="tooltip" data-bs-placement="right" data-bs-html="true"
+                              title="&lt;b&gt;Zahlen:&lt;/b&gt; &lt;code&gt;{{betrag_a}} + {{betrag_b}}&lt;/code&gt;&lt;br&gt;&lt;b&gt;Text / Datum verbinden:&lt;/b&gt; &lt;code&gt;{{datum_von}} + &quot; – &quot; + {{datum_bis}}&lt;/code&gt;&lt;br&gt;&lt;br&gt;Tipp: Wenn ein einzelnes PDF-Feld einen Zeitraum enthält (z.B. &lt;em&gt;von … bis&lt;/em&gt;), lege zwei Datumsfelder + dieses Berechnungsfeld an und weise dem Berechnungsfeld den AcroForm-Namen zu. &lt;code&gt;pdf_ausblenden: true&lt;/code&gt; setzen damit es nicht in der Zusammenfassung erscheint."
+                              style="cursor:help;">&#9432;</span>
+                    </small>
                 </div>
 
                 <div class="mb-3" id="einheit-row" style="display:none;">
@@ -1328,6 +1343,28 @@ Was ist die Hauptstadt von Deutschland?;Berlin;München;Hamburg;Köln;Berlin ist
     </div>
 </div>
 
+<!-- Summen-Assistent Modal -->
+<div class="modal fade" id="summen-modal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">&#931; Summenformel erstellen</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-muted small mb-2">Felder auswählen die summiert werden sollen:</p>
+                <div id="summen-felder-liste" class="border rounded p-2" style="max-height:320px;overflow-y:auto;">
+                    <em class="text-muted small">Keine Zahlenfelder gefunden.</em>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Abbrechen</button>
+                <button type="button" class="btn btn-primary" id="summen-uebernehmen-btn">&#10003; Formel übernehmen</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 {% endblock %}
 
 {% block extra_js %}
@@ -1452,6 +1489,55 @@ const BRIEFVORLAGEN = {{ briefvorlagen_json|safe }};
     });
     input.addEventListener("focus", function () {
         if (input.value.trim().length >= 2) input.dispatchEvent(new Event("input"));
+    });
+})();
+
+// Tooltips initialisieren
+document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(el => new bootstrap.Tooltip(el));
+
+// ---- Summen-Assistent ----
+(function () {
+    const ZAHL_TYPEN = new Set(["zahl", "berechnung"]);
+
+    function getAlleZahlFelder() {
+        const felder = [];
+        // schritte ist die globale Map aus formulare_editor.js
+        if (typeof schritte === "undefined") return felder;
+        Object.values(schritte).forEach(function (s) {
+            (s.felder_json || []).forEach(function (f) {
+                if (ZAHL_TYPEN.has(f.typ) && f.id) {
+                    felder.push({ id: f.id, label: f.label || f.id, schritt: s.titel || s.node_id });
+                }
+            });
+        });
+        return felder;
+    }
+
+    document.getElementById("btn-summen-assistent").addEventListener("click", function () {
+        const liste = document.getElementById("summen-felder-liste");
+        const zahlFelder = getAlleZahlFelder();
+        if (zahlFelder.length === 0) {
+            liste.innerHTML = '<em class="text-muted small">Keine Zahlenfelder im Pfad gefunden.</em>';
+        } else {
+            liste.innerHTML = zahlFelder.map(function (f) {
+                return `<div class="form-check">
+                    <input class="form-check-input summen-cb" type="checkbox" value="${f.id}" id="scb-${f.id}">
+                    <label class="form-check-label small" for="scb-${f.id}">
+                        <code>${f.id}</code> <span class="text-muted">– ${f.label}</span>
+                        <span class="badge bg-light text-secondary border ms-1" style="font-size:.65rem;">${f.schritt}</span>
+                    </label>
+                </div>`;
+            }).join("");
+        }
+        new bootstrap.Modal(document.getElementById("summen-modal")).show();
+    });
+
+    document.getElementById("summen-uebernehmen-btn").addEventListener("click", function () {
+        const ausgewaehlt = [...document.querySelectorAll(".summen-cb:checked")].map(cb => cb.value);
+        if (ausgewaehlt.length === 0) return;
+        const formel = ausgewaehlt.map(id => `{{${id}}}`).join(" + ");
+        document.getElementById("feld-formel").value = formel;
+        bootstrap.Modal.getInstance(document.getElementById("summen-modal")).hide();
     });
 })();
 </script>

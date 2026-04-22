@@ -114,32 +114,37 @@ def _ast_eval(node, werte):
 
 
 def _berechne_formel(formel, werte):
-    """Wertet eine Berechnungsformel aus. Gibt int/float oder None zurueck."""
+    """Wertet eine Berechnungsformel aus. Gibt int/float/str oder None zurueck."""
     if not formel or not formel.strip():
         return None
 
-    def _var_zu_zahl(match):
+    def _var_ersetzen(match):
         v = werte.get(match.group(1))
         if v in ("", None):
             return "0"
         try:
             return str(float(str(v).replace(",", ".")))
         except (ValueError, TypeError):
-            return "0"
+            # Nicht-numerischer Wert (z.B. Datum) → als String-Literal
+            escaped = str(v).replace("\\", "\\\\").replace('"', '\\"')
+            return f'"{escaped}"'
 
     # {{feld_id}}-Syntax ersetzen
-    ausdruck = re.sub(r"\{\{(\w+)\}\}", _var_zu_zahl, formel.replace(";", ","))
+    ausdruck = re.sub(r"\{\{(\w+)\}\}", _var_ersetzen, formel.replace(";", ","))
     # Bare Feld-IDs ersetzen (z.B. monat_1 + monat_2, erzeugt vom KI-Import)
-    ausdruck = re.sub(r"\b([a-zA-Z_]\w*)\b", _var_zu_zahl, ausdruck)
+    ausdruck = re.sub(r"\b([a-zA-Z_]\w*)\b", _var_ersetzen, ausdruck)
     try:
         tree = ast.parse(ausdruck, mode="eval")
         ergebnis = _ast_eval(tree.body, {})
         if ergebnis is None:
             return None
-        ergebnis = float(ergebnis)
-        if ergebnis == int(ergebnis):
-            return int(ergebnis)
-        return round(ergebnis, 2)
+        try:
+            ergebnis_f = float(ergebnis)
+            if ergebnis_f == int(ergebnis_f):
+                return int(ergebnis_f)
+            return round(ergebnis_f, 2)
+        except (TypeError, ValueError):
+            return str(ergebnis)
     except Exception:
         return None
 

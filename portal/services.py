@@ -385,7 +385,7 @@ Erstelle eine JSON-Pfad-Definition mit exakt dieser Struktur:
 - textblock: Informationstext (Pflicht: "text": "Hinweistext...")
 - abschnitt: Abschnittsüberschrift (Pflicht: "text": "Überschrift")
 - systemfeld: Internes Steuerungsfeld, nicht vom Nutzer ausfüllbar (Pflicht: "systemwert": "loop_zaehler"). Nur für Loop-Trigger-Schritte.
-- berechnung: Automatisch berechnetes Feld (Pflicht: "formel": "feld_a + feld_b"). Nur bei braunem BERECHNUNG-Marker **mit `=` im Text**. Das Feld ist für den Nutzer nicht editierbar. Felder die auf Papierformularen manuell summiert werden (z.B. „Summe", „Gesamtbetrag") aber kein BERECHNUNG-Marker haben → als `zahl` erfassen, nicht als berechnung.
+- berechnung: Automatisch berechnetes Feld (Pflicht: "formel": "feld_a + feld_b"). Nur bei braunem BERECHNUNG-Marker – entweder **mit `=` im Text** (explizite Formel) oder **mit Summen-Schlüsselwort** (`Summe`, `Gesamt`, `Total`, `Gesamtbetrag` o.ä.) ohne `=` (dann alle `zahl`-Felder im Kontext addieren). Das Feld ist für den Nutzer nicht editierbar. Felder die auf Papierformularen manuell summiert werden aber **keinen** braunen Marker haben → als `zahl` erfassen, nicht als berechnung.
 - zusammenfassung: Zusammenfassung aller Angaben (genau einmal im letzten Schritt)
 - quizfrage: Multiple-Choice-Frage (Pflicht: "antwort_typ": "single"|"multiple", "antworten": [{{"text": "...", "korrekt": true|false}}], optional "erklaerung": "...", "punkte": 1)
 - quizergebnis: Auswertungsfeld (Pflicht: "bewertungsmodell": "prozent", "bestanden_ab": 50) – genau einmal im letzten Schritt statt zusammenfassung

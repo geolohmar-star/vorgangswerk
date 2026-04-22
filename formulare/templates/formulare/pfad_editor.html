@@ -50,7 +50,7 @@ html, body { overflow: hidden; height: 100%; }
             &#9641; URL / Einbetten
         </button>
         {% endif %}
-        <div class="ms-auto d-flex gap-2">
+        <div class="ms-auto d-flex gap-2 align-items-center">
             {% if user.is_staff %}
             <button id="btn-pdf-scanner" class="btn btn-sm btn-outline-secondary" title="AcroForm-Felder aus einer PDF-Datei als Pfad importieren">
                 &#128196; PDF scannen
@@ -62,21 +62,18 @@ html, body { overflow: hidden; height: 100%; }
             </button>
             {% endif %}
             {% if pfad %}
-            <a id="btn-blockansicht" href="{% url 'formulare:pfad_blockansicht' pfad.pk %}"
-               class="btn btn-sm btn-outline-primary" target="_blank">&#9707; Blockansicht</a>
-            {% endif %}
-            {% if pfad %}
-            <a href="{% url 'formulare:pfad_acroform_pruefen' pfad.pk %}"
-               class="btn btn-sm btn-outline-info" title="PDF-Feldzuordnung prüfen und anpassen">&#128462; PDF-Zuordnung</a>
-            {% endif %}
-            {% if pfad %}
-            <button id="btn-versionen" class="btn btn-sm btn-outline-secondary" title="Versionshistorie">&#128336; Versionen</button>
-            {% endif %}
-            {% if pfad %}
-            <a href="{% url 'formulare:pfad_exportieren' pfad.pk %}"
-               class="btn btn-sm btn-outline-secondary" title="Pfad als JSON herunterladen">
-                &#8659; JSON
-            </a>
+            <div class="dropdown">
+                <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                    &#8942; Mehr
+                </button>
+                <ul class="dropdown-menu dropdown-menu-end">
+                    <li><a class="dropdown-item" href="{% url 'formulare:pfad_acroform_pruefen' pfad.pk %}">&#128462; PDF-Zuordnung prüfen</a></li>
+                    <li><a class="dropdown-item" href="{% url 'formulare:pfad_blockansicht' pfad.pk %}" target="_blank">&#9707; Blockansicht</a></li>
+                    <li><hr class="dropdown-divider"></li>
+                    <li><button class="dropdown-item" id="btn-versionen">&#128336; Versionen</button></li>
+                    <li><a class="dropdown-item" href="{% url 'formulare:pfad_exportieren' pfad.pk %}">&#8659; JSON exportieren</a></li>
+                </ul>
+            </div>
             {% endif %}
             <button id="btn-variablen" class="btn btn-sm btn-outline-warning"
                     data-bs-toggle="modal" data-bs-target="#variablen-modal"

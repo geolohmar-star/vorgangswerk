@@ -47,6 +47,8 @@
     </div>
 </nav>
 
+{% block fullwidth_content %}{% endblock %}
+
 <div class="container py-4">
     {% for msg in messages %}
     <div class="alert alert-{% if msg.tags == 'error' %}danger{% else %}{{ msg.tags }}{% endif %} alert-dismissible fade show" role="alert">
