@@ -5,6 +5,8 @@
 [![Lizenz: EUPL-1.2](https://img.shields.io/badge/Lizenz-EUPL--1.2-blue.svg)](LICENSE)
 [![Made in Germany](https://img.shields.io/badge/Made%20in-Germany-black.svg)](https://github.com/geolohmar-star/vorgangswerk)
 [![BITV 2.0](https://img.shields.io/badge/Barrierefreiheit-BITV%202.0-green.svg)](#barrierefreiheit)
+[![FIT-Connect](https://img.shields.io/badge/FIT--Connect-Eingang%20%E2%9C%93%20%7C%20Ausgang%20in%20Entwicklung-orange.svg)](#fit-connect-ozg-kanal--super-app)
+[![BundID](https://img.shields.io/badge/BundID-ready-green.svg)](#bundid-anbindung--bundid-ready)
 
 Vorgangswerk ist eine quelloffene Plattform zur digitalen Bearbeitung von Verwaltungsvorgängen. Antragsformulare, Workflows, Dokumente und Kommunikation – in einer Anwendung, selbst gehostet, OZG-konform.
 
@@ -21,7 +23,7 @@ Vorgangswerk schließt diese Lücke:
 - **Kein Vendor Lock-in** – Open Source unter EUPL-1.2, selbst gehostet, volle Datenkontrolle
 - **Kein IT-Großprojekt** – läuft mit `make pull` in unter einer Minute, ein einziger Docker-Befehl
 - **Für die Praxis gebaut** – Formulare, Workflows, Dokumente und Postfach in einer Anwendung statt vier verschiedenen Systemen
-- **OZG-konform** – BundID-Anbindung (SAML SP), öffentliche Antragsstrecken ohne Login, LeiKa-Schlüssel, FIT-Connect Eingang
+- **OZG-konform** – BundID-Anbindung (SAML SP), öffentliche Antragsstrecken ohne Login, LeiKa-Schlüssel, FIT-Connect Eingang · **FIT-Connect Ausgang in Entwicklung**
 - **Barrierefrei** – BITV 2.0 / WCAG 2.1 AA, gesetzliche Pflichtanforderung für Behördensoftware
 - **Souverän** – kein SaaS, keine Cloud-Abhängigkeit, läuft on-premise oder im eigenen Rechenzentrum
 
@@ -102,6 +104,9 @@ Kommunalverwaltungen, Zweckverbände, kommunale Unternehmen, Behörden auf Lande
 - Workflow-Start, Benachrichtigungs-E-Mails und Audit-Log automatisch nach Eingang
 - **Export** bestehender Anträge als FIT-Connect Submission Payload (`/api/antrag/{nr}/fitconnect/`)
 - Positionierung: Vorgangswerk als **Backend-Fachverfahren** hinter der Super App – kein Widerspruch, sondern Ergänzung
+
+> 🚧 **In Entwicklung: FIT-Connect Ausgang**
+> Abgeschlossene Anträge werden strukturiert und JWE-verschlüsselt per FIT-Connect direkt an das Fachverfahren der Empfangsbehörde übermittelt – kein PDF-Versand per E-Mail, kein Abtippen. OAuth2 Client Credentials, Ende-zu-Ende-Verschlüsselung mit dem öffentlichen JWK der Empfangsbehörde. Testumgebung: `submission-api-testing.fit-connect.fitko.dev`.
 
 ### Core & Administration
 - Benutzerverwaltung mit MFA (TOTP), Brute-Force-Schutz (django-axes)
