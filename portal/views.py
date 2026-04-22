@@ -215,6 +215,18 @@ def upload(request):
             messages.error(request, "Die Datei ist kein gültiges PDF.")
             return redirect(reverse("portal:upload"))
 
+        # Optional: Original-PDF (ohne Marker)
+        original_bytes = None
+        datei_original = request.FILES.get("pdf_original")
+        if datei_original:
+            if not datei_original.name.lower().endswith(".pdf"):
+                messages.error(request, "Original-PDF: nur PDF-Dateien werden akzeptiert.")
+                return redirect(reverse("portal:upload"))
+            original_bytes = datei_original.read()
+            if not original_bytes.startswith(b"%PDF"):
+                messages.error(request, "Original-PDF ist kein gültiges PDF.")
+                return redirect(reverse("portal:upload"))
+
         # Credit abziehen
         if not account.credit_abziehen(1, f"Analyse: {datei.name[:80]}"):
             messages.error(request, "Nicht genug Credits.")
@@ -225,6 +237,7 @@ def upload(request):
             account=account,
             dateiname=datei.name[:255],
             pdf_inhalt=pdf_bytes,
+            pdf_original=original_bytes,
             status=FormularAnalyse.STATUS_WARTEND,
             credits_verbraucht=1,
         )

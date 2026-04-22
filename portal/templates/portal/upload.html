@@ -33,15 +33,34 @@
 
                 <form method="post" enctype="multipart/form-data">
                     {% csrf_token %}
-                    <div class="mb-4">
-                        <label class="form-label fw-semibold">PDF-Formular auswählen</label>
-                        <input type="file" name="pdf_datei" class="form-control" accept=".pdf" required>
-                        <div class="form-text">Maximale Dateigröße: 20 MB. Nur PDF-Dateien.</div>
+
+                    <div class="mb-3 p-3 border rounded" style="border-color:#198754 !important; background:#f0faf4;">
+                        <label class="form-label fw-semibold mb-1">
+                            <span class="badge bg-success me-1">1</span> Original-PDF
+                            <span class="text-muted fw-normal">(ohne Marker)</span>
+                        </label>
+                        <input type="file" name="pdf_original" class="form-control" accept=".pdf">
+                        <div class="form-text">Das unveränderte Originalformular – wird später zum Befüllen verwendet. <strong>Empfohlen, aber optional.</strong></div>
                     </div>
 
-                    <button type="submit" class="btn btn-primary w-100">
-                        Analysieren (1 Credit)
-                    </button>
+                    <div class="mb-4 p-3 border rounded" style="border-color:#0d6efd !important; background:#f0f4ff;">
+                        <label class="form-label fw-semibold mb-1">
+                            <span class="badge bg-primary me-1">2</span> Vorbereitetes PDF
+                            <span class="text-muted fw-normal">(mit Farb-Markern)</span>
+                        </label>
+                        <input type="file" name="pdf_datei" class="form-control" accept=".pdf" required>
+                        <div class="form-text">Das mit Farb-Markern annotierte Formular – wird von der KI analysiert. Maximale Dateigröße: 20 MB.</div>
+                    </div>
+
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-primary flex-grow-1">
+                            Analysieren (1 Credit)
+                        </button>
+                        <a href="https://www.bentopdf.com/index.html" target="_blank" rel="noopener"
+                           class="btn btn-outline-secondary" title="PDF-Marker mit BentoPDF einfügen">
+                            &#128295; BentoPDF
+                        </a>
+                    </div>
                 </form>
                 {% endif %}
             </div>

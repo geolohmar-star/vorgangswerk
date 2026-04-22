@@ -104,45 +104,70 @@ logger = logging.getLogger("vorgangswerk.portal")
 # ---------------------------------------------------------------------------
 
 def _extrahiere_acroform_felder(pdf_bytes: bytes) -> tuple[list[str], int]:
-    """Gibt (acroform_feldnamen, seitenanzahl) zurück. Nur technische Metadaten via pypdf."""
+    """Gibt (acroform_feldnamen, seitenanzahl) zurück.
+
+    Liest den gesamten AcroForm-Feldbaum rekursiv (Parent → /Kids → …),
+    damit hierarchisch verschachtelte Felder nicht verloren gehen.
+    Jeder Eintrag hat das Format  "name [Typ]"  z.B. "7 [Tx]" oder "nein [Btn]".
+    """
     try:
         import pypdf
     except ImportError:
         return [], 0
 
+    gesehen: set[str] = set()
     felder: list[str] = []
+
+    def _walk(nodes):
+        for ref in (nodes or []):
+            try:
+                obj = ref.get_object()
+            except Exception:
+                continue
+
+            name = obj.get("/T")
+            ft   = obj.get("/FT")          # /Tx, /Btn, /Ch, /Sig – nur an Blättern
+            kids = obj.get("/Kids")
+
+            if kids:
+                # Intermediate node: in /Kids weiter suchen
+                _walk(kids)
+                # Intermediate nodes haben manchmal selbst keinen /T
+                if name:
+                    sauber = _sanitize_text(str(name))
+                    if sauber and sauber not in gesehen:
+                        gesehen.add(sauber)
+                        typ = str(ft).lstrip("/") if ft else "Grp"
+                        felder.append(f"{sauber} [{typ}]")
+            else:
+                # Blatt-Feld
+                if not name:
+                    continue
+                sauber = _sanitize_text(str(name))
+                if not sauber or sauber in gesehen:
+                    continue
+                gesehen.add(sauber)
+                typ = str(ft).lstrip("/") if ft else "?"
+                felder.append(f"{sauber} [{typ}]")
 
     try:
         reader = pypdf.PdfReader(io.BytesIO(pdf_bytes))
         seitenanzahl = len(reader.pages)
 
-        # Textfelder
-        for name in (reader.get_form_text_fields() or {}).keys():
-            sauber = _sanitize_text(name)
-            if sauber:
-                felder.append(sauber)
-
-        # Checkboxen, Radio etc.
-        try:
-            annots = reader.trailer.get("/Root", {}).get("/AcroForm", {}).get("/Fields", [])
-            for f in annots:
-                try:
-                    obj = f.get_object()
-                    name = obj.get("/T", "")
-                    if name:
-                        sauber = _sanitize_text(str(name))
-                        if sauber and sauber not in felder:
-                            felder.append(sauber)
-                except Exception:
-                    pass
-        except Exception:
-            pass
+        root_fields = (
+            reader.trailer
+            .get("/Root", {})
+            .get("/AcroForm", {})
+            .get("/Fields", [])
+        )
+        _walk(root_fields)
 
     except Exception as e:
         logger.warning("PDF-Lesefehler (AcroForm): %s", e)
         return [], 0
 
-    return felder[:200], seitenanzahl
+    logger.debug("_extrahiere_acroform_felder: %d Felder gefunden", len(felder))
+    return felder[:300], seitenanzahl
 
 
 def _sanitize_text(text: str) -> str:
@@ -183,7 +208,7 @@ Farbcode:
 - **TÜRKIS/CYAN** (türkiser Hintergrund, dunkle Schrift) → AUTOFILL-Marker
 - **GELB** (gelber Hintergrund, schwarze Schrift) → SPLIT-Marker: kombiniertes Feld in separate Einzelfelder aufteilen
 - **VIOLETT/LILA** (violetter/lilaner Hintergrund, weiße oder dunkle Schrift) → ZEIGE_WENN-Marker: Feld nur einblenden wenn Bedingung erfüllt
-- **BRAUN** (brauner/dunkelorangener Hintergrund, weiße oder dunkle Schrift) → BERECHNUNG-Marker: Summen- oder Rechenfeld automatisch erzeugen
+- **BRAUN** (brauner/dunkelorangener Hintergrund, weiße oder dunkle Schrift) → BERECHNUNG-Marker, **aber nur wenn der Marker-Text ein `=` enthält** (z.B. `summanden = summe`, `a + b = c`). Enthält der braune Marker kein `=`, handelt es sich um eine visuelle Gruppenmarkierung – behandle die eingeschlossenen Felder je nach Kontext (wiederholende Zeilen → Loop, statische Gruppe → normale Felder).
 
 ### LOOP-Marker (blauer Rahmen oder blaue Fläche)
 Erkennst du einen blauen Rahmen oder eine blaue Fläche um einen Bereich, ist das immer ein LOOP-Marker – egal ob der Text mit "LOOP:" beginnt oder nicht.
@@ -278,8 +303,9 @@ Typisches Muster:
 
 Auch ohne orangen Marker: Siehst du im PDF eine typische Ja/Nein-Frage gefolgt von einem Feld das nur bei "ja" relevant ist (z.B. "Falls ja, tragen Sie bitte ein:"), setze `zeige_wenn` automatisch.
 
-### BERECHNUNG-Marker (brauner/dunkelorangener Rahmen oder Fläche)
-Erkennst du einen braunen Marker, erzeuge ein `berechnung`-Feld. Die Notation im Marker bestimmt die Operation:
+### BERECHNUNG-Marker (brauner/dunkelorangener Rahmen oder Fläche mit `=` im Text)
+Erkennst du einen braunen Marker **der ein `=` im Text enthält**, erzeuge ein `berechnung`-Feld. Enthält der braune Marker kein `=`, ignoriere ihn als BERECHNUNG-Signal und lies die eingeschlossenen Felder normal aus (wiederholende Zeilen → Loop, sonstige → `zahl` oder passender Typ).
+Die Notation im Marker bestimmt die Operation:
 
 **Syntax:** `ausdruck = ergebnis_id`
 
@@ -355,7 +381,7 @@ Erstelle eine JSON-Pfad-Definition mit exakt dieser Struktur:
 - textblock: Informationstext (Pflicht: "text": "Hinweistext...")
 - abschnitt: Abschnittsüberschrift (Pflicht: "text": "Überschrift")
 - systemfeld: Internes Steuerungsfeld, nicht vom Nutzer ausfüllbar (Pflicht: "systemwert": "loop_zaehler"). Nur für Loop-Trigger-Schritte.
-- berechnung: Automatisch berechnetes Feld (Pflicht: "formel": "feld_a + feld_b"). Nur bei braunem BERECHNUNG-Marker. Das Feld ist für den Nutzer nicht editierbar und wird live berechnet.
+- berechnung: Automatisch berechnetes Feld (Pflicht: "formel": "feld_a + feld_b"). Nur bei braunem BERECHNUNG-Marker **mit `=` im Text**. Das Feld ist für den Nutzer nicht editierbar. Felder die auf Papierformularen manuell summiert werden (z.B. „Summe", „Gesamtbetrag") aber kein BERECHNUNG-Marker haben → als `zahl` erfassen, nicht als berechnung.
 - zusammenfassung: Zusammenfassung aller Angaben (genau einmal im letzten Schritt)
 - quizfrage: Multiple-Choice-Frage (Pflicht: "antwort_typ": "single"|"multiple", "antworten": [{{"text": "...", "korrekt": true|false}}], optional "erklaerung": "...", "punkte": 1)
 - quizergebnis: Auswertungsfeld (Pflicht: "bewertungsmodell": "prozent", "bestanden_ab": 50) – genau einmal im letzten Schritt statt zusammenfassung
