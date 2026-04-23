@@ -302,3 +302,107 @@ def fuelle_acroform(
         return _merge_pdfs(filled_bytes, beiblatt)
 
     return filled_bytes
+
+
+# ---------------------------------------------------------------------------
+# Koordinaten-Overlay (für Non-AcroForm-PDFs)
+# ---------------------------------------------------------------------------
+
+def fuelle_pdf_overlay(
+    pdf_bytes: bytes,
+    schritte,
+    daten: dict,
+    pfad_name: str = "",
+    vorgangsnummer: str = "",
+    font_size: float = 9,
+    font_bold: bool = False,
+) -> bytes:
+    """Befüllt ein Non-AcroForm-PDF per Koordinaten-Overlay (reportlab + pypdf).
+
+    Liest x_pct / y_pct / seite_nr aus jedem Feld-Dict (aus dem KI-Scan).
+    Felder ohne Koordinaten (x_pct=0 und y_pct=0) werden übersprungen.
+    Gibt das befüllte PDF zurück.
+    """
+    try:
+        from reportlab.pdfgen import canvas as rl_canvas
+        from reportlab.lib.pagesizes import A4
+        from reportlab.pdfbase import pdfmetrics
+        from reportlab.pdfbase.ttfonts import TTFont
+    except ImportError as exc:
+        raise RuntimeError("reportlab nicht installiert – pip install reportlab") from exc
+
+    from pypdf import PdfReader, PdfWriter
+
+    reader = PdfReader(io.BytesIO(pdf_bytes))
+    num_pages = len(reader.pages)
+
+    # Systemwerte automatisch bereitstellen
+    from datetime import date as _date
+    _heute = _date.today().strftime("%d.%m.%Y")
+    _system_werte = {
+        "vorgangsnummer":             vorgangsnummer,
+        "antragsdatum":               _heute,
+        "antragsnummer_zeitstempel":  f"{vorgangsnummer} | {_heute}" if vorgangsnummer else _heute,
+    }
+
+    _SKIP = {"textblock", "abschnitt", "zusammenfassung", "quizergebnis", "signatur", "einwilligung"}
+
+    # Felder pro Seite sammeln
+    felder_pro_seite: dict[int, list[dict]] = {i: [] for i in range(num_pages)}
+    for schritt in schritte:
+        felder_liste = schritt.felder_json if hasattr(schritt, "felder_json") else schritt.get("felder_json", [])
+        for feld in (felder_liste or []):
+            if not isinstance(feld, dict):
+                continue
+            fid = feld.get("id", "")
+            typ = feld.get("typ", "")
+            x_pct = float(feld.get("x_pct") or 0.0)
+            y_pct = float(feld.get("y_pct") or 0.0)
+            seite = int(feld.get("seite_nr") or 0)
+            if not fid or typ in _SKIP:
+                continue
+            if x_pct == 0.0 and y_pct == 0.0:
+                continue
+            if typ == "systemfeld":
+                wert = _system_werte.get(feld.get("systemwert", ""), "")
+            else:
+                wert = str(daten.get(fid, "")).strip()
+            if not wert:
+                continue
+            wert = _format_wert(wert)
+            if seite < num_pages:
+                felder_pro_seite[seite].append({"x_pct": x_pct, "y_pct": y_pct, "wert": wert})
+
+    # Overlay pro Seite erzeugen und einmergen
+    writer = PdfWriter()
+    writer.append(reader)
+
+    for page_idx, eintraege in felder_pro_seite.items():
+        if not eintraege:
+            continue
+        page = writer.pages[page_idx]
+        pw = float(page.mediabox.width)
+        ph = float(page.mediabox.height)
+
+        overlay_buf = io.BytesIO()
+        c = rl_canvas.Canvas(overlay_buf, pagesize=(pw, ph))
+        _font = "Helvetica-Bold" if font_bold else "Helvetica"
+        c.setFont(_font, float(font_size))
+        c.setFillColorRGB(0, 0, 0)
+
+        for entry in eintraege:
+            x_pt = entry["x_pct"] * pw
+            # PDF Y ist von unten; y_pct ist von oben → umrechnen + 3pt Puffer nach oben
+            y_pt = ph - entry["y_pct"] * ph + 3
+            c.drawString(x_pt, y_pt, entry["wert"])
+
+        c.save()
+        overlay_buf.seek(0)
+
+        overlay_reader = PdfReader(overlay_buf)
+        overlay_page = overlay_reader.pages[0]
+        page.merge_page(overlay_page)
+
+    out_buf = io.BytesIO()
+    writer.write(out_buf)
+    return out_buf.getvalue()

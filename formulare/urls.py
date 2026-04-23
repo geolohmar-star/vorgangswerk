@@ -47,6 +47,8 @@ urlpatterns = [
     path("webhooks/<int:pk>/testen/", views.webhook_testen, name="webhook_testen"),
     # Auswertung
     path("auswertung/<int:pk>/", views.pfad_auswertung, name="pfad_auswertung"),
+    # FIT-Connect
+    path("sitzung/<int:pk>/fitconnect/einreichen/", views.fitconnect_einreichen, name="fitconnect_einreichen"),
     # AGS-Lookup
     path("ags/", views.ags_suche, name="ags_suche"),
     # OO-Konvertierung: temporärer Download-Endpunkt für Cache-basierte DOCX-Dateien

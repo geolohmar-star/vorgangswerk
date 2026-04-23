@@ -65,6 +65,13 @@ class AntrPfad(models.Model):
         verbose_name="LeiKa-Schlüssel",
         help_text="14-stellige LeiKa-Leistungsnummer, z.B. 99108018026000 (Hundesteuer-Anmeldung)",
     )
+    fitconnect_destination_id = models.CharField(
+        max_length=100,
+        blank=True,
+        default="",
+        verbose_name="FIT-Connect Destination-ID",
+        help_text="UUID der Empfangsbehörde (aus FITKO-Portal) für automatische OZG-Einreichung",
+    )
     workflow_template = models.ForeignKey(
         "workflow.WorkflowTemplate",
         on_delete=models.SET_NULL,
@@ -258,6 +265,63 @@ class AntrSitzung(models.Model):
         default="",
         verbose_name="Tracking-Token",
         help_text="Token fuer oeffentliche Vorgangs-Verfolgung ohne Login",
+    )
+    bestaetigung_token = models.CharField(
+        max_length=64,
+        blank=True,
+        default="",
+        db_index=True,
+        verbose_name="Bestätigungs-Token",
+    )
+    bestaetigung_email = models.EmailField(
+        null=True,
+        blank=True,
+        verbose_name="Bestätigungs-E-Mail",
+    )
+    bestaetigt_am = models.DateTimeField(
+        null=True,
+        blank=True,
+        verbose_name="Bestätigt am",
+    )
+    bestaetigt_ip = models.GenericIPAddressField(
+        null=True,
+        blank=True,
+        verbose_name="IP bei Bestätigung",
+    )
+    bestaetigung_signatur = models.TextField(
+        blank=True,
+        default="",
+        verbose_name="Unterschrift (SVG/base64)",
+    )
+    bestaetigung_firmenname = models.CharField(
+        max_length=200,
+        blank=True,
+        default="",
+        verbose_name="Firmenname (Bestätigung)",
+    )
+    bestaetigung_kontaktname = models.CharField(
+        max_length=200,
+        blank=True,
+        default="",
+        verbose_name="Unterzeichner Name (Bestätigung)",
+    )
+    bestaetigung_telefon = models.CharField(
+        max_length=50,
+        blank=True,
+        default="",
+        verbose_name="Telefon Rückfrage (Bestätigung)",
+    )
+    fitconnect_submission_id = models.CharField(
+        max_length=100,
+        blank=True,
+        default="",
+        verbose_name="FIT-Connect Submission-ID",
+    )
+    fitconnect_status = models.CharField(
+        max_length=30,
+        blank=True,
+        default="",
+        verbose_name="FIT-Connect Status",
     )
 
     class Meta:

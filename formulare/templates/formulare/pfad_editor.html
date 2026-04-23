@@ -68,6 +68,7 @@ html, body { overflow: hidden; height: 100%; }
                 </button>
                 <ul class="dropdown-menu dropdown-menu-end">
                     <li><a class="dropdown-item" href="{% url 'formulare:pfad_acroform_pruefen' pfad.pk %}">&#128462; PDF-Zuordnung prüfen</a></li>
+                    {% if analyse_pk %}<li><a class="dropdown-item" href="{% url 'portal:analyse_pruefen' analyse_pk %}">&#128269; KI-Analyse &amp; Positionen</a></li>{% endif %}
                     <li><a class="dropdown-item" href="{% url 'formulare:pfad_blockansicht' pfad.pk %}" target="_blank">&#9707; Blockansicht</a></li>
                     <li><hr class="dropdown-divider"></li>
                     <li><button class="dropdown-item" id="btn-versionen">&#128336; Versionen</button></li>
@@ -390,6 +391,11 @@ html, body { overflow: hidden; height: 100%; }
                         </optgroup>
                         <optgroup label="Datum &amp; Zeit">
                             <option value="heute">Heutiges Datum</option>
+                            <option value="antragsdatum">Antragsdatum (PDF-Ausgabe)</option>
+                        </optgroup>
+                        <optgroup label="Vorgang">
+                            <option value="vorgangsnummer">Vorgangsnummer</option>
+                            <option value="antragsnummer_zeitstempel">Vorgangsnummer + Datum</option>
                         </optgroup>
                     </select>
                     <small class="text-muted">Wert wird automatisch gesetzt – kein Nutzereingabe.</small>

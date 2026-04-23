@@ -43,6 +43,9 @@ class FeldDefinition(BaseModel):
     hilfetext: str = ""
     zeige_wenn: str = ""
     acroform_name: str = ""  # AcroForm-Feldname im Original-PDF (für ausgefülltes PDF)
+    x_pct: float = 0.0   # X-Position des Eingabebereichs (0.0=links, 1.0=rechts)
+    y_pct: float = 0.0   # Y-Position des Eingabebereichs (0.0=oben, 1.0=unten)
+    seite_nr: int = 0    # Seitennummer (0-basiert)
 
     model_config = {"extra": "allow"}  # typ-spezifische Felder (optionen, text, ...) durchreichen
 
@@ -395,6 +398,9 @@ Erstelle eine JSON-Pfad-Definition mit exakt dieser Struktur:
 - "pdf_ausblenden": true – Feld erscheint nicht in der PDF-Zusammenfassung (z.B. Loop-Steuerungsfelder wie "Weiteres Kind?")
 - "vorausgefuellt": "{{variable}}" – Feld wird automatisch aus einer anderen Feldvariablen vorbelegt (Nutzer kann ändern); nur setzen wenn türkiser AUTOFILL-Marker vorhanden
 - "acroform_name": "OriginalFeldname" – AcroForm-Feldname aus dem Original-PDF (exakt wie in der Liste oben); leer lassen wenn kein passendes AcroForm-Feld vorhanden
+- "x_pct": 0.14 – **Immer setzen.** Horizontale Position als Anteil der GESAMTEN Seitenbreite inkl. Ränder (0.0=absolut linker Seitenrand, 1.0=absolut rechter Seitenrand). A4-Formulare haben typisch 2–3 cm Rand links → linke Felder beginnen bei x_pct ≈ 0.13–0.16. Rechte Spalte einer Zweiertabelle: x_pct ≈ 0.55–0.60. Nie unter 0.10 für echte Eingabefelder.
+- "y_pct": 0.28 – **Immer setzen.** Vertikale Position als Anteil der GESAMTEN Seitenhöhe inkl. Kopfzeile (0.0=absolut oberer Seitenrand, 1.0=absolut unterer Seitenrand). Messe von der Oberkante der GESAMTEN Seite, nicht vom Textbereich. Zeige auf die Mitte der Eingabefläche (nicht auf den Label darüber). Ein Feld das sich optisch bei 30% der Seite befindet bekommt y_pct=0.30 – auch wenn ein großer Kopfbereich davor steht. Erste Zeile einer Tabelle unter typischer Formular-Kopfzeile: y_pct ≈ 0.28–0.32.
+- "seite_nr": 0 – Seitennummer (0-basiert; erste Seite = 0)
 - "acroform_name": "Feld1,Feld2,Feld3" – **Zeichen-Split**: Siehst du mehrere nebeneinanderliegende Einzelkästchen die zusammen einen Wert ergeben (z.B. Wohngeld-Nummer, Steuernummer, IBAN-Ziffern, Aktenzeichen), fasse sie als EIN Formularfeld zusammen und trage alle AcroForm-Feldnamen kommagetrennt ein. Beim Ausfüllen wird der eingegebene Wert zeichenweise auf die Kästchen verteilt. Beispiel: Wohngeld-Nummer mit 6 Kästchen (AcroForm-Namen „1","2","3","4","5","6") → `"acroform_name": "1,2,3,4,5,6"`. **Wichtig:** Diese Kästchen zählen als EIN Formularfeld, nicht als sechs – die AcroForm-Feldliste enthält sie trotzdem, sie sind aber keine eigenen Formularfelder im digitalen Prozess.
 - "acroform_name": "loop:Slot1,Slot2,Slot3" – für Loop-Felder: kommagetrennte Liste der AcroForm-Feldnamen je Iteration (Iteration 1→Slot1, 2→Slot2, …). Einträge über die Slot-Anzahl hinaus landen automatisch auf einem Beiblatt. Erkennst du im PDF mehrere gleichartige Feldgruppen (z.B. „Kind 1 Vorname", „Kind 2 Vorname", „Kind 3 Vorname"), trage alle als loop:-Liste ein.
 

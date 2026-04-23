@@ -540,6 +540,61 @@ def analyse_importieren(request, pk):
 
 
 @portal_login_required
+@require_POST
+def analyse_koordinaten_speichern(request, pk):
+    """AJAX POST: Speichert x_pct/y_pct Koordinaten für Overlay-Befüllung."""
+    import copy
+    account = request.user.portal_account
+    analyse = get_object_or_404(FormularAnalyse, pk=pk, account=account)
+
+    try:
+        data = json.loads(request.body)
+        felder = data.get("felder", [])
+    except Exception as exc:
+        return JsonResponse({"ok": False, "fehler": str(exc)}, status=400)
+
+    koord_map = {f["id"]: f for f in felder if "id" in f}
+
+    ergebnis = copy.deepcopy(analyse.ergebnis_json or {})
+    for schritt in ergebnis.get("schritte", []):
+        for feld in schritt.get("felder_json", []):
+            if feld.get("id") in koord_map:
+                k = koord_map[feld["id"]]
+                feld["x_pct"] = round(float(k.get("x_pct", 0)), 4)
+                feld["y_pct"] = round(float(k.get("y_pct", 0)), 4)
+                feld["seite_nr"] = int(k.get("seite_nr", 0))
+
+    # Schrift-Einstellungen speichern
+    if "pdf_font" in data:
+        ergebnis["pdf_font"] = {
+            "size": max(6, min(24, float(data["pdf_font"].get("size", 9)))),
+            "bold": bool(data["pdf_font"].get("bold", False)),
+        }
+
+    analyse.ergebnis_json = ergebnis
+    analyse.save(update_fields=["ergebnis_json"])
+
+    if analyse.importierter_pfad_pk:
+        from formulare.models import AntrSchritt
+        for schritt in AntrSchritt.objects.filter(pfad_id=analyse.importierter_pfad_pk):
+            felder_json = schritt.felder_json or []
+            changed = False
+            for feld in felder_json:
+                if feld.get("id") in koord_map:
+                    k = koord_map[feld["id"]]
+                    feld["x_pct"] = round(float(k.get("x_pct", 0)), 4)
+                    feld["y_pct"] = round(float(k.get("y_pct", 0)), 4)
+                    feld["seite_nr"] = int(k.get("seite_nr", 0))
+                    changed = True
+            if changed:
+                schritt.felder_json = felder_json
+                schritt.save(update_fields=["felder_json"])
+
+    logger.info("Koordinaten gespeichert: Analyse %d, %d Felder", pk, len(koord_map))
+    return JsonResponse({"ok": True})
+
+
+@portal_login_required
 def analyse_pruefen(request, pk):
     """Zwischenschritt: Felder prüfen und Typen anpassen vor dem Import."""
     account = request.user.portal_account
@@ -569,12 +624,54 @@ def analyse_pruefen(request, pk):
             messages.error(request, f"Fehler beim Import: {e}")
 
     import json as _json
-    ergebnis_json_str = _json.dumps(analyse.ergebnis_json, ensure_ascii=False)
+
+    # Wenn Pfad bereits importiert: felder_json live aus AntrSchritt einmergen
+    # (damit nach dem Import im Editor angelegte Felder auch hier erscheinen)
+    ergebnis = analyse.ergebnis_json
+    if analyse.importierter_pfad_pk:
+        try:
+            from formulare.models import AntrSchritt
+            # Koordinaten-Index aus ergebnis_json aufbauen {feld_id: {x_pct, y_pct, seite_nr}}
+            koord_index: dict = {}
+            for s in (ergebnis.get("schritte") or []):
+                for f in (s.get("felder_json") or []):
+                    fid = f.get("id")
+                    if fid:
+                        koord_index[fid] = {
+                            "x_pct": f.get("x_pct", 0),
+                            "y_pct": f.get("y_pct", 0),
+                            "seite_nr": f.get("seite_nr", 0),
+                        }
+            # Schritte aus DB neu aufbauen, Koordinaten übertragen
+            neue_schritte = []
+            for schritt in AntrSchritt.objects.filter(pfad_id=analyse.importierter_pfad_pk):
+                felder = []
+                for f in (schritt.felder_json or []):
+                    f = dict(f)
+                    if f.get("id") in koord_index:
+                        f.update(koord_index[f["id"]])
+                    felder.append(f)
+                neue_schritte.append({
+                    "node_id": schritt.node_id,
+                    "titel": schritt.titel,
+                    "ist_start": schritt.ist_start,
+                    "ist_ende": schritt.ist_ende,
+                    "loop_bezeichnung": schritt.loop_bezeichnung or "",
+                    "felder_json": felder,
+                })
+            ergebnis = dict(ergebnis)
+            ergebnis["schritte"] = neue_schritte
+        except Exception as exc:
+            logger.warning("analyse_pruefen: Schritt-Merge fehlgeschlagen – %s", exc)
+
+    ergebnis_json_str = _json.dumps(ergebnis, ensure_ascii=False)
+    pdf_font_json = _json.dumps(ergebnis.get("pdf_font") or {"size": 9, "bold": False})
     bereits_importiert = analyse.status == FormularAnalyse.STATUS_IMPORTIERT
     return render(request, "portal/analyse_pruefen.html", {
         "account": account,
         "analyse": analyse,
         "ergebnis_json_str": ergebnis_json_str,
+        "pdf_font_json": pdf_font_json,
         "bereits_importiert": bereits_importiert,
     })
 

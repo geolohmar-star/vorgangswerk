@@ -77,9 +77,9 @@
 .schritt-header { background: #f8f9fa; border-radius: 8px 8px 0 0; padding: .6rem 1rem; display: flex; align-items: center; gap: .5rem; cursor: pointer; user-select: none; }
 .schritt-header:hover { background: #e9ecef; }
 .schritt-body { padding: .75rem; }
-.feld-row { display: grid; grid-template-columns: 1fr 1.6fr 1fr 4.5rem auto auto; gap: .4rem; align-items: start; padding: .35rem 0; border-bottom: 1px solid #f0f0f0; }
+.feld-row { display: grid; grid-template-columns: 1fr 1.6fr 1fr 4.5rem auto auto auto; gap: .4rem; align-items: start; padding: .35rem 0; border-bottom: 1px solid #f0f0f0; }
 .feld-row:last-child { border-bottom: none; }
-.feld-row-header { display: grid; grid-template-columns: 1fr 1.6fr 1fr 4.5rem auto auto; gap: .4rem; padding: .25rem 0; font-size: .7rem; font-weight: 600; text-transform: uppercase; color: #6c757d; border-bottom: 2px solid #dee2e6; margin-bottom: .25rem; }
+.feld-row-header { display: grid; grid-template-columns: 1fr 1.6fr 1fr 4.5rem auto auto auto; gap: .4rem; padding: .25rem 0; font-size: .7rem; font-weight: 600; text-transform: uppercase; color: #6c757d; border-bottom: 2px solid #dee2e6; margin-bottom: .25rem; }
 .acro-input { font-family: monospace; font-size: .72rem; background: #f0f4ff; border-color: #b8caff; color: #084298; }
 .acro-input:focus { background: #fff; border-color: #0d6efd; }
 .feld-row.feld-highlight { background: #fff9e6; border-radius: 4px; }
@@ -114,6 +114,64 @@ input[type="checkbox"].form-check-input { cursor: pointer; }
   font-weight: 600;
   display: none;
 }
+
+/* Koordinaten-Editor */
+.koord-badge {
+  position: absolute;
+  background: #fd7e14;
+  color: #fff;
+  font-size: 9px;
+  font-family: monospace;
+  padding: 1px 4px;
+  border-radius: 3px;
+  cursor: grab;
+  user-select: none;
+  white-space: nowrap;
+  max-width: 130px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  z-index: 20;
+  line-height: 1.3;
+  box-shadow: 0 1px 3px rgba(0,0,0,.4);
+  transform: translateY(-100%);
+}
+.koord-badge.unpositioniert {
+  background: #6c757d;
+  opacity: .85;
+  transform: none;
+}
+.koord-aktiv-zeile {
+  background: #fff3cd !important;
+  border-radius: 4px;
+  outline: 2px solid #fd7e14;
+}
+.koord-pin-btn { display: none; }
+.pdf-panel.koord-modus { cursor: crosshair; }
+.pdf-panel.koord-modus img { cursor: crosshair; }
+.koord-badge:active { cursor: grabbing; }
+.koord-badge.aktiv { background: #198754; }
+#koord-hinweis {
+  background: #cfe2ff;
+  border-bottom: 2px solid #0d6efd;
+  color: #084298;
+  font-size: .78rem;
+  text-align: center;
+  padding: 3px 8px;
+  font-weight: 600;
+  display: none;
+}
+#koord-speichern-bar {
+  display: none;
+  position: sticky;
+  bottom: 0;
+  background: #fff;
+  border-top: 2px solid #dee2e6;
+  padding: .5rem .75rem;
+  gap: .5rem;
+  z-index: 15;
+}
+.pdf-panel.koord-modus .pdf-overlay { display: none; }
+.pdf-panel.koord-modus .koord-badge { display: block !important; }
 </style>
 {% endblock %}
 
@@ -140,11 +198,25 @@ input[type="checkbox"].form-check-input { cursor: pointer; }
         <a href="{% url 'portal:analyse_diagnose_pdf' analyse.pk %}" class="btn btn-outline-secondary btn-sm ms-1" title="PDF mit eingetragenen Feldnamen herunterladen">
           &#128196; Diagnose
         </a>
+        <button type="button" class="btn btn-outline-warning btn-sm ms-1" id="koord-toggle" title="Positionen der Overlay-Felder visuell anpassen">
+          &#128205; Positionen
+        </button>
       </div>
     </div>
     <div id="link-hinweis">&#8594; Klick auf ein PDF-Feld um es dem markierten Formularfeld zuzuweisen</div>
+    <div id="koord-hinweis">&#128205; Felder verschieben – dann &bdquo;Speichern&ldquo; klicken</div>
     <div id="pdf-seiten-container">
       <div class="text-center text-muted small py-4" id="pdf-ladehinweis">&#8987; PDF wird geladen&hellip;</div>
+    </div>
+    <div id="koord-speichern-bar" class="d-flex align-items-center gap-2 flex-wrap">
+      <label class="small mb-0 text-nowrap">Schriftgröße:</label>
+      <input type="number" id="pdf-font-size" class="form-control form-control-sm" value="9" min="6" max="24" style="width:4.5rem;">
+      <div class="form-check form-switch mb-0">
+        <input class="form-check-input" type="checkbox" id="pdf-font-bold">
+        <label class="form-check-label small" for="pdf-font-bold">Fett</label>
+      </div>
+      <button type="button" class="btn btn-success btn-sm flex-grow-1" id="koord-speichern-btn">&#10003; Speichern</button>
+      <button type="button" class="btn btn-outline-secondary btn-sm" id="koord-abbrechen-btn">Abbrechen</button>
     </div>
   </div>
 
@@ -225,6 +297,8 @@ input[type="checkbox"].form-check-input { cursor: pointer; }
 const DATEN = {{ ergebnis_json_str|safe }};
 const FELDER_JSON_URL = "{% url 'portal:analyse_felder_json' analyse.pk %}";
 const SEITE_PNG_URL_TMPL = "{% url 'portal:analyse_seite_png' analyse.pk 999 %}".replace("/999.png", "/{n}.png");
+const KOORD_SPEICHERN_URL = "{% url 'portal:analyse_koordinaten_speichern' analyse.pk %}";
+const PDF_FONT_INIT = {{ pdf_font_json|safe }};
 
 const TYPEN = [
   { wert: "text",             label: "Text (einzeilig)" },
@@ -530,7 +604,7 @@ function sonderwertEditor(feld) {
 
 function feldZeile(feld) {
   const acroName = feld.acroform_name || "";
-  const wrapper = el("div", { "data-acroform": acroName });
+  const wrapper = el("div", { "data-acroform": acroName, "data-feld-id": feld.id });
 
   const row = el("div", { class: "feld-row" });
 
@@ -591,6 +665,15 @@ function feldZeile(feld) {
   pflichtCb.addEventListener("change", () => { feld.pflicht = pflichtCb.checked; });
   pflichtWrap.append(pflichtCb);
   row.append(pflichtWrap);
+
+  // Pin-Button (nur im Koordinaten-Modus sichtbar)
+  const pinBtn = el("button", {
+    type: "button", class: "btn btn-sm koord-pin-btn",
+    title: "Position auf PDF setzen – dann auf PDF-Seite klicken",
+    style: "font-size:.8rem; padding:1px 5px;",
+  }, "📌");
+  pinBtn.addEventListener("click", (e) => { e.stopPropagation(); setAktivesKoordFeld(feld, wrapper); });
+  row.append(pinBtn);
 
   // Spalte 5: pdf_ausblenden
   const ausblendenWrap = el("div", { class: "pflicht-toggle" });
@@ -671,6 +754,7 @@ function schrittKarte(schritt, idx) {
       el("span", { title: "AcroForm-Feldname im Original-PDF (editierbar)" }, "AcroForm"),
       el("span", { title: "Pflichtfeld" }, "Pflicht"),
       el("span", { title: "In PDF ausblenden" }, "PDF"),
+      el("span", {}),
     );
     body.append(hdr);
     for (const feld of felder) body.append(feldZeile(feld));
@@ -715,6 +799,223 @@ document.getElementById("toggle-alle-pflicht").addEventListener("change", functi
     if (!typ || !STRUKTUR_TYPEN.has(typ)) cb.checked = an;
   });
 });
+
+// ---- Koordinaten-Editor ----
+
+let koordModus = false;
+let aktivesKoordFeld = null;  // {feld, row}
+const koordBadges = [];       // [{badge, feldId}]
+
+function alleFelder() {
+  const felder = [];
+  for (const schritt of (state.schritte || [])) {
+    for (const feld of (schritt.felder_json || [])) {
+      felder.push(feld);
+    }
+  }
+  return felder;
+}
+
+const SKIP_TYPEN = new Set(["textblock", "abschnitt", "zusammenfassung", "quizergebnis", "einwilligung"]);
+
+function setAktivesKoordFeld(feld, row) {
+  if (aktivesKoordFeld) {
+    aktivesKoordFeld.row.classList.remove("koord-aktiv-zeile");
+    aktivesKoordFeld.row.querySelector(".koord-pin-btn")?.classList.replace("btn-warning", "btn-outline-secondary");
+  }
+  // Nochmal klicken → deaktivieren
+  if (feld && aktivesKoordFeld && aktivesKoordFeld.feld === feld) {
+    aktivesKoordFeld = null;
+    document.getElementById("koord-hinweis").textContent = "📌 Feld rechts anklicken, dann auf PDF-Position klicken";
+    return;
+  }
+  aktivesKoordFeld = feld ? { feld, row } : null;
+  if (feld) {
+    row.classList.add("koord-aktiv-zeile");
+    row.querySelector(".koord-pin-btn")?.classList.replace("btn-outline-secondary", "btn-warning");
+    document.getElementById("koord-hinweis").textContent = `📌 „${feld.label || feld.id}" – jetzt auf PDF-Seite klicken`;
+  } else {
+    document.getElementById("koord-hinweis").textContent = "📌 Feld rechts anklicken, dann auf PDF-Position klicken";
+  }
+}
+
+function erstelleBadge(feld, wrap, xPct, yPct) {
+  const alt = koordBadges.find(b => b.feldId === feld.id);
+  if (alt) { alt.badge.remove(); koordBadges.splice(koordBadges.indexOf(alt), 1); }
+
+  const badge = document.createElement("div");
+  badge.className = "koord-badge";
+  badge.textContent = feld.label || feld.id;
+  badge.style.left = (xPct * 100) + "%";
+  badge.style.top  = (yPct * 100) + "%";
+  badge.title = `${feld.id}\nx: ${xPct.toFixed(3)}, y: ${yPct.toFixed(3)}`;
+
+  const closeBtn = document.createElement("span");
+  closeBtn.textContent = " ×";
+  closeBtn.style.cssText = "opacity:.7;cursor:pointer;font-weight:bold;";
+  closeBtn.title = "Nicht benötigt – ausblenden";
+  closeBtn.addEventListener("mousedown", (ev) => {
+    ev.stopPropagation();
+    feld.x_pct = 0; feld.y_pct = 0;
+    badge.remove();
+    const idx = koordBadges.findIndex(b => b.feldId === feld.id);
+    if (idx >= 0) koordBadges.splice(idx, 1);
+  });
+  badge.appendChild(closeBtn);
+
+  makeDraggable(badge, feld, wrap);
+  wrap.appendChild(badge);
+  koordBadges.push({ badge, feldId: feld.id });
+  return badge;
+}
+
+function pdfKlickPlatzieren(e, wrap) {
+  if (!koordModus || !aktivesKoordFeld) return;
+  const rect = wrap.getBoundingClientRect();
+  const xPct = Math.round((e.clientX - rect.left) / rect.width  * 10000) / 10000;
+  const yPct = Math.round((e.clientY - rect.top)  / rect.height * 10000) / 10000;
+  const seiteWraps = [...document.querySelectorAll(".pdf-seite-wrap")];
+  const feld = aktivesKoordFeld.feld;
+  feld.x_pct    = xPct;
+  feld.y_pct    = yPct;
+  feld.seite_nr = seiteWraps.indexOf(wrap);
+  erstelleBadge(feld, wrap, xPct, yPct);
+  setAktivesKoordFeld(null, null);
+}
+
+function koordModeEin() {
+  koordModus = true;
+  document.getElementById("pdf-panel").classList.add("koord-modus");
+  document.getElementById("koord-hinweis").style.display = "";
+  document.getElementById("koord-hinweis").textContent = "📌 Feld rechts anklicken, dann auf PDF-Position klicken";
+  document.getElementById("koord-speichern-bar").style.display = "flex";
+  document.getElementById("koord-toggle").classList.add("btn-warning");
+  document.getElementById("koord-toggle").classList.remove("btn-outline-warning");
+  document.querySelectorAll(".koord-pin-btn").forEach(b => b.style.display = "inline-block");
+
+  koordBadges.forEach(b => b.badge.remove());
+  koordBadges.length = 0;
+
+  const seiteWraps = document.querySelectorAll(".pdf-seite-wrap");
+  for (const feld of alleFelder().filter(f => f.id && !SKIP_TYPEN.has(f.typ))) {
+    const xPct = parseFloat(feld.x_pct) || 0;
+    const yPct = parseFloat(feld.y_pct) || 0;
+    if (xPct === 0 && yPct === 0) continue;
+    const wrap = seiteWraps[parseInt(feld.seite_nr) || 0] || seiteWraps[0];
+    if (wrap) erstelleBadge(feld, wrap, xPct, yPct);
+  }
+}
+
+function koordModeAus() {
+  koordModus = false;
+  if (aktivesKoordFeld) { aktivesKoordFeld.row.classList.remove("koord-aktiv-zeile"); aktivesKoordFeld = null; }
+  document.getElementById("pdf-panel").classList.remove("koord-modus");
+  document.getElementById("koord-hinweis").style.display = "none";
+  document.getElementById("koord-speichern-bar").style.display = "none";
+  document.getElementById("koord-toggle").classList.remove("btn-warning");
+  document.getElementById("koord-toggle").classList.add("btn-outline-warning");
+  document.querySelectorAll(".koord-pin-btn").forEach(b => b.style.display = "none");
+  koordBadges.forEach(b => b.badge.remove());
+  koordBadges.length = 0;
+}
+
+// PDF-Klick zum Platzieren
+document.getElementById("pdf-seiten-container").addEventListener("click", (e) => {
+  if (!koordModus || !aktivesKoordFeld) return;
+  const wrap = e.target.closest(".pdf-seite-wrap");
+  if (!wrap) return;
+  pdfKlickPlatzieren(e, wrap);
+});
+
+function makeDraggable(badge, feld, wrap) {
+  let dragging = false;
+  let startX, startY, startLeft, startTop;
+
+  badge.addEventListener("mousedown", (e) => {
+    e.preventDefault();
+    dragging = true;
+    const rect = wrap.getBoundingClientRect();
+    startX = e.clientX;
+    startY = e.clientY;
+    startLeft = (parseFloat(feld.x_pct) || 0) * rect.width;
+    startTop  = (parseFloat(feld.y_pct) || 0) * rect.height;
+    badge.classList.add("aktiv");
+    badge.style.zIndex = 100;
+  });
+
+  document.addEventListener("mousemove", (e) => {
+    if (!dragging) return;
+    const rect = wrap.getBoundingClientRect();
+    const dx = e.clientX - startX;
+    const dy = e.clientY - startY;
+    const newLeft = Math.max(0, Math.min(rect.width,  startLeft + dx));
+    const newTop  = Math.max(0, Math.min(rect.height, startTop  + dy));
+    const xPct = newLeft / rect.width;
+    const yPct = newTop  / rect.height;
+    feld.x_pct = Math.round(xPct * 10000) / 10000;
+    feld.y_pct = Math.round(yPct * 10000) / 10000;
+    badge.style.left = (xPct * 100) + "%";
+    badge.style.top  = (yPct * 100) + "%";
+    badge.title = `${feld.id}\nx: ${feld.x_pct.toFixed(3)}, y: ${feld.y_pct.toFixed(3)}`;
+  });
+
+  document.addEventListener("mouseup", () => {
+    if (!dragging) return;
+    dragging = false;
+    badge.classList.remove("aktiv");
+    badge.style.zIndex = 20;
+  });
+}
+
+async function koordSpeichern() {
+  const btn = document.getElementById("koord-speichern-btn");
+  btn.disabled = true;
+  btn.textContent = "Speichert…";
+
+  const payload = alleFelder()
+    .filter(f => (parseFloat(f.x_pct) || 0) !== 0 || (parseFloat(f.y_pct) || 0) !== 0)
+    .map(f => ({ id: f.id, x_pct: f.x_pct || 0, y_pct: f.y_pct || 0, seite_nr: f.seite_nr || 0 }));
+  const pdfFont = {
+    size: parseFloat(document.getElementById("pdf-font-size").value) || 9,
+    bold: document.getElementById("pdf-font-bold").checked,
+  };
+
+  try {
+    const resp = await fetch(KOORD_SPEICHERN_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-CSRFToken": "{{ csrf_token }}" },
+      body: JSON.stringify({ felder: payload, pdf_font: pdfFont }),
+    });
+    const data = await resp.json();
+    if (data.ok) {
+      btn.textContent = "✓ Gespeichert";
+      btn.classList.replace("btn-success", "btn-outline-success");
+      setTimeout(() => {
+        btn.textContent = "✓ Positionen speichern";
+        btn.classList.replace("btn-outline-success", "btn-success");
+        btn.disabled = false;
+      }, 2000);
+    } else {
+      alert("Fehler: " + (data.fehler || "unbekannt"));
+      btn.disabled = false;
+      btn.textContent = "✓ Positionen speichern";
+    }
+  } catch(e) {
+    alert("Netzwerkfehler: " + e);
+    btn.disabled = false;
+    btn.textContent = "✓ Positionen speichern";
+  }
+}
+
+document.getElementById("koord-toggle").addEventListener("click", () => {
+  if (koordModus) koordModeAus(); else koordModeEin();
+});
+document.getElementById("koord-speichern-btn").addEventListener("click", koordSpeichern);
+document.getElementById("koord-abbrechen-btn").addEventListener("click", koordModeAus);
+
+// Schrift-Einstellungen initialisieren
+document.getElementById("pdf-font-size").value = PDF_FONT_INIT.size || 9;
+document.getElementById("pdf-font-bold").checked = !!PDF_FONT_INIT.bold;
 
 init();
 ladePdfViewer();

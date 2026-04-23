@@ -66,6 +66,14 @@ html, body { overflow: hidden; height: 100%; }
             <ul id="leika-dropdown" class="list-group shadow position-absolute w-100"
                 style="top:100%;z-index:1060;display:none;max-height:260px;overflow-y:auto;min-width:320px;left:0;"></ul>
         </div>
+        <div class="input-group input-group-sm" style="max-width:300px;"
+             title="FIT-Connect Destination-ID der Empfangsbehörde (UUID aus FITKO-Portal) – aktiviert OZG-Einreichung in der Auswertung">
+            <span class="input-group-text" style="white-space:nowrap;">FIT-Connect</span>
+            <input type="text" id="pfad-fitconnect-destination-id" class="form-control form-control-sm font-monospace"
+                   placeholder="Destination-UUID (optional)" maxlength="100"
+                   autocomplete="off"
+                   value="{% if pfad %}{{ pfad.fitconnect_destination_id }}{% endif %}">
+        </div>
         {% if pfad and pfad.kuerzel %}
         <button id="btn-qrcode" class="btn btn-sm btn-outline-success" title="Öffentliche URL, QR-Code und Einbettungs-Snippet">
             &#9641; URL / Einbetten
@@ -89,6 +97,7 @@ html, body { overflow: hidden; height: 100%; }
                 </button>
                 <ul class="dropdown-menu dropdown-menu-end">
                     <li><a class="dropdown-item" href="{% url 'formulare:pfad_acroform_pruefen' pfad.pk %}">&#128462; PDF-Zuordnung prüfen</a></li>
+                    {% if analyse_pk %}<li><a class="dropdown-item" href="{% url 'portal:analyse_pruefen' analyse_pk %}">&#128269; KI-Analyse &amp; Positionen</a></li>{% endif %}
                     <li><a class="dropdown-item" href="{% url 'formulare:pfad_blockansicht' pfad.pk %}" target="_blank">&#9707; Blockansicht</a></li>
                     <li><hr class="dropdown-divider"></li>
                     <li><button class="dropdown-item" id="btn-versionen">&#128336; Versionen</button></li>
@@ -399,6 +408,7 @@ html, body { overflow: hidden; height: 100%; }
                         </optgroup>
                         <optgroup label="Aktionen">
                             <option value="pdf_email">PDF per E-Mail versenden</option>
+                            <option value="bestaetigung_email">Bestätigung per E-Mail + digitale Unterschrift</option>
                         </optgroup>
                         <optgroup label="Struktur &amp; Navigation">
                             <option value="textblock">Fließtext / Hinweis</option>
@@ -542,6 +552,11 @@ html, body { overflow: hidden; height: 100%; }
                         </optgroup>
                         <optgroup label="Datum &amp; Zeit">
                             <option value="heute">Heutiges Datum</option>
+                            <option value="antragsdatum">Antragsdatum (PDF-Ausgabe)</option>
+                        </optgroup>
+                        <optgroup label="Vorgang">
+                            <option value="vorgangsnummer">Vorgangsnummer</option>
+                            <option value="antragsnummer_zeitstempel">Vorgangsnummer + Datum</option>
                         </optgroup>
                     </select>
                 </div>

@@ -30,6 +30,7 @@ from django.core.cache import cache
 from django.db import models
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.template.loader import render_to_string
 from django.utils import timezone
 from django.views.decorators.http import require_GET, require_POST
@@ -1137,6 +1138,82 @@ def _versende_pdf_email(sitzung):
     return list(dict.fromkeys(gesendete))
 
 
+def _versende_bestaetigung_email(sitzung, email_adresse: str, request):
+    """Generiert einen Token und sendet die Bestätigungsanforderung per E-Mail."""
+    import secrets as _sec
+    from django.core.mail import EmailMessage
+
+    token = _sec.token_urlsafe(32)
+    sitzung.bestaetigung_token = token
+    sitzung.bestaetigung_email = email_adresse
+    sitzung.save(update_fields=["bestaetigung_token", "bestaetigung_email"])
+
+    bestaetigung_url = request.build_absolute_uri(
+        reverse("formulare_pub:bestaetigung_ansicht", args=[token])
+    )
+    vorgangsnummer = sitzung.vorgangsnummer or f"ANT-{sitzung.pk:05d}"
+
+    # Bevorzugt: befülltes Original-PDF (AcroForm), Fallback: WeasyPrint-Zusammenfassung
+    pdf_bytes = None
+    pdf_dateiname = None
+    try:
+        from portal.models import FormularAnalyse
+        from portal.pdf_fill import fuelle_acroform
+        analyse = (
+            FormularAnalyse.objects
+            .filter(importierter_pfad_pk=sitzung.pfad.pk)
+            .order_by("-erstellt_am")
+            .first()
+        )
+        if analyse and (analyse.pdf_original or analyse.pdf_inhalt):
+            raw = bytes(analyse.pdf_original if analyse.pdf_original else analyse.pdf_inhalt)
+            pdf_bytes = fuelle_acroform(
+                raw,
+                sitzung.pfad.schritte.all(),
+                sitzung.gesammelte_daten or {},
+                pfad_name=sitzung.pfad.name,
+                vorgangsnummer=vorgangsnummer,
+            )
+            pdf_dateiname = f"{vorgangsnummer}.pdf"
+    except Exception as exc:
+        logger.warning("_versende_bestaetigung_email: Original-PDF fehlgeschlagen, Fallback auf HTML – %s", exc)
+
+    if not pdf_bytes:
+        try:
+            from weasyprint import HTML
+            html_string = render_to_string("formulare/sitzung_pdf.html", {
+                "sitzung": sitzung,
+                "zusammenfassung": _baue_zusammenfassung(sitzung),
+                "vorgangsnummer": vorgangsnummer,
+            })
+            pdf_bytes = HTML(string=html_string).write_pdf()
+            pdf_dateiname = f"{vorgangsnummer}.pdf"
+        except Exception as exc:
+            logger.warning("_versende_bestaetigung_email: WeasyPrint-Fallback fehlgeschlagen – %s", exc)
+
+    betreff = f"Bitte bestätigen Sie – {sitzung.pfad.name}"
+    nachricht = (
+        f"Sehr geehrte Damen und Herren,\n\n"
+        f"ein Antrag wurde mit Ihrer E-Mail-Adresse als Bestätigungsperson eingereicht.\n\n"
+        f"Vorgangsnummer: {vorgangsnummer}\n"
+        f"Formular: {sitzung.pfad.name}\n\n"
+        f"Bitte klicken Sie auf folgenden Link, um den Antrag mit Ihrer digitalen\n"
+        f"Unterschrift zu bestätigen:\n\n"
+        f"  {bestaetigung_url}\n\n"
+        f"Der Link ist personalisiert – bitte nicht weitergeben.\n\n"
+        f"Mit freundlichen Grüßen\n"
+        f"Ihr Vorgangswerk"
+    )
+    try:
+        mail = EmailMessage(subject=betreff, body=nachricht, to=[email_adresse])
+        if pdf_bytes and pdf_dateiname:
+            mail.attach(pdf_dateiname, pdf_bytes, "application/pdf")
+        mail.send()
+        logger.info("Bestätigungs-E-Mail an %s gesendet (Sitzung #%d)", email_adresse, sitzung.pk)
+    except Exception as exc:
+        logger.error("Bestätigungs-E-Mail konnte nicht gesendet werden: %s", exc)
+
+
 # ---------------------------------------------------------------------------
 # Versions-Helfer
 # ---------------------------------------------------------------------------
@@ -1428,6 +1505,7 @@ def pfad_importieren(request):
         variablen_json=pfad_daten.get("variablen_json") or {},
         benachrichtigung_email=pfad_daten.get("benachrichtigung_email", ""),
         leika_schluessel=pfad_daten.get("leika_schluessel", ""),
+        fitconnect_destination_id=pfad_daten.get("fitconnect_destination_id", ""),
         erstellt_von=request.user,
     )
 
@@ -1523,11 +1601,21 @@ def pfad_editor(request, pk=None):
         )
     except Exception:
         pass
+    analyse_pk = None
+    if pfad:
+        try:
+            from portal.models import FormularAnalyse
+            analyse = FormularAnalyse.objects.filter(importierter_pfad_pk=pfad.pk).order_by("-erstellt_am").first()
+            if analyse:
+                analyse_pk = analyse.pk
+        except Exception:
+            pass
     return render(request, "formulare/pfad_editor.html", {
         "pfad": pfad,
         "bank_variablen": bank_variablen,
         "workflow_templates": workflow_templates,
         "briefvorlagen_json": json.dumps(briefvorlagen, ensure_ascii=False),
+        "analyse_pk": analyse_pk,
     })
 
 
@@ -1658,8 +1746,9 @@ def pfad_editor_laden(request, pk):
         "transitionen":         transitionen,
         "variablen":               pfad.variablen_json or {},
         "workflow_template_id":    pfad.workflow_template_id,
-        "benachrichtigung_email":  pfad.benachrichtigung_email or "",
-        "leika_schluessel":        pfad.leika_schluessel or "",
+        "benachrichtigung_email":     pfad.benachrichtigung_email or "",
+        "leika_schluessel":           pfad.leika_schluessel or "",
+        "fitconnect_destination_id":  pfad.fitconnect_destination_id or "",
     })
 
 
@@ -1717,6 +1806,7 @@ class _EditorPayload(_PydanticBase):
     workflow_template_id: int | None = None
     benachrichtigung_email: str = ""
     leika_schluessel: str = ""
+    fitconnect_destination_id: str = ""
     schritte: list[_EditorSchritt] = []
     transitionen: list[_EditorTransition] = []
 
@@ -1766,6 +1856,7 @@ def pfad_editor_speichern(request):
         pfad.workflow_template_id = payload.workflow_template_id
         pfad.benachrichtigung_email = payload.benachrichtigung_email
         pfad.leika_schluessel = payload.leika_schluessel
+        pfad.fitconnect_destination_id = payload.fitconnect_destination_id
         pfad.save()
         pfad.transitionen.all().delete()
         pfad.schritte.all().delete()
@@ -1780,6 +1871,7 @@ def pfad_editor_speichern(request):
             workflow_template_id=payload.workflow_template_id,
             benachrichtigung_email=payload.benachrichtigung_email,
             leika_schluessel=payload.leika_schluessel,
+            fitconnect_destination_id=payload.fitconnect_destination_id,
             erstellt_von=request.user,
         )
 
@@ -2598,15 +2690,49 @@ def sitzung_original_pdf(request, pk):
     schritte = sitzung.pfad.schritte.all()
     gesammelte_daten = sitzung.gesammelte_daten or {}
 
-    try:
-        filled_pdf = fuelle_acroform(
-            pdf_bytes, schritte, gesammelte_daten,
-            pfad_name=sitzung.pfad.name,
-            vorgangsnummer=sitzung.vorgangsnummer or f"ANT-{sitzung.pk:05d}",
-        )
-    except Exception as exc:
-        logger.error("sitzung_original_pdf Fehler: %s", exc)
-        messages.error(request, f"PDF-Erstellung fehlgeschlagen: {exc}")
+    vorgangsnummer = sitzung.vorgangsnummer or f"ANT-{sitzung.pk:05d}"
+    pfad_name = sitzung.pfad.name
+    filled_pdf = None
+
+    # Koordinaten-Overlay bevorzugen wenn Felder mit x_pct/y_pct vorhanden
+    _hat_koord = any(
+        float(f.get("x_pct") or 0) != 0 or float(f.get("y_pct") or 0) != 0
+        for s in schritte
+        for f in (s.felder_json or [])
+    )
+
+    if _hat_koord:
+        try:
+            from portal.pdf_fill import fuelle_pdf_overlay
+            _pdf_font = (analyse.ergebnis_json or {}).get("pdf_font", {})
+            filled_pdf = fuelle_pdf_overlay(
+                pdf_bytes, schritte, gesammelte_daten,
+                pfad_name=pfad_name,
+                vorgangsnummer=vorgangsnummer,
+                font_size=_pdf_font.get("size", 9),
+                font_bold=_pdf_font.get("bold", False),
+            )
+            logger.info("sitzung_original_pdf: Overlay genutzt (%d Schritte)", schritte.count())
+        except Exception as exc:
+            logger.error("sitzung_original_pdf: Overlay fehlgeschlagen – %s", exc)
+
+    if not filled_pdf:
+        # Fallback: AcroForm-Filling
+        from pypdf import PdfReader as _PR
+        import io as _io
+        _reader = _PR(_io.BytesIO(pdf_bytes))
+        if bool(_reader.get_fields()):
+            try:
+                filled_pdf = fuelle_acroform(
+                    pdf_bytes, schritte, gesammelte_daten,
+                    pfad_name=pfad_name,
+                    vorgangsnummer=vorgangsnummer,
+                )
+            except Exception as exc:
+                logger.info("sitzung_original_pdf: AcroForm fehlgeschlagen – %s", exc)
+
+    if not filled_pdf:
+        messages.error(request, "PDF-Erstellung fehlgeschlagen: keine Felder befüllbar.")
         return redirect("formulare:meine_antraege")
 
     dateiname = f"ausgefuellt_{analyse.dateiname}".replace(" ", "_")
@@ -2829,25 +2955,74 @@ def pfad_auswertung(request, pk):
     for sitzung in qs[:500]:
         einreicher = str(sitzung.user) if sitzung.user else (sitzung.email_anonym or "anonym")
         zeilen.append({
-            "pk":               sitzung.pk,
-            "vorgangsnummer":   sitzung.vorgangsnummer or "-",
-            "gestartet_am":     sitzung.gestartet_am,
-            "status":           sitzung.get_status_display(),
-            "einreicher":       einreicher,
-            "pfad_version_nr":  sitzung.pfad_version_nr,
-            "felder":           [_auswertung_zellwert(sitzung.gesammelte_daten, sp) for sp in spalten],
+            "pk":                   sitzung.pk,
+            "vorgangsnummer":       sitzung.vorgangsnummer or "-",
+            "gestartet_am":         sitzung.gestartet_am,
+            "status":               sitzung.get_status_display(),
+            "einreicher":           einreicher,
+            "pfad_version_nr":      sitzung.pfad_version_nr,
+            "felder":               [_auswertung_zellwert(sitzung.gesammelte_daten, sp) for sp in spalten],
+            "bestaetigung_token":    sitzung.bestaetigung_token,
+            "bestaetigt_am":         sitzung.bestaetigt_am,
+            "bestaetigung_email":    sitzung.bestaetigung_email,
+            "bestaetigung_firmenname":  sitzung.bestaetigung_firmenname,
+            "bestaetigung_kontaktname": sitzung.bestaetigung_kontaktname,
+            "bestaetigung_telefon":     sitzung.bestaetigung_telefon,
+            "fitconnect_submission_id": sitzung.fitconnect_submission_id,
+            "fitconnect_status":        sitzung.fitconnect_status,
         })
 
     return render(request, "formulare/pfad_auswertung.html", {
-        "pfad":          pfad,
-        "spalten":       spalten,
-        "zeilen":        zeilen,
-        "gesamt":        gesamt,
-        "status_filter": status_filter,
-        "datum_von":     datum_von,
-        "datum_bis":     datum_bis,
-        "suche":         suche,
+        "pfad":           pfad,
+        "spalten":        spalten,
+        "zeilen":         zeilen,
+        "gesamt":         gesamt,
+        "status_filter":  status_filter,
+        "datum_von":      datum_von,
+        "datum_bis":      datum_bis,
+        "suche":          suche,
+        "status_choices": AntrSitzung.STATUS_CHOICES,
     })
+
+
+@login_required
+@require_POST
+def fitconnect_einreichen(request, pk):
+    """Reicht eine Antragssitzung manuell per FIT-Connect ein."""
+    sitzung = get_object_or_404(AntrSitzung, pk=pk)
+    pfad_pk = sitzung.pfad_id
+
+    if not _ist_editor(request.user):
+        messages.error(request, "Kein Zugriff.")
+        return redirect("formulare:pfad_auswertung", pk=pfad_pk)
+
+    from formulare.fitconnect_client import (
+        FitConnectConfigError,
+        FitConnectSubmissionError,
+        FitConnectTokenError,
+        submit_sitzung,
+    )
+
+    try:
+        submission_id, status = submit_sitzung(sitzung)
+        sitzung.fitconnect_submission_id = submission_id
+        sitzung.fitconnect_status = status
+        sitzung.save(update_fields=["fitconnect_submission_id", "fitconnect_status"])
+        messages.success(
+            request,
+            f"FIT-Connect Einreichung erfolgreich. Submission-ID: {submission_id} (Status: {status})",
+        )
+    except FitConnectConfigError as exc:
+        messages.error(request, f"FIT-Connect Konfigurationsfehler: {exc}")
+    except FitConnectTokenError as exc:
+        messages.error(request, f"FIT-Connect Token-Fehler: {exc}")
+    except FitConnectSubmissionError as exc:
+        messages.error(request, f"FIT-Connect Einreichung fehlgeschlagen: {exc}")
+    except Exception as exc:
+        logger.exception("fitconnect_einreichen unerwarteter Fehler: %s", exc)
+        messages.error(request, f"Unerwarteter Fehler: {exc}")
+
+    return redirect("formulare:pfad_auswertung", pk=pfad_pk)
 
 
 # ---------------------------------------------------------------------------
@@ -3114,20 +3289,130 @@ def antrag_oeffentlich_abgeschlossen(request, sitzung_pk):
         return redirect("formulare:antrag_oeffentlich_fehler")
     sitzung = get_object_or_404(AntrSitzung, pk=sitzung_pk, user__isnull=True)
     email_empfaenger = _versende_pdf_email(sitzung)
+
+    # Bestätigungs-E-Mail erkennen und versenden
+    bestaetigung_ausstehend = False
+    if not sitzung.bestaetigung_token:
+        schritt_map = {s.node_id: s for s in sitzung.pfad.schritte.all()}
+        for node_id in sitzung.besuchte_schritte:
+            schritt = schritt_map.get(node_id)
+            if not schritt:
+                continue
+            for feld in schritt.felder():
+                if feld.get("typ") == "bestaetigung_email":
+                    adresse = sitzung.gesammelte_daten.get(feld.get("id", ""), "").strip()
+                    if adresse and "@" in adresse:
+                        _versende_bestaetigung_email(sitzung, adresse, request)
+                        bestaetigung_ausstehend = True
+                        break
+            if bestaetigung_ausstehend:
+                break
+    elif not sitzung.bestaetigt_am:
+        bestaetigung_ausstehend = True
+
     embed = request.session.get("embed", False)
     if embed:
         request.session.pop("embed", None)
     return render(request, "formulare/antrag_oeffentlich_abgeschlossen.html", {
-        "sitzung":          sitzung,
-        "zusammenfassung":  _baue_zusammenfassung(sitzung),
-        "email_empfaenger": email_empfaenger,
-        "embed":            embed,
+        "sitzung":                sitzung,
+        "zusammenfassung":        _baue_zusammenfassung(sitzung),
+        "email_empfaenger":       email_empfaenger,
+        "embed":                  embed,
+        "bestaetigung_ausstehend": bestaetigung_ausstehend,
+        "bestaetigung_email":     sitzung.bestaetigung_email,
     })
 
 
 def antrag_oeffentlich_fehler(request):
     """Fehlerseite: Kein Zugriff auf oeffentliches Formular."""
     return render(request, "formulare/antrag_oeffentlich_fehler.html", {}, status=403)
+
+
+def _sende_bestaetigung_rueckmeldung(sitzung):
+    """Benachrichtigt den Antragsteller, dass der Arbeitgeber unterzeichnet hat."""
+    from django.core.mail import EmailMessage
+    empfaenger = None
+    if sitzung.user and sitzung.user.email:
+        empfaenger = sitzung.user.email
+    elif sitzung.email_anonym:
+        empfaenger = sitzung.email_anonym
+    if not empfaenger:
+        return
+    vgnr = sitzung.vorgangsnummer or f"ANT-{sitzung.pk:05d}"
+    betreff = f"Bestätigung erhalten – {sitzung.pfad.name}"
+    nachricht = (
+        f"Guten Tag,\n\n"
+        f"Ihr Arbeitgeber hat den folgenden Antrag digital unterzeichnet:\n\n"
+        f"  Formular:        {sitzung.pfad.name}\n"
+        f"  Vorgangsnummer:  {vgnr}\n"
+        f"  Unterzeichnet:   {sitzung.bestaetigt_am.strftime('%d.%m.%Y um %H:%M Uhr')}\n\n"
+        f"Angaben des Unterzeichners:\n"
+        f"  Firma:           {sitzung.bestaetigung_firmenname or '–'}\n"
+        f"  Name:            {sitzung.bestaetigung_kontaktname or '–'}\n"
+        f"  Telefon:         {sitzung.bestaetigung_telefon or '–'}\n"
+        f"  E-Mail:          {sitzung.bestaetigung_email or '–'}\n\n"
+        f"Falls Sie diese Bestätigung nicht erwartet haben oder den Antrag\n"
+        f"nicht selbst eingereicht haben, wenden Sie sich bitte umgehend\n"
+        f"an die zuständige Stelle.\n\n"
+        f"Mit freundlichen Grüßen\n"
+        f"Ihr Vorgangswerk"
+    )
+    try:
+        EmailMessage(subject=betreff, body=nachricht, to=[empfaenger]).send()
+        logger.info("Bestätigungs-Rückmeldung an %s gesendet (Sitzung #%d)", empfaenger, sitzung.pk)
+    except Exception as exc:
+        logger.error("Bestätigungs-Rückmeldung konnte nicht gesendet werden: %s", exc)
+
+
+@xframe_options_exempt
+def bestaetigung_ansicht(request, token):
+    """Öffentliche Bestätigungsseite – Arbeitgeber zeichnet digitale Unterschrift."""
+    sitzung = get_object_or_404(AntrSitzung, bestaetigung_token=token)
+
+    if sitzung.bestaetigt_am:
+        return render(request, "formulare/bestaetigung_bestaetigt.html", {"sitzung": sitzung})
+
+    fehler = None
+    post_daten = {}
+    if request.method == "POST":
+        firmenname  = request.POST.get("firmenname", "").strip()
+        kontaktname = request.POST.get("kontaktname", "").strip()
+        telefon     = request.POST.get("telefon", "").strip()
+        signatur    = request.POST.get("signatur", "").strip()
+        post_daten  = {"firmenname": firmenname, "kontaktname": kontaktname, "telefon": telefon}
+
+        if not firmenname:
+            fehler = "Bitte geben Sie den Firmennamen an."
+        elif not kontaktname:
+            fehler = "Bitte geben Sie Ihren Namen an."
+        elif not telefon:
+            fehler = "Bitte geben Sie eine Telefonnummer für Rückfragen an."
+        elif not signatur or signatur == "data:,":
+            fehler = "Bitte zeichnen Sie Ihre Unterschrift."
+        else:
+            from django.utils import timezone as _tz
+            x_fwd = request.META.get("HTTP_X_FORWARDED_FOR")
+            ip = x_fwd.split(",")[0].strip() if x_fwd else request.META.get("REMOTE_ADDR")
+            sitzung.bestaetigt_am            = _tz.now()
+            sitzung.bestaetigt_ip            = ip
+            sitzung.bestaetigung_signatur    = signatur
+            sitzung.bestaetigung_firmenname  = firmenname
+            sitzung.bestaetigung_kontaktname = kontaktname
+            sitzung.bestaetigung_telefon     = telefon
+            sitzung.save(update_fields=[
+                "bestaetigt_am", "bestaetigt_ip", "bestaetigung_signatur",
+                "bestaetigung_firmenname", "bestaetigung_kontaktname", "bestaetigung_telefon",
+            ])
+            logger.info("Sitzung #%d bestätigt von IP %s (%s)", sitzung.pk, ip, firmenname)
+            _sende_bestaetigung_rueckmeldung(sitzung)
+            return render(request, "formulare/bestaetigung_bestaetigt.html", {"sitzung": sitzung})
+
+    return render(request, "formulare/bestaetigung_ansicht.html", {
+        "sitzung":         sitzung,
+        "zusammenfassung": _baue_zusammenfassung(sitzung),
+        "fehler":          fehler,
+        "post_daten":      post_daten,
+    })
 
 
 def vorgang_tracking(request, vorgangsnummer):

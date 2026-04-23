@@ -27,6 +27,7 @@ urlpatterns = [
     path("analyse/<int:pk>/diagnose-pdf/", views.analyse_diagnose_pdf, name="analyse_diagnose_pdf"),
     path("analyse/<int:pk>/seite/<int:seite_nr>.png", views.analyse_seite_png, name="analyse_seite_png"),
     path("analyse/<int:pk>/felder.json", views.analyse_felder_json, name="analyse_felder_json"),
+    path("analyse/<int:pk>/koordinaten/", views.analyse_koordinaten_speichern, name="analyse_koordinaten_speichern"),
 
     # Credits
     path("credits/", views.credits_kaufen, name="credits_kaufen"),

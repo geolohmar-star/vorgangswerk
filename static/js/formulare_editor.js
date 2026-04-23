@@ -1257,6 +1257,7 @@
             link: "Link", trennlinie: "—", leerblock: "Leerblock",
             zusammenfassung: "Zusammenfassung", gruppe: "Wiederholungsgruppe",
             einwilligung: "Einwilligung (DSGVO)",
+            bestaetigung_email: "Bestätigung + Unterschrift",
         };
 
         var gesamt = schritteFelder.length;
@@ -1394,7 +1395,7 @@
             if (t === "signatur") return '<div class="border rounded bg-light text-muted small text-center py-3">Signatur-Pad</div>';
             if (t === "berechnung") return '<input type="text" class="' + cls + ' bg-light font-monospace" placeholder="wird berechnet…" readonly>';
             if (t === "systemfeld") {
-                var swLabel = { loop_zaehler: "Loop-Zaehler", loop_durchlauf: "Loop-Durchlaeufe", heute: "Datum" }[feld.systemwert] || feld.systemwert || "System";
+                var swLabel = { loop_zaehler: "Loop-Zaehler", loop_durchlauf: "Loop-Durchlaeufe", heute: "Datum", antragsdatum: "Antragsdatum", vorgangsnummer: "Vorgangsnr.", antragsnummer_zeitstempel: "Vorgangsnr. + Datum" }[feld.systemwert] || feld.systemwert || "System";
                 return '<div class="input-group"><span class="input-group-text bg-warning-subtle text-warning-emphasis small">\u2699</span>'
                     + '<input type="text" class="' + cls + ' bg-warning-subtle fst-italic" value="[' + esc(swLabel) + ']" readonly>'
                     + (feld.einheit ? '<span class="input-group-text">' + esc(feld.einheit) + '</span>' : '')
@@ -1440,6 +1441,13 @@
                 html += '<div class="col-12"><div class="form-check border rounded p-2" style="background:#fffdf0;border-color:#ffc107 !important;">'
                       + '<input class="form-check-input" type="checkbox" disabled>'
                       + '<label class="form-check-label small">' + esc(feld.text || "Einwilligungstext …") + ' <span class="text-danger">*</span></label>'
+                      + '</div></div>';
+                return;
+            }
+            if (t === "bestaetigung_email") {
+                html += '<div class="col-12"><div class="card border-warning">'
+                      + '<div class="card-header small fw-semibold" style="background:#fff8e1;color:#7a5c00;">&#9998; Bestätigung per E-Mail + digitale Unterschrift</div>'
+                      + '<div class="card-body py-2"><input type="email" class="form-control form-control-sm" placeholder="beispiel@firma.de" disabled></div>'
                       + '</div></div>';
                 return;
             }
@@ -1670,7 +1678,7 @@
             .filter(Boolean);
     }
 
-    var STRUKTUR_TYPEN = ["textblock", "abschnitt", "trennlinie", "leerblock", "zusammenfassung", "link", "pdf_email", "einwilligung", "systemfeld", "quizhinweis", "quizergebnis", "quizpool"];
+    var STRUKTUR_TYPEN = ["textblock", "abschnitt", "trennlinie", "leerblock", "zusammenfassung", "link", "pdf_email", "einwilligung", "systemfeld", "quizhinweis", "quizergebnis", "quizpool", "bestaetigung_email"];
 
     function toggleOptionenRow(typ) {
         var mitOptionen = ["auswahl", "radio", "checkboxen"];
@@ -1683,10 +1691,10 @@
         var mitPdfEmail = ["pdf_email"];
         var mitEinwilligung = ["einwilligung"];
         var mitSystemfeld = ["systemfeld"];
-        var ohneLabel = ["trennlinie", "leerblock", "zusammenfassung", "einwilligung", "quizhinweis", "quizergebnis", "quizpool"];
+        var ohneLabel = ["trennlinie", "leerblock", "zusammenfassung", "einwilligung", "quizhinweis", "quizergebnis", "quizpool", "bestaetigung_email"];
         var ohneHilfe = ["trennlinie", "leerblock", "bool", "abschnitt", "textblock", "berechnung",
                          "zusammenfassung", "signatur", "gruppe", "link", "pdf_email", "einwilligung", "systemfeld",
-                         "quizfrage", "quizhinweis", "quizergebnis", "quizpool", "gemeindekennzahl"];
+                         "quizfrage", "quizhinweis", "quizergebnis", "quizpool", "gemeindekennzahl", "bestaetigung_email"];
         // Regex-Validierung nur bei freien Texteingaben sinnvoll
         var mitRegex = ["text", "mehrzeil", "telefon", "steuernummer", "kfz", "mitarbeiternummer",
                         "iban", "bic", "plz", "email", "zahl", "uhrzeit", "iban"];
@@ -1743,7 +1751,7 @@
         }
         document.getElementById("pflicht-row").style.display = ohnePflicht.indexOf(typ) >= 0 ? "none" : "";
         // Breite nur bei Trennlinie/Zusammenfassung verstecken (kein Sinn ohne Inhalt)
-        var ohneBreite = ["trennlinie", "zusammenfassung", "pdf_email", "zahlung"];
+        var ohneBreite = ["trennlinie", "zusammenfassung", "pdf_email", "zahlung", "bestaetigung_email"];
         document.getElementById("breite-row").style.display = ohneBreite.indexOf(typ) >= 0 ? "none" : "";
         // Autofill-Quelle nur bei typ=autofill anzeigen + Dropdown befüllen
         var autofillRow = document.getElementById("autofill-quelle-row");
@@ -1909,6 +1917,9 @@
             feld.email_betreff = document.getElementById("feld-email-betreff").value.trim();
             feld.email_nachricht = document.getElementById("feld-email-nachricht").value.trim();
             feld.label = feld.label || "Antrag per E-Mail erhalten?";
+        }
+        if (typ === "bestaetigung_email") {
+            feld.label = feld.label || "Bestätigung durch Arbeitgeber";
         }
         if (typ === "abschnitt") {
             feld.text = document.getElementById("feld-label").value.trim();
@@ -2684,6 +2695,8 @@
             if (emailEl) emailEl.value = daten.benachrichtigung_email || "";
             var leikaEl = document.getElementById("pfad-leika-schluessel");
             if (leikaEl) leikaEl.value = daten.leika_schluessel || "";
+            var fcEl = document.getElementById("pfad-fitconnect-destination-id");
+            if (fcEl) fcEl.value = daten.fitconnect_destination_id || "";
             pfadVariablen = daten.variablen || {};
 
             // Schritte aufbauen
@@ -2813,6 +2826,7 @@
         var wtEl = document.getElementById("pfad-workflow-template");
         var emailEl = document.getElementById("pfad-benachrichtigung-email");
         var leikaEl = document.getElementById("pfad-leika-schluessel");
+        var fcEl = document.getElementById("pfad-fitconnect-destination-id");
         var payload = {
             pk: pfadPk,
             name: name,
@@ -2823,6 +2837,7 @@
             workflow_template_id: wtEl ? (wtEl.value || null) : null,
             benachrichtigung_email: emailEl ? emailEl.value.trim() : "",
             leika_schluessel: leikaEl ? leikaEl.value.trim() : "",
+            fitconnect_destination_id: fcEl ? fcEl.value.trim() : "",
             schritte: Object.values(schritte),
             transitionen: transitionen,
             variablen: pfadVariablen,
@@ -2970,6 +2985,10 @@
             var leikaEntwEl = document.getElementById("pfad-leika-schluessel");
             if (leikaEntwEl && entwurf.leika_schluessel) {
                 leikaEntwEl.value = entwurf.leika_schluessel;
+            }
+            var fcEntwEl = document.getElementById("pfad-fitconnect-destination-id");
+            if (fcEntwEl && entwurf.fitconnect_destination_id) {
+                fcEntwEl.value = entwurf.fitconnect_destination_id;
             }
             document.getElementById("entwurf-banner").classList.add("d-none");
             document.getElementById("speicher-status").textContent =
