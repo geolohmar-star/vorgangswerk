@@ -150,6 +150,18 @@ input[type="checkbox"].form-check-input { cursor: pointer; }
 .pdf-panel.koord-modus img { cursor: crosshair; }
 .koord-badge:active { cursor: grabbing; }
 .koord-badge.aktiv { background: #198754; }
+.koord-badge::after {
+  content: '';
+  position: absolute;
+  bottom: -4px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 6px; height: 6px;
+  background: inherit;
+  border-radius: 50%;
+  opacity: .85;
+  pointer-events: none;
+}
 #koord-hinweis {
   background: #cfe2ff;
   border-bottom: 2px solid #0d6efd;
@@ -215,6 +227,7 @@ input[type="checkbox"].form-check-input { cursor: pointer; }
         <input class="form-check-input" type="checkbox" id="pdf-font-bold">
         <label class="form-check-label small" for="pdf-font-bold">Fett</label>
       </div>
+      <button type="button" class="btn btn-outline-secondary btn-sm" id="koord-undo-btn" disabled title="Rückgängig (Strg+Z)">&#8630; Undo</button>
       <button type="button" class="btn btn-success btn-sm flex-grow-1" id="koord-speichern-btn">&#10003; Speichern</button>
       <button type="button" class="btn btn-outline-secondary btn-sm" id="koord-abbrechen-btn">Abbrechen</button>
     </div>
@@ -459,7 +472,8 @@ async function ladePdfViewer() {
     svg.setAttribute("viewBox", `0 0 ${dim.breite} ${dim.hoehe}`);
     svg.setAttribute("preserveAspectRatio", "none");
 
-    for (const feld of seitenFelder) {
+    for (const [feldIdx, feld] of seitenFelder.entries()) {
+      const feldNr = pdfFelder.indexOf(feld) + 1;
       const { x, y, w, h } = pdfKoord(feld, dim, dim.breite, dim.hoehe);
       const rect = document.createElementNS(ns, "rect");
       rect.setAttribute("x", x); rect.setAttribute("y", y);
@@ -483,10 +497,11 @@ async function ladePdfViewer() {
       if (!acroRects[feld.name]) acroRects[feld.name] = [];
       acroRects[feld.name].push(rect);
 
-      // Feldname als kleinen Text
+      // Nummer statt Feldname (voller Name als Tooltip auf rect)
+      rect.setAttribute("title", `${feldNr}: ${feld.name}`);
       const txt = document.createElementNS(ns, "text");
       txt.setAttribute("x", x + 2); txt.setAttribute("y", y + 1);
-      txt.textContent = feld.name;
+      txt.textContent = feldNr;
       svg.appendChild(txt);
     }
 
@@ -540,7 +555,7 @@ function typenSelect(aktuellerTyp, onChange) {
   return sel;
 }
 
-function optionenEditor(feld) {
+function optionenEditor(feld, wrapper) {
   const wrap = el("div", { class: "optionen-editor" });
   const titel = el("div", { class: "small fw-semibold mb-1 text-muted" }, "Auswahloptionen:");
   wrap.append(titel);
@@ -557,7 +572,21 @@ function optionenEditor(feld) {
         type: "button", class: "btn btn-outline-danger btn-sm",
         onclick: () => { feld.optionen.splice(i, 1); renderOptionen(); }
       }, "×");
-      row.append(inp, removeBtn);
+      // Pin-Button für Ankreuz-Position (nur im Koordinaten-Modus sichtbar)
+      const hatKoord = !!(feld.optionen_koord && feld.optionen_koord[opt] &&
+        (feld.optionen_koord[opt].x_pct || feld.optionen_koord[opt].y_pct));
+      const pinBtn = el("button", {
+        type: "button",
+        class: "btn btn-sm koord-pin-btn" + (hatKoord ? " btn-success" : " btn-outline-secondary"),
+        title: `Ankreuz-Position für „${opt}" setzen`,
+        style: "font-size:.7rem; padding:1px 4px; display:none;",
+        "data-opt": opt,
+      }, "📌");
+      pinBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        setAktivesKoordFeld(feld, wrapper, opt);
+      });
+      row.append(inp, pinBtn, removeBtn);
       liste.append(row);
     });
     if (!wrap.contains(liste)) wrap.append(liste);
@@ -602,14 +631,42 @@ function sonderwertEditor(feld) {
   return wrap;
 }
 
+function boolKoordEditor(feld, wrapper) {
+  const wrap = el("div", { class: "optionen-editor" });
+  wrap.append(el("div", { class: "small fw-semibold mb-1 text-muted" }, "Ankreuz-Positionen (Ja / Nein):"));
+  for (const opt of ["ja", "nein"]) {
+    const hatKoord = !!(feld.optionen_koord && feld.optionen_koord[opt] &&
+      (feld.optionen_koord[opt].x_pct || feld.optionen_koord[opt].y_pct));
+    const pinBtn = el("button", {
+      type: "button",
+      class: "btn btn-sm koord-pin-btn me-1" + (hatKoord ? " btn-success" : " btn-outline-secondary"),
+      title: `Ankreuz-Position für „${opt === "ja" ? "Ja" : "Nein"}" setzen`,
+      style: "font-size:.7rem; padding:1px 6px; display:none;",
+      "data-opt": opt,
+    }, `📌 ${opt === "ja" ? "Ja" : "Nein"}`);
+    pinBtn.addEventListener("click", (e) => { e.stopPropagation(); setAktivesKoordFeld(feld, wrapper, opt); });
+    wrap.append(pinBtn);
+  }
+  return wrap;
+}
+
+let _feldNrZaehler = 0;
+const _feldNrMap = {};  // feld.id → Nummer
+
 function feldZeile(feld) {
+  _feldNrZaehler++;
+  _feldNrMap[feld.id] = _feldNrZaehler;
   const acroName = feld.acroform_name || "";
   const wrapper = el("div", { "data-acroform": acroName, "data-feld-id": feld.id });
 
   const row = el("div", { class: "feld-row" });
 
-  // Spalte 1: ID
-  const idBadge = el("div", { class: "feld-id-badge", title: feld.id }, feld.id || "–");
+  // Spalte 1: Nummer + ID
+  const idBadge = el("div", { class: "feld-id-badge", title: feld.id });
+  idBadge.append(
+    el("span", { class: "badge bg-secondary me-1", style: "font-size:.65rem;" }, String(_feldNrZaehler)),
+    document.createTextNode(feld.id || "–"),
+  );
   row.append(idBadge);
 
   // Spalte 2: Label
@@ -629,7 +686,7 @@ function feldZeile(feld) {
     sonderEditor = null; optEditor = null;
     if (BRAUCHT_OPTIONEN.has(neuerTyp)) {
       if (!feld.optionen || feld.optionen.length === 0) feld.optionen = [];
-      optEditor = optionenEditor(feld);
+      optEditor = optionenEditor(feld, wrapper);
       wrapper.append(optEditor);
     } else if (BRAUCHT_TEXT.has(neuerTyp) || neuerTyp === "autofill" || neuerTyp === "systemfeld") {
       sonderEditor = sonderwertEditor(feld);
@@ -666,6 +723,91 @@ function feldZeile(feld) {
   pflichtWrap.append(pflichtCb);
   row.append(pflichtWrap);
 
+  // Vorlage-Builder (Nummern eingeben)
+  const vorlageRowId = `vr_${feld.id}`;
+  const vorlageBtn = el("button", {
+    type: "button", class: "btn btn-outline-secondary btn-sm" + (feld.vorlage ? " btn-warning" : ""),
+    title: "Felder zusammenfassen (Nummern eingeben)",
+    style: "font-size:.75rem; padding:1px 5px;",
+  }, "⊕");
+
+  const vorlageRow = el("div", {
+    class: "sonderwert-input", id: vorlageRowId,
+    style: feld.vorlage ? "" : "display:none;",
+  });
+
+  // Trennzeichen
+  const TRENNER = [" ", ", ", " – ", " / "];
+  let aktiverTrenner = " ";
+
+  function vorlageAusNummern(eingabe) {
+    const nrMap = Object.fromEntries(Object.entries(_feldNrMap).map(([id, nr]) => [nr, id]));
+    const nummern = eingabe.split(/[\s,]+/).map(n => parseInt(n)).filter(n => !isNaN(n));
+    return nummern.map(n => nrMap[n] ? `{${nrMap[n]}}` : null).filter(Boolean).join(aktiverTrenner);
+  }
+
+  // Nummern-Eingabe
+  const nrInp = el("input", {
+    type: "text", class: "form-control form-control-sm mt-1",
+    placeholder: "Nummern eingeben, z.B.  3 4  oder  3, 4",
+    style: "font-family:monospace;",
+  });
+
+  // Vorschau
+  const vorschau = el("div", {
+    class: "small mt-1 p-1 rounded font-monospace",
+    style: "background:#f0f4ff; min-height:1.4rem; border:1px solid #b8caff; color:#084298;",
+  });
+
+  function vorlageAktualisieren() {
+    feld.vorlage = vorlageAusNummern(nrInp.value);
+    vorschau.textContent = feld.vorlage || "–";
+    vorlageBtn.classList.toggle("btn-warning", !!feld.vorlage);
+    vorlageBtn.classList.toggle("btn-outline-secondary", !feld.vorlage);
+  }
+  nrInp.addEventListener("input", vorlageAktualisieren);
+
+  // Trennzeichen-Buttons
+  const trennerWrap = el("div", { class: "d-flex gap-1 mt-1 align-items-center flex-wrap" });
+  trennerWrap.append(el("span", { class: "small text-muted" }, "Trennzeichen:"));
+  for (const t of TRENNER) {
+    const btn = el("button", {
+      type: "button",
+      class: "btn btn-outline-secondary btn-sm" + (t === " " ? " active" : ""),
+      style: "font-size:.7rem; padding:1px 6px;",
+    }, t === " " ? "␣" : `„${t.trim()}"`);
+    btn.addEventListener("click", () => {
+      aktiverTrenner = t;
+      trennerWrap.querySelectorAll("button").forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+      vorlageAktualisieren();
+    });
+    trennerWrap.append(btn);
+  }
+
+  // Beim Öffnen aktuelle Nummern rekonstruieren
+  vorlageBtn.addEventListener("click", () => {
+    const offen = vorlageRow.style.display !== "none";
+    vorlageRow.style.display = offen ? "none" : "";
+    if (!offen && feld.vorlage) {
+      // Vorlage → Nummern zurückrechnen für Anzeige
+      const nrs = [...feld.vorlage.matchAll(/\{(\w+)\}/g)]
+        .map(m => _feldNrMap[m[1]]).filter(Boolean).join(" ");
+      nrInp.value = nrs;
+      vorschau.textContent = feld.vorlage;
+    }
+  });
+  row.append(vorlageBtn);
+
+  vorlageRow.append(
+    el("div", { class: "small text-muted mt-1" }, "Nummern der Felder eingeben (sichtbar als graue Badges links):"),
+    nrInp,
+    trennerWrap,
+    el("div", { class: "small text-muted mt-1" }, "Ergebnis:"),
+    vorschau,
+  );
+  wrapper.append(vorlageRow);
+
   // Pin-Button (nur im Koordinaten-Modus sichtbar)
   const pinBtn = el("button", {
     type: "button", class: "btn btn-sm koord-pin-btn",
@@ -695,8 +837,10 @@ function feldZeile(feld) {
 
   // Sonder-Editoren
   if (BRAUCHT_OPTIONEN.has(feld.typ)) {
-    optEditor = optionenEditor(feld);
+    optEditor = optionenEditor(feld, wrapper);
     wrapper.append(optEditor);
+  } else if (feld.typ === "bool") {
+    wrapper.append(boolKoordEditor(feld, wrapper));
   } else if (BRAUCHT_TEXT.has(feld.typ) || feld.typ === "autofill" || feld.typ === "systemfeld") {
     sonderEditor = sonderwertEditor(feld);
     wrapper.append(sonderEditor);
@@ -818,22 +962,78 @@ function alleFelder() {
 
 const SKIP_TYPEN = new Set(["textblock", "abschnitt", "zusammenfassung", "quizergebnis", "einwilligung"]);
 
-function setAktivesKoordFeld(feld, row) {
+// ---- Undo-Stack ----
+const undoStack = [];
+
+function pushUndo(feld) {
+  undoStack.push({
+    feldId: feld.id,
+    x_pct: feld.x_pct,
+    y_pct: feld.y_pct,
+    seite_nr: feld.seite_nr,
+    optionen_koord: JSON.parse(JSON.stringify(feld.optionen_koord || {})),
+  });
+  if (undoStack.length > 50) undoStack.shift();
+  updateUndoBtn();
+}
+
+function updateUndoBtn() {
+  const btn = document.getElementById("koord-undo-btn");
+  if (btn) btn.disabled = undoStack.length === 0;
+}
+
+function refreshFeldBadges(feld) {
+  // Alle Badges dieses Feldes entfernen
+  [...koordBadges].filter(b => b.feldId === feld.id || b.feldId.startsWith(`${feld.id}__opt__`))
+    .forEach(b => { b.badge.remove(); koordBadges.splice(koordBadges.indexOf(b), 1); });
+
+  const seiteWraps = document.querySelectorAll(".pdf-seite-wrap");
+  const xPct = parseFloat(feld.x_pct) || 0;
+  const yPct = parseFloat(feld.y_pct) || 0;
+  if (xPct !== 0 || yPct !== 0) {
+    const wrap = seiteWraps[parseInt(feld.seite_nr) || 0] || seiteWraps[0];
+    if (wrap) erstelleBadge(feld, wrap, xPct, yPct);
+  }
+  for (const [optionWert, koord] of Object.entries(feld.optionen_koord || {})) {
+    const ox = parseFloat(koord.x_pct) || 0;
+    const oy = parseFloat(koord.y_pct) || 0;
+    if (ox === 0 && oy === 0) continue;
+    const wrap = seiteWraps[parseInt(koord.seite_nr) || 0] || seiteWraps[0];
+    if (wrap) erstelleOptionBadge(feld, optionWert, wrap, ox, oy);
+  }
+  renderOptionenPinButtons(feld);
+}
+
+function undo() {
+  if (!undoStack.length) return;
+  const prev = undoStack.pop();
+  const feld = alleFelder().find(f => f.id === prev.feldId);
+  if (!feld) { updateUndoBtn(); return; }
+  feld.x_pct        = prev.x_pct;
+  feld.y_pct        = prev.y_pct;
+  feld.seite_nr     = prev.seite_nr;
+  feld.optionen_koord = prev.optionen_koord;
+  refreshFeldBadges(feld);
+  updateUndoBtn();
+}
+
+function setAktivesKoordFeld(feld, row, optionWert = null) {
   if (aktivesKoordFeld) {
     aktivesKoordFeld.row.classList.remove("koord-aktiv-zeile");
-    aktivesKoordFeld.row.querySelector(".koord-pin-btn")?.classList.replace("btn-warning", "btn-outline-secondary");
   }
   // Nochmal klicken → deaktivieren
-  if (feld && aktivesKoordFeld && aktivesKoordFeld.feld === feld) {
+  if (feld && aktivesKoordFeld && aktivesKoordFeld.feld === feld && aktivesKoordFeld.optionWert === optionWert) {
     aktivesKoordFeld = null;
     document.getElementById("koord-hinweis").textContent = "📌 Feld rechts anklicken, dann auf PDF-Position klicken";
     return;
   }
-  aktivesKoordFeld = feld ? { feld, row } : null;
+  aktivesKoordFeld = feld ? { feld, row, optionWert } : null;
   if (feld) {
     row.classList.add("koord-aktiv-zeile");
-    row.querySelector(".koord-pin-btn")?.classList.replace("btn-outline-secondary", "btn-warning");
-    document.getElementById("koord-hinweis").textContent = `📌 „${feld.label || feld.id}" – jetzt auf PDF-Seite klicken`;
+    const hinweis = optionWert !== null
+      ? `📌 „${feld.label || feld.id}" → Option „${optionWert}" – jetzt auf PDF-Seite klicken`
+      : `📌 „${feld.label || feld.id}" – jetzt auf PDF-Seite klicken`;
+    document.getElementById("koord-hinweis").textContent = hinweis;
   } else {
     document.getElementById("koord-hinweis").textContent = "📌 Feld rechts anklicken, dann auf PDF-Position klicken";
   }
@@ -856,6 +1056,7 @@ function erstelleBadge(feld, wrap, xPct, yPct) {
   closeBtn.title = "Nicht benötigt – ausblenden";
   closeBtn.addEventListener("mousedown", (ev) => {
     ev.stopPropagation();
+    pushUndo(feld);
     feld.x_pct = 0; feld.y_pct = 0;
     badge.remove();
     const idx = koordBadges.findIndex(b => b.feldId === feld.id);
@@ -869,17 +1070,108 @@ function erstelleBadge(feld, wrap, xPct, yPct) {
   return badge;
 }
 
+function erstelleOptionBadge(feld, optionWert, wrap, xPct, yPct) {
+  const key = `${feld.id}__opt__${optionWert}`;
+  const alt = koordBadges.find(b => b.feldId === key);
+  if (alt) { alt.badge.remove(); koordBadges.splice(koordBadges.indexOf(alt), 1); }
+
+  const badge = document.createElement("div");
+  badge.className = "koord-badge";
+  badge.style.background = "#6f42c1";
+  badge.textContent = `☑ ${optionWert}`;
+  badge.style.left = (xPct * 100) + "%";
+  badge.style.top  = (yPct * 100) + "%";
+  badge.title = `${feld.id} → ${optionWert}\nx: ${xPct.toFixed(3)}, y: ${yPct.toFixed(3)}`;
+
+  const closeBtn = document.createElement("span");
+  closeBtn.textContent = " ×";
+  closeBtn.style.cssText = "opacity:.7;cursor:pointer;font-weight:bold;";
+  closeBtn.addEventListener("mousedown", (ev) => {
+    ev.stopPropagation();
+    pushUndo(feld);
+    if (feld.optionen_koord) delete feld.optionen_koord[optionWert];
+    badge.remove();
+    const idx = koordBadges.findIndex(b => b.feldId === key);
+    if (idx >= 0) koordBadges.splice(idx, 1);
+    // Pin-Button zurücksetzen
+    renderOptionenPinButtons(feld);
+  });
+  badge.appendChild(closeBtn);
+
+  makeOptionDraggable(badge, feld, optionWert, wrap);
+  wrap.appendChild(badge);
+  koordBadges.push({ badge, feldId: key });
+  return badge;
+}
+
+function makeOptionDraggable(badge, feld, optionWert, wrap) {
+  let dragging = false, startX, startY, startLeft, startTop;
+  badge.addEventListener("mousedown", (e) => {
+    if (e.target !== badge) return;
+    e.preventDefault();
+    dragging = true;
+    pushUndo(feld);
+    const koord = (feld.optionen_koord || {})[optionWert] || {};
+    const rect = wrap.getBoundingClientRect();
+    startX = e.clientX; startY = e.clientY;
+    startLeft = (parseFloat(koord.x_pct) || 0) * rect.width;
+    startTop  = (parseFloat(koord.y_pct) || 0) * rect.height;
+    badge.classList.add("aktiv");
+    badge.style.zIndex = 100;
+  });
+  document.addEventListener("mousemove", (e) => {
+    if (!dragging) return;
+    const rect = wrap.getBoundingClientRect();
+    const newLeft = Math.max(0, Math.min(rect.width,  startLeft + e.clientX - startX));
+    const newTop  = Math.max(0, Math.min(rect.height, startTop  + e.clientY - startY));
+    const xPct = Math.round(newLeft / rect.width  * 10000) / 10000;
+    const yPct = Math.round(newTop  / rect.height * 10000) / 10000;
+    if (!feld.optionen_koord) feld.optionen_koord = {};
+    feld.optionen_koord[optionWert] = { ...feld.optionen_koord[optionWert], x_pct: xPct, y_pct: yPct };
+    badge.style.left = (xPct * 100) + "%";
+    badge.style.top  = (yPct * 100) + "%";
+  });
+  document.addEventListener("mouseup", () => {
+    if (!dragging) return;
+    dragging = false;
+    badge.classList.remove("aktiv");
+    badge.style.zIndex = 20;
+  });
+}
+
+function renderOptionenPinButtons(feld) {
+  // Farbe der Option-Pin-Buttons aktualisieren (grün = hat Koordinate)
+  document.querySelectorAll(`[data-feld-id="${feld.id}"] .koord-pin-btn[data-opt]`).forEach(btn => {
+    const opt = btn.dataset.opt;
+    const hatKoord = !!(feld.optionen_koord && feld.optionen_koord[opt] &&
+      (feld.optionen_koord[opt].x_pct || feld.optionen_koord[opt].y_pct));
+    btn.classList.toggle("btn-success", hatKoord);
+    btn.classList.toggle("btn-outline-secondary", !hatKoord);
+  });
+}
+
 function pdfKlickPlatzieren(e, wrap) {
   if (!koordModus || !aktivesKoordFeld) return;
   const rect = wrap.getBoundingClientRect();
   const xPct = Math.round((e.clientX - rect.left) / rect.width  * 10000) / 10000;
   const yPct = Math.round((e.clientY - rect.top)  / rect.height * 10000) / 10000;
   const seiteWraps = [...document.querySelectorAll(".pdf-seite-wrap")];
-  const feld = aktivesKoordFeld.feld;
-  feld.x_pct    = xPct;
-  feld.y_pct    = yPct;
-  feld.seite_nr = seiteWraps.indexOf(wrap);
-  erstelleBadge(feld, wrap, xPct, yPct);
+  const { feld, optionWert } = aktivesKoordFeld;
+  const seiteNr = seiteWraps.indexOf(wrap);
+  pushUndo(feld);
+
+  if (optionWert !== null) {
+    // Ankreuz-Option platzieren
+    if (!feld.optionen_koord) feld.optionen_koord = {};
+    feld.optionen_koord[optionWert] = { x_pct: xPct, y_pct: yPct, seite_nr: seiteNr };
+    erstelleOptionBadge(feld, optionWert, wrap, xPct, yPct);
+    renderOptionenPinButtons(feld);
+  } else {
+    feld.x_pct    = xPct;
+    feld.y_pct    = yPct;
+    feld.seite_nr = seiteNr;
+    erstelleBadge(feld, wrap, xPct, yPct);
+  }
   setAktivesKoordFeld(null, null);
 }
 
@@ -900,9 +1192,18 @@ function koordModeEin() {
   for (const feld of alleFelder().filter(f => f.id && !SKIP_TYPEN.has(f.typ))) {
     const xPct = parseFloat(feld.x_pct) || 0;
     const yPct = parseFloat(feld.y_pct) || 0;
-    if (xPct === 0 && yPct === 0) continue;
-    const wrap = seiteWraps[parseInt(feld.seite_nr) || 0] || seiteWraps[0];
-    if (wrap) erstelleBadge(feld, wrap, xPct, yPct);
+    if (xPct !== 0 || yPct !== 0) {
+      const wrap = seiteWraps[parseInt(feld.seite_nr) || 0] || seiteWraps[0];
+      if (wrap) erstelleBadge(feld, wrap, xPct, yPct);
+    }
+    // Option-Badges rendern
+    for (const [optionWert, koord] of Object.entries(feld.optionen_koord || {})) {
+      const ox = parseFloat(koord.x_pct) || 0;
+      const oy = parseFloat(koord.y_pct) || 0;
+      if (ox === 0 && oy === 0) continue;
+      const wrap = seiteWraps[parseInt(koord.seite_nr) || 0] || seiteWraps[0];
+      if (wrap) erstelleOptionBadge(feld, optionWert, wrap, ox, oy);
+    }
   }
 }
 
@@ -934,6 +1235,7 @@ function makeDraggable(badge, feld, wrap) {
   badge.addEventListener("mousedown", (e) => {
     e.preventDefault();
     dragging = true;
+    pushUndo(feld);
     const rect = wrap.getBoundingClientRect();
     startX = e.clientX;
     startY = e.clientY;
@@ -973,8 +1275,19 @@ async function koordSpeichern() {
   btn.textContent = "Speichert…";
 
   const payload = alleFelder()
-    .filter(f => (parseFloat(f.x_pct) || 0) !== 0 || (parseFloat(f.y_pct) || 0) !== 0)
-    .map(f => ({ id: f.id, x_pct: f.x_pct || 0, y_pct: f.y_pct || 0, seite_nr: f.seite_nr || 0 }));
+    .filter(f => {
+      const hasMain = (parseFloat(f.x_pct) || 0) !== 0 || (parseFloat(f.y_pct) || 0) !== 0;
+      const hasOpt  = f.optionen_koord && Object.keys(f.optionen_koord).length > 0;
+      return hasMain || hasOpt;
+    })
+    .map(f => ({
+      id: f.id,
+      x_pct: f.x_pct || 0,
+      y_pct: f.y_pct || 0,
+      seite_nr: f.seite_nr || 0,
+      vorlage: f.vorlage || "",
+      optionen_koord: f.optionen_koord || {},
+    }));
   const pdfFont = {
     size: parseFloat(document.getElementById("pdf-font-size").value) || 9,
     bold: document.getElementById("pdf-font-bold").checked,
@@ -1012,6 +1325,10 @@ document.getElementById("koord-toggle").addEventListener("click", () => {
 });
 document.getElementById("koord-speichern-btn").addEventListener("click", koordSpeichern);
 document.getElementById("koord-abbrechen-btn").addEventListener("click", koordModeAus);
+document.getElementById("koord-undo-btn").addEventListener("click", undo);
+document.addEventListener("keydown", (e) => {
+  if (koordModus && e.ctrlKey && e.key === "z") { e.preventDefault(); undo(); }
+});
 
 // Schrift-Einstellungen initialisieren
 document.getElementById("pdf-font-size").value = PDF_FONT_INIT.size || 9;

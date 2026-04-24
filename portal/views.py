@@ -563,6 +563,10 @@ def analyse_koordinaten_speichern(request, pk):
                 feld["x_pct"] = round(float(k.get("x_pct", 0)), 4)
                 feld["y_pct"] = round(float(k.get("y_pct", 0)), 4)
                 feld["seite_nr"] = int(k.get("seite_nr", 0))
+                if "vorlage" in k:
+                    feld["vorlage"] = k["vorlage"]
+                if "optionen_koord" in k:
+                    feld["optionen_koord"] = k["optionen_koord"]
 
     # Schrift-Einstellungen speichern
     if "pdf_font" in data:
@@ -585,6 +589,10 @@ def analyse_koordinaten_speichern(request, pk):
                     feld["x_pct"] = round(float(k.get("x_pct", 0)), 4)
                     feld["y_pct"] = round(float(k.get("y_pct", 0)), 4)
                     feld["seite_nr"] = int(k.get("seite_nr", 0))
+                    if "vorlage" in k:
+                        feld["vorlage"] = k["vorlage"]
+                    if "optionen_koord" in k:
+                        feld["optionen_koord"] = k["optionen_koord"]
                     changed = True
             if changed:
                 schritt.felder_json = felder_json

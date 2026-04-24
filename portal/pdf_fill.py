@@ -346,6 +346,7 @@ def fuelle_pdf_overlay(
     }
 
     _SKIP = {"textblock", "abschnitt", "zusammenfassung", "quizergebnis", "signatur", "einwilligung"}
+    import re as _re
 
     # Felder pro Seite sammeln
     felder_pro_seite: dict[int, list[dict]] = {i: [] for i in range(num_pages)}
@@ -356,22 +357,66 @@ def fuelle_pdf_overlay(
                 continue
             fid = feld.get("id", "")
             typ = feld.get("typ", "")
+            if not fid or typ in _SKIP:
+                continue
+
+            # ── Ankreuz-Modus: radio/checkboxen/bool mit optionen_koord ────
+            optionen_koord = feld.get("optionen_koord") or {}
+            if optionen_koord and typ == "bool":
+                raw = str(daten.get(fid, "")).strip().lower()
+                is_true = raw in _TRUTHY
+                opt_key = "ja" if is_true else "nein"
+                koord = optionen_koord.get(opt_key, {})
+                ox = float(koord.get("x_pct") or 0)
+                oy = float(koord.get("y_pct") or 0)
+                os = int(koord.get("seite_nr") or 0)
+                if (ox != 0 or oy != 0) and os < num_pages:
+                    felder_pro_seite[os].append({"x_pct": ox, "y_pct": oy, "wert": "X", "zentriert": True})
+                continue
+            if optionen_koord and typ in ("radio", "checkboxen"):
+                raw_wert = str(daten.get(fid, "")).strip().lower()
+                for opt_wert, opt_koord in optionen_koord.items():
+                    if not isinstance(opt_koord, dict):
+                        continue
+                    ox = float(opt_koord.get("x_pct") or 0)
+                    oy = float(opt_koord.get("y_pct") or 0)
+                    os = int(opt_koord.get("seite_nr") or 0)
+                    if ox == 0.0 and oy == 0.0:
+                        continue
+                    if opt_wert.lower() in raw_wert:
+                        if os < num_pages:
+                            felder_pro_seite[os].append({"x_pct": ox, "y_pct": oy, "wert": "X", "zentriert": True})
+                continue
+
             x_pct = float(feld.get("x_pct") or 0.0)
             y_pct = float(feld.get("y_pct") or 0.0)
             seite = int(feld.get("seite_nr") or 0)
-            if not fid or typ in _SKIP:
-                continue
             if x_pct == 0.0 and y_pct == 0.0:
                 continue
+
+            vorlage = feld.get("vorlage", "").strip()
             if typ == "systemfeld":
                 wert = _system_werte.get(feld.get("systemwert", ""), "")
+            elif typ == "bool":
+                # Boolean-Felder: "True"/"False" → "X"/leer
+                raw = str(daten.get(fid, "")).strip()
+                wert = "X" if raw.lower() in _TRUTHY else ""
+            elif vorlage:
+                wert = _re.sub(
+                    r"\{(\w+)\}",
+                    lambda m: str(daten.get(m.group(1), "")).strip(),
+                    vorlage,
+                ).strip()
             else:
                 wert = str(daten.get(fid, "")).strip()
             if not wert:
                 continue
             wert = _format_wert(wert)
             if seite < num_pages:
-                felder_pro_seite[seite].append({"x_pct": x_pct, "y_pct": y_pct, "wert": wert})
+                eintrag = {"x_pct": x_pct, "y_pct": y_pct, "wert": wert}
+                if typ == "bool":
+                    eintrag["zentriert"] = True
+                felder_pro_seite[seite].append(eintrag)
 
     # Overlay pro Seite erzeugen und einmergen
     writer = PdfWriter()
@@ -392,9 +437,14 @@ def fuelle_pdf_overlay(
 
         for entry in eintraege:
             x_pt = entry["x_pct"] * pw
-            # PDF Y ist von unten; y_pct ist von oben → umrechnen + 3pt Puffer nach oben
-            y_pt = ph - entry["y_pct"] * ph + 3
-            c.drawString(x_pt, y_pt, entry["wert"])
+            if entry.get("zentriert"):
+                # Ankreuz-Felder: Kreuz zentriert auf Klickposition (vertikal + horizontal)
+                y_pt = ph - entry["y_pct"] * ph - float(font_size) * 0.25
+                c.drawCentredString(x_pt, y_pt, entry["wert"])
+            else:
+                # Textfelder: linksbündig, kleiner Puffer nach oben
+                y_pt = ph - entry["y_pct"] * ph + 3
+                c.drawString(x_pt, y_pt, entry["wert"])
 
         c.save()
         overlay_buf.seek(0)
