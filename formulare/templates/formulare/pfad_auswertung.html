@@ -105,6 +105,20 @@
                         {% else %}
                         <span class="badge bg-secondary">{{ zeile.status }}</span>
                         {% endif %}
+                        {% if zeile.bestaetigung_token %}
+                            {% if zeile.bestaetigt_am %}
+                            <span class="badge bg-success ms-1"
+                                  title="Bestätigt am {{ zeile.bestaetigt_am|date:'d.m.Y H:i' }}{% if zeile.bestaetigung_firmenname %} · {{ zeile.bestaetigung_firmenname }} · {{ zeile.bestaetigung_kontaktname }} · Tel: {{ zeile.bestaetigung_telefon }}{% endif %}">&#10003; unterschrieben</span>
+                            {% if zeile.bestaetigung_telefon %}
+                            <div class="small text-muted mt-1" style="font-size:.75rem;">
+                                &#128222; <a href="tel:{{ zeile.bestaetigung_telefon }}" class="text-muted text-decoration-none">{{ zeile.bestaetigung_telefon }}</a>
+                                {% if zeile.bestaetigung_kontaktname %}&nbsp;({{ zeile.bestaetigung_kontaktname }}){% endif %}
+                            </div>
+                            {% endif %}
+                            {% else %}
+                            <span class="badge bg-warning text-dark ms-1" title="Bestätigung an {{ zeile.bestaetigung_email }} ausstehend">&#9998; ausstehend</span>
+                            {% endif %}
+                        {% endif %}
                     </td>
                     <td class="text-nowrap">{{ zeile.einreicher }}</td>
                     {% for wert in zeile.felder %}
@@ -112,7 +126,27 @@
                     {% endfor %}
                     <td class="text-nowrap">
                         <a href="{% url 'formulare:sitzung_pdf' zeile.pk %}"
-                           class="btn btn-outline-secondary btn-sm" title="PDF">&#128462;</a>
+                           class="btn btn-outline-secondary btn-sm" title="Ausgefülltes PDF (Vorgangswerk)">&#128462;</a>
+                        {% if pfad_hat_original %}
+                        <a href="{% url 'formulare:sitzung_original_pdf' zeile.pk %}"
+                           class="btn btn-outline-primary btn-sm" title="Original-PDF ausgefüllt herunterladen">&#128196; Original</a>
+                        {% endif %}
+                        <a href="{% url 'formulare:pfad_abgeschlossen' zeile.pk %}"
+                           class="btn btn-outline-secondary btn-sm" title="Zusammenfassung">&#128203;</a>
+                        {% if zeile.fitconnect_submission_id %}
+                        <span class="badge bg-info ms-1" title="Submission-ID: {{ zeile.fitconnect_submission_id }}">
+                            FIT-Connect: {{ zeile.fitconnect_status|default:"eingereicht" }}
+                        </span>
+                        {% elif pfad.fitconnect_destination_id %}
+                        <form method="post" action="{% url 'formulare:fitconnect_einreichen' zeile.pk %}"
+                              class="d-inline"
+                              onsubmit="return confirm('Vorgang {{ zeile.vorgangsnummer|default:zeile.pk }} per FIT-Connect einreichen?');">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-outline-info btn-sm" title="Per FIT-Connect einreichen">
+                                &#8679; FIT-Connect
+                            </button>
+                        </form>
+                        {% endif %}
                         {% if request.user.is_staff %}
                         <form method="post" action="{% url 'formulare:sitzung_loeschen' zeile.pk %}"
                               class="d-inline"

@@ -32,6 +32,38 @@ Kommunalverwaltungen, Zweckverbände, kommunale Unternehmen, Behörden auf Lande
 
 ---
 
+## Das Alleinstellungsmerkmal: Bestehende Formulare bleiben bestehen
+
+Viele Behörden nutzen PDF-Formulare, die sie gar nicht ändern können – vorgegeben vom Land, rechtlich bindend, oder seit Jahren als verbindliche Vorlage im Einsatz. Ein neues System einzuführen bedeutet dann meistens: alle Formulare neu bauen, neu abstimmen, neu genehmigen lassen.
+
+**Vorgangswerk macht das überflüssig.**
+
+### Ein konkretes Beispiel
+
+Eine Gemeinde hat einen zweiseitigen Antrag auf Wohnberechtigungsschein als PDF-Formular. Das Formular ist vom Kreis vorgegeben – die Gemeinde darf es nicht ändern. Bisher: Bürger druckt es aus, füllt es mit der Hand aus, schickt es per Post.
+
+**Mit Vorgangswerk:**
+
+1. Das bestehende PDF wird einmalig hochgeladen
+2. Eine KI erkennt automatisch alle Felder – Name, Adresse, Familienstand, Ankreuzfelder, Datumsfelder
+3. Daraus entsteht eine digitale Antragsstrecke: Schritt für Schritt, auf dem Smartphone, mit Validierung
+4. Wenn der Bürger fertig ist, werden seine Angaben automatisch in das **originale Formular des Kreises** eingetragen – jedes Feld an der richtigen Stelle, jedes Kästchen mit dem richtigen Kreuz
+
+Das Amt bekommt am Ende genau das PDF, das es kennt – vollständig ausgefüllt, kein Abtippen, kein Papier. Das Formular selbst hat sich kein bisschen geändert.
+
+### Was das bedeutet
+
+| Vorher | Mit Vorgangswerk |
+|---|---|
+| Bürger druckt aus, füllt handschriftlich aus | Bürger füllt online aus – Handy, Tablet, PC |
+| Einscannen oder per Post einschicken | PDF kommt vollständig ausgefüllt direkt an |
+| Sachbearbeiter tippt Daten ins System | Daten liegen strukturiert vor – kein Abtippen |
+| Neues System? Alle Formulare neu bauen | Bestehende Formulare einfach hochladen |
+
+> **Für wen das besonders relevant ist:** Kommunen, Kreise und Träger, die Formulare von übergeordneten Behörden übernehmen und keinen Spielraum bei Gestaltung oder Struktur haben.
+
+---
+
 ## Screenshots
 
 **Visueller Pfad-Editor** – Verzweigte Antragsformulare per Drag & Drop

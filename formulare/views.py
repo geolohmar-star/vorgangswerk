@@ -2972,16 +2972,24 @@ def pfad_auswertung(request, pk):
             "fitconnect_status":        sitzung.fitconnect_status,
         })
 
+    # Prüfen ob ein Original-PDF (FormularAnalyse) für diesen Pfad existiert
+    try:
+        from portal.models import FormularAnalyse
+        pfad_hat_original = FormularAnalyse.objects.filter(importierter_pfad_pk=pfad.pk).exists()
+    except Exception:
+        pfad_hat_original = False
+
     return render(request, "formulare/pfad_auswertung.html", {
-        "pfad":           pfad,
-        "spalten":        spalten,
-        "zeilen":         zeilen,
-        "gesamt":         gesamt,
-        "status_filter":  status_filter,
-        "datum_von":      datum_von,
-        "datum_bis":      datum_bis,
-        "suche":          suche,
-        "status_choices": AntrSitzung.STATUS_CHOICES,
+        "pfad":              pfad,
+        "spalten":           spalten,
+        "zeilen":            zeilen,
+        "gesamt":            gesamt,
+        "status_filter":     status_filter,
+        "datum_von":         datum_von,
+        "datum_bis":         datum_bis,
+        "suche":             suche,
+        "status_choices":    AntrSitzung.STATUS_CHOICES,
+        "pfad_hat_original": pfad_hat_original,
     })
 
 
