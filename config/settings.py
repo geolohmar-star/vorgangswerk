@@ -255,6 +255,21 @@ STRIPE_SECRET_KEY  = config("STRIPE_SECRET_KEY",  default="")
 STRIPE_WEBHOOK_SECRET = config("STRIPE_WEBHOOK_SECRET", default="")
 
 # ---------------------------------------------------------------------------
+# FIT-Connect Ausgang (FITKO Submission API)
+# ---------------------------------------------------------------------------
+FITCONNECT_CLIENT_ID     = config("FITCONNECT_CLIENT_ID",     default="")
+FITCONNECT_CLIENT_SECRET = config("FITCONNECT_CLIENT_SECRET", default="")
+# Token-Endpunkt: Testing vs. Produktion
+FITCONNECT_TOKEN_URL     = config(
+    "FITCONNECT_TOKEN_URL",
+    default="https://auth-testing.fit-connect.fitko.dev/token",
+)
+FITCONNECT_SUBMISSION_URL = config(
+    "FITCONNECT_SUBMISSION_URL",
+    default="https://submission-api-testing.fit-connect.fitko.dev",
+)
+
+# ---------------------------------------------------------------------------
 # Datensicherung (BSI CON.3)
 # ---------------------------------------------------------------------------
 

@@ -187,5 +187,57 @@
     </div>
   </div>
 
+  <!-- ── Sicherheitsprüfung ───────────────────────────────────────────── -->
+  <div class="card-section">
+    <div class="card-section-header d-flex justify-content-between align-items-center">
+      <span>&#128274; Abhängigkeiten – Sicherheitsprüfung</span>
+      <button class="btn btn-outline-secondary btn-sm" id="audit-btn" onclick="auditStarten()">Jetzt prüfen</button>
+    </div>
+    <div class="p-3" id="audit-bereich">
+      <p class="text-muted small mb-0">Noch nicht geprüft. Ergebnisse werden 1 Stunde gecacht.</p>
+    </div>
+  </div>
+
 </div>
+
+<script>
+function auditStarten() {
+  const btn = document.getElementById('audit-btn');
+  const bereich = document.getElementById('audit-bereich');
+  btn.disabled = true;
+  btn.textContent = 'Prüfe…';
+  bereich.innerHTML = '<p class="text-muted small mb-0">&#9203; pip-audit läuft, bitte warten…</p>';
+
+  fetch("{% url 'portal:admin_sicherheitspruefung' %}")
+    .then(r => r.json())
+    .then(data => {
+      btn.disabled = false;
+      btn.textContent = 'Erneut prüfen';
+      if (data.fehler) {
+        bereich.innerHTML = `<div class="alert alert-danger py-2 mb-0">Fehler: ${data.fehler}</div>`;
+        return;
+      }
+      const vulns = data.vulns;
+      if (!vulns.length) {
+        bereich.innerHTML = '<div class="alert alert-success py-2 mb-0">&#10003; Keine bekannten Schwachstellen gefunden.</div>';
+        return;
+      }
+      let html = `<div class="alert alert-warning py-2 mb-2"><strong>${vulns.length} Schwachstelle(n) gefunden</strong></div>`;
+      html += '<table class="table table-sm mb-0"><thead class="table-light"><tr><th>Paket</th><th>Version</th><th>CVE / ID</th><th>Fix</th></tr></thead><tbody>';
+      for (const v of vulns) {
+        const fixBadge = v.fix && v.fix !== '–'
+          ? `<span class="badge bg-success">${v.fix}</span>`
+          : `<span class="badge bg-secondary">kein Fix</span>`;
+        html += `<tr><td class="fw-semibold">${v.paket}</td><td>${v.version}</td><td><code>${v.id}</code></td><td>${fixBadge}</td></tr>`;
+      }
+      html += '</tbody></table>';
+      bereich.innerHTML = html;
+    })
+    .catch(() => {
+      btn.disabled = false;
+      btn.textContent = 'Erneut prüfen';
+      bereich.innerHTML = '<div class="alert alert-danger py-2 mb-0">Netzwerkfehler.</div>';
+    });
+}
+</script>
 {% endblock %}
