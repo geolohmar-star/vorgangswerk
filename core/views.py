@@ -370,6 +370,24 @@ def anleitung_pdf(request):
     return response
 
 
+def bestaetigung_anleitung_pdf(request):
+    """Anleitung 'Bestätigung per E-Mail + digitale Unterschrift' als PDF."""
+    import datetime
+    from django.template.loader import render_to_string
+    from django.http import HttpResponse
+    try:
+        from weasyprint import HTML
+    except ImportError:
+        return HttpResponse("WeasyPrint nicht installiert.", status=500)
+
+    datum = datetime.date.today().strftime("%d.%m.%Y")
+    html_string = render_to_string("core/bestaetigung_anleitung_pdf.html", {"datum": datum}, request=request)
+    pdf = HTML(string=html_string, base_url=request.build_absolute_uri("/")).write_pdf()
+    response = HttpResponse(pdf, content_type="application/pdf")
+    response["Content-Disposition"] = 'attachment; filename="Vorgangswerk-Bestaetigung-Anleitung.pdf"'
+    return response
+
+
 def roadmap(request):
     """Innovationsboard – Roadmap und nutzbare Standards."""
     from .models import RoadmapEintrag

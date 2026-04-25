@@ -1,0 +1,55 @@
+{% extends "formulare/base_public.html" %}
+
+{% block title %}Bestätigung erhalten – {{ sitzung.pfad.name }}{% endblock %}
+
+{% block content %}
+<div class="container py-5" style="max-width:600px;">
+    <div class="text-center mb-4">
+        <div style="font-size:3.5rem;color:#1a4d2e;">&#10003;</div>
+        <h1 class="h3 fw-bold mt-2" style="color:#1a4d2e;">Vielen Dank für Ihre Bestätigung</h1>
+        <p class="text-muted">
+            {{ sitzung.pfad.name }}
+            {% if sitzung.vorgangsnummer %}
+            &middot; Vorgang {{ sitzung.vorgangsnummer }}
+            {% endif %}
+        </p>
+    </div>
+
+    <div class="card border-success mb-4">
+        <div class="card-body">
+            <p class="mb-2 text-center">Ihre digitale Unterschrift wurde gespeichert.</p>
+            {% if sitzung.bestaetigt_am %}
+            <p class="text-muted small text-center mb-3">
+                Bestätigt am {{ sitzung.bestaetigt_am|date:"d.m.Y" }} um {{ sitzung.bestaetigt_am|date:"H:i" }} Uhr
+            </p>
+            {% endif %}
+            {% if sitzung.bestaetigung_firmenname %}
+            <dl class="row small mb-0">
+                <dt class="col-5 text-muted">Firma</dt>
+                <dd class="col-7">{{ sitzung.bestaetigung_firmenname }}</dd>
+                <dt class="col-5 text-muted">Unterzeichner/in</dt>
+                <dd class="col-7">{{ sitzung.bestaetigung_kontaktname }}</dd>
+                <dt class="col-5 text-muted">Telefon</dt>
+                <dd class="col-7 mb-0">{{ sitzung.bestaetigung_telefon }}</dd>
+            </dl>
+            {% endif %}
+        </div>
+    </div>
+
+    {% if sitzung.bestaetigung_signatur %}
+    <div class="card mb-4">
+        <div class="card-header fw-semibold small">Ihre gespeicherte Unterschrift</div>
+        <div class="card-body text-center">
+            <img src="{{ sitzung.bestaetigung_signatur }}" alt="Unterschrift"
+                 style="max-width:300px;border:1px solid #dee2e6;border-radius:4px;">
+        </div>
+    </div>
+    {% endif %}
+
+    <div class="card border-0 bg-light text-center p-4">
+        <p class="text-muted mb-0 small">
+            Sie können dieses Fenster jetzt schließen.
+        </p>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<title>Vorgangswerk – Bestätigungs-Feature einrichten</title>
+<style>
+  @page {
+    size: A4;
+    margin: 2cm 2.2cm 2.5cm 2.2cm;
+    @top-center {
+      content: "Vorgangswerk – Bestätigung per E-Mail + digitale Unterschrift";
+      font-size: 8pt; color: #666; font-family: sans-serif;
+    }
+    @bottom-right {
+      content: "Seite " counter(page) " von " counter(pages);
+      font-size: 8pt; color: #666; font-family: sans-serif;
+    }
+    @bottom-left {
+      content: "Stand: {{ datum }}";
+      font-size: 8pt; color: #666; font-family: sans-serif;
+    }
+  }
+  body { font-family: 'DejaVu Sans', Arial, sans-serif; font-size: 10pt; color: #1a1a1a; line-height: 1.6; }
+  h1 { font-size: 20pt; font-weight: bold; color: #0d47a1; margin: 0 0 4pt 0; }
+  h2 { font-size: 13pt; font-weight: bold; color: #0d47a1; border-bottom: 2px solid #0d47a1; padding-bottom: 3pt; margin: 20pt 0 8pt 0; page-break-after: avoid; }
+  h3 { font-size: 11pt; font-weight: bold; color: #1a237e; margin: 12pt 0 5pt 0; page-break-after: avoid; }
+  p  { margin: 0 0 7pt 0; }
+  ul, ol { margin: 4pt 0 8pt 0; padding-left: 18pt; }
+  li { margin-bottom: 4pt; }
+  code { font-family: 'DejaVu Sans Mono', monospace; font-size: 9pt; background: #f0f0f0; padding: 1pt 3pt; border-radius: 2pt; }
+  .box { border: 1pt solid #ccc; border-radius: 3pt; padding: 8pt 10pt; margin: 8pt 0; background: #fafafa; }
+  .box-info  { border-left: 4pt solid #1565c0; background: #e3f2fd; }
+  .box-warn  { border-left: 4pt solid #e65100; background: #fff3e0; }
+  .box-ok    { border-left: 4pt solid #2e7d32; background: #e8f5e9; }
+  .label { display: inline-block; font-size: 8pt; padding: 1pt 5pt; border-radius: 3pt; font-weight: bold; }
+  .label-blue { background: #1565c0; color: white; }
+  .label-orange { background: #e65100; color: white; }
+  .label-green { background: #2e7d32; color: white; }
+  .label-grey { background: #555; color: white; }
+  .step { counter-increment: step; display: block; margin: 14pt 0 6pt 0; }
+  .step-nr { display: inline-block; background: #0d47a1; color: white; border-radius: 50%; width: 20pt; height: 20pt;
+             text-align: center; line-height: 20pt; font-weight: bold; font-size: 10pt; margin-right: 5pt; vertical-align: middle; }
+  .step-title { font-size: 11pt; font-weight: bold; color: #0d47a1; vertical-align: middle; }
+  .screen { background: #f8f9fa; border: 1pt solid #dee2e6; border-radius: 3pt; padding: 6pt 10pt; margin: 6pt 0;
+            font-size: 9pt; font-family: 'DejaVu Sans Mono', monospace; }
+  .flow { margin: 10pt 0; }
+  .flow-row { display: flex; gap: 0; align-items: stretch; margin: 6pt 0; }
+  .flow-box { border: 1.5pt solid #1565c0; border-radius: 3pt; padding: 5pt 8pt; font-size: 9pt; background: #e3f2fd; flex: 1; text-align: center; }
+  .flow-box.action { border-color: #e65100; background: #fff3e0; }
+  .flow-box.success { border-color: #2e7d32; background: #e8f5e9; }
+  .flow-arrow { font-size: 14pt; color: #555; padding: 0 4pt; line-height: 2; }
+  table { width: 100%; border-collapse: collapse; margin: 8pt 0; font-size: 9pt; }
+  th { background: #0d47a1; color: white; padding: 5pt 7pt; text-align: left; }
+  td { padding: 4pt 7pt; border-bottom: 0.5pt solid #ddd; vertical-align: top; }
+  tr:nth-child(even) td { background: #f7f7f7; }
+  .cover { text-align: center; padding: 50pt 0 30pt 0; }
+  .cover .subtitle { font-size: 13pt; color: #444; margin-top: 8pt; }
+  .cover .meta { font-size: 9pt; color: #777; margin-top: 40pt; line-height: 1.8; }
+  .cover .badge { display: inline-block; background: #e65100; color: white; font-size: 10pt;
+                  padding: 4pt 14pt; border-radius: 12pt; margin-top: 12pt; }
+  .toc { border: 1pt solid #ccc; padding: 10pt 14pt; margin: 16pt 0; background: #fafafa; }
+  .toc h4 { margin: 0 0 6pt 0; font-size: 11pt; color: #0d47a1; }
+  .toc ol { margin: 0; padding-left: 16pt; font-size: 9.5pt; }
+  .toc li { margin-bottom: 3pt; }
+  .sig-preview { border: 1.5pt solid #555; border-radius: 4pt; padding: 14pt; text-align: center;
+                 background: white; margin: 8pt 0; font-style: italic; color: #999; font-size: 9pt; }
+  .badge-status-ok { display: inline-block; background: #2e7d32; color: white; font-size: 8pt; padding: 1pt 6pt; border-radius: 10pt; }
+  .badge-status-warn { display: inline-block; background: #f57f17; color: white; font-size: 8pt; padding: 1pt 6pt; border-radius: 10pt; }
+  .divider { border: none; border-top: 1pt solid #ddd; margin: 16pt 0; }
+</style>
+</head>
+<body>
+
+<!-- Titelseite -->
+<div class="cover">
+  <h1>Bestätigung per E-Mail<br>+ digitale Unterschrift</h1>
+  <div class="subtitle">Einrichtungsanleitung für den Formular-Editor</div>
+  <div class="badge">Beispiel: Verdienstbescheinigung Wohngeld (VBWG)</div>
+  <div class="meta">
+    Vorgangswerk · {{ datum }}<br>
+    Erstellt für Sachbearbeiterinnen und Sachbearbeiter
+  </div>
+</div>
+
+<hr class="divider">
+
+<!-- Inhaltsverzeichnis -->
+<div class="toc">
+  <h4>Inhalt dieser Anleitung</h4>
+  <ol>
+    <li>Was leistet das Bestätigungs-Feature?</li>
+    <li>Der Ablauf im Überblick</li>
+    <li>Schritt 1 – Neues Feld im Editor anlegen</li>
+    <li>Schritt 2 – Feldposition wählen</li>
+    <li>Schritt 3 – Formular speichern und testen</li>
+    <li>Was der Arbeitgeber sieht</li>
+    <li>Was die Bestätigungsseite zeigt</li>
+    <li>Status in der Auswertung prüfen</li>
+    <li>Häufige Fragen</li>
+  </ol>
+</div>
+
+
+<!-- 1. Was leistet das Feature -->
+<h2>1. Was leistet das Bestätigungs-Feature?</h2>
+
+<p>
+  Das <strong>Bestätigungs-Feature</strong> ermöglicht es, eine dritte Person –
+  zum Beispiel den Arbeitgeber bei einer Verdienstbescheinigung – per E-Mail
+  zur digitalen Unterzeichnung einzuladen, <em>ohne</em> dass diese Person
+  sich anmelden oder ein Konto anlegen muss.
+</p>
+
+<div class="box box-ok">
+  <strong>Was passiert konkret:</strong>
+  <ul style="margin:4pt 0 0 0;">
+    <li>Der Antragsteller gibt im Formular die E-Mail-Adresse des Arbeitgebers ein.</li>
+    <li>Nach dem Absenden erhält der Arbeitgeber automatisch eine E-Mail mit dem ausgefüllten Formular als PDF-Anhang und einem personalisierten Bestätigungslink.</li>
+    <li>Der Arbeitgeber klickt auf den Link und zeichnet seine Unterschrift direkt im Browser (Maus oder Touchscreen).</li>
+    <li>Die Unterschrift wird mit Zeitstempel und IP-Adresse gespeichert.</li>
+    <li>Der Status „unterschrieben" erscheint in der Auswertungsübersicht des Formulars.</li>
+  </ul>
+</div>
+
+<div class="box box-info">
+  <strong>Rechtlicher Hinweis:</strong> Die gespeicherte Unterschrift ist eine
+  einfache elektronische Signatur (eES) im Sinne der eIDAS-Verordnung.
+  Für Verwaltungsvorgänge mit gesetzlicher Schriftformpflicht (§ 126a BGB)
+  empfiehlt sich eine qualifizierte elektronische Signatur (QES).
+  Für interne Bescheinigungen und Arbeitgebernachweise ist die eES in der
+  Regel ausreichend.
+</div>
+
+
+<!-- 2. Ablauf im Überblick -->
+<h2>2. Der Ablauf im Überblick</h2>
+
+<div class="flow">
+  <div class="flow-row">
+    <div class="flow-box">Antragsteller füllt Formular aus<br><small>(inkl. Arbeitgeber-E-Mail)</small></div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-box action">E-Mail mit PDF + Link geht an Arbeitgeber</div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-box">Arbeitgeber öffnet Link, prüft Angaben</div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-box success">Unterschrift gezeichnet &amp; gespeichert ✓</div>
+  </div>
+</div>
+
+<p>
+  Alle Schritte laufen automatisch ab. Sobald der Antragsteller auf „Absenden" klickt,
+  versendet Vorgangswerk die E-Mail im Hintergrund. Die Sachbearbeitung sieht den
+  Bestätigungsstatus jederzeit in der Auswertung.
+</p>
+
+
+<!-- 3. Schritt 1: Feld anlegen -->
+<h2>3. Schritt 1 – Neues Feld im Editor anlegen</h2>
+
+<p>Öffnen Sie den Formular-Editor für die <strong>Verdienstbescheinigung Wohngeld (VBWG)</strong>:</p>
+
+<div class="screen">https://vorgangswerk.georg-klein.com/formulare/editor/60/</div>
+
+<div class="step">
+  <span class="step-nr">1</span>
+  <span class="step-title">Klicken Sie auf den Schritt „Abschluss und Unterschrift"</span>
+</div>
+<p>
+  Dieser Schritt enthält bereits die Felder <em>Ort/Datum</em>, <em>Telefon</em>,
+  die Einwilligungs-Checkbox und das Unterschriften-Pad des Antragstellers.
+  Hier soll auch die E-Mail-Adresse des Arbeitgebers abgefragt werden.
+</p>
+
+<div class="step">
+  <span class="step-nr">2</span>
+  <span class="step-title">Klicken Sie auf „+ Feld hinzufügen" (unten im Schritt)</span>
+</div>
+
+<div class="step">
+  <span class="step-nr">3</span>
+  <span class="step-title">Feldtyp wählen: <span class="label label-orange">Aktionen → Bestätigung per E-Mail + digitale Unterschrift</span></span>
+</div>
+<p>
+  Das Dropdown „Feldtyp" enthält unter der Gruppe <strong>Aktionen</strong>
+  den Eintrag <em>„Bestätigung per E-Mail + digitale Unterschrift"</em>.
+  Wählen Sie diesen aus.
+</p>
+
+<div class="box box-info">
+  <strong>Was dieser Feldtyp macht:</strong><br>
+  Im Formular erscheint eine gelb umrandete Eingabemaske mit dem Hinweis,
+  dass die eingegebene E-Mail-Adresse eine Bestätigungsanforderung erhält.
+  Der Antragsteller trägt dort die E-Mail-Adresse des Arbeitgebers ein.
+  Auf der Abschlussseite wird die E-Mail automatisch versandt.
+</div>
+
+<div class="step">
+  <span class="step-nr">4</span>
+  <span class="step-title">Feld-ID vergeben</span>
+</div>
+<p>
+  Vergeben Sie eine eindeutige ID, zum Beispiel:
+  <code>arbeitgeber_email</code>
+</p>
+<p>
+  Das Label wird automatisch auf „Bestätigung durch Arbeitgeber" gesetzt.
+  Sie können es anpassen, z.B.:
+  <em>„E-Mail-Adresse des Arbeitgebers (für digitale Unterzeichnung)"</em>
+</p>
+
+<div class="step">
+  <span class="step-nr">5</span>
+  <span class="step-title">Feld als Pflichtfeld markieren (empfohlen)</span>
+</div>
+<p>
+  Aktivieren Sie die Option <strong>Pflichtfeld</strong>, damit das Formular
+  ohne Arbeitgeber-E-Mail nicht absgesendet werden kann.
+</p>
+
+<div class="step">
+  <span class="step-nr">6</span>
+  <span class="step-title">Klicken Sie auf „OK" im Feld-Dialog</span>
+</div>
+
+
+<!-- 4. Feldposition -->
+<h2>4. Schritt 2 – Feldposition im Schritt wählen</h2>
+
+<p>
+  Das neue Feld erscheint am Ende des Schritts. Ziehen Sie es per Drag &amp; Drop
+  (&#8942;&#8942;-Handle links neben dem Feldnamen) an die gewünschte Position –
+  <strong>empfohlen: vor dem Unterschriften-Pad des Antragstellers</strong>.
+</p>
+
+<div class="box box-ok">
+  <strong>Empfohlene Reihenfolge im Schritt „Abschluss und Unterschrift":</strong>
+  <ol style="margin:6pt 0 0 0;">
+    <li>Ort/Datum</li>
+    <li>Telefon (Rückfragen)</li>
+    <li><strong>E-Mail-Adresse des Arbeitgebers</strong> ← neues Feld</li>
+    <li>Einwilligungs-Checkbox (DSGVO)</li>
+    <li>Unterschrift Antragsteller (Signatur-Pad)</li>
+    <li>Zusammenfassung</li>
+  </ol>
+</div>
+
+
+<!-- 5. Speichern und testen -->
+<h2>5. Schritt 3 – Speichern und testen</h2>
+
+<div class="step">
+  <span class="step-nr">1</span>
+  <span class="step-title">Klicken Sie auf „Speichern" in der Toolbar des Editors</span>
+</div>
+<p>
+  Die Schaltfläche befindet sich oben rechts im Editor (blauer Button).
+  Warten Sie auf die Erfolgsmeldung.
+</p>
+
+<div class="step">
+  <span class="step-nr">2</span>
+  <span class="step-title">Testlauf starten</span>
+</div>
+<p>
+  Öffnen Sie das Formular über den öffentlichen Link (Kürzel <strong>VBWG</strong>):
+</p>
+<div class="screen">https://vorgangswerk.georg-klein.com/antrag/VBWG/</div>
+<p>
+  Füllen Sie das Formular vollständig aus.
+  Tragen Sie im Feld „E-Mail-Adresse des Arbeitgebers" eine
+  <strong>eigene Test-E-Mail-Adresse</strong> ein.
+  Klicken Sie am Ende auf „Absenden".
+</p>
+
+<div class="step">
+  <span class="step-nr">3</span>
+  <span class="step-title">Bestätigungs-E-Mail prüfen</span>
+</div>
+<p>
+  In Ihrem Postfach sollte innerhalb weniger Sekunden die E-Mail eingehen mit:
+</p>
+<ul>
+  <li>Betreff: <em>„Bitte bestätigen Sie – Verdienstbescheinigung zum Antrag auf Wohngeld"</em></li>
+  <li>Dem ausgefüllten Formular als PDF-Anhang</li>
+  <li>Einem personalisierten Bestätigungslink im E-Mail-Text</li>
+</ul>
+
+<div class="step">
+  <span class="step-nr">4</span>
+  <span class="step-title">Bestätigungslink öffnen und Unterschrift zeichnen</span>
+</div>
+<p>
+  Klicken Sie auf den Link in der E-Mail. Die Bestätigungsseite zeigt eine
+  Zusammenfassung der Angaben und ein Unterschriftspad.
+  Zeichnen Sie die Unterschrift mit der Maus (oder dem Finger auf dem Touchscreen)
+  und klicken Sie auf „Hiermit bestätige ich …".
+</p>
+
+
+<!-- 6. Was der Arbeitgeber sieht -->
+<h2>6. Was der Arbeitgeber sieht</h2>
+
+<h3>6.1 Die Bestätigungs-E-Mail</h3>
+<div class="box">
+  <p style="margin:0;"><strong>Betreff:</strong> Bitte bestätigen Sie – Verdienstbescheinigung zum Antrag auf Wohngeld</p>
+  <p style="margin:6pt 0 0 0; font-size:9pt; color:#444;">
+    Sehr geehrte Damen und Herren,<br><br>
+    ein Antrag wurde mit Ihrer E-Mail-Adresse als Bestätigungsperson eingereicht.<br><br>
+    Vorgangsnummer: <em>VBWG-00012-20260422-AB3F</em><br>
+    Formular: Verdienstbescheinigung zum Antrag auf Wohngeld<br><br>
+    Bitte klicken Sie auf folgenden Link, um den Antrag mit Ihrer digitalen
+    Unterschrift zu bestätigen:<br><br>
+    &nbsp;&nbsp;&nbsp;<u>https://vorgangswerk.georg-klein.com/antrag/b/[Ihr-Token]/</u><br><br>
+    Der Link ist personalisiert – bitte nicht weitergeben.<br><br>
+    Mit freundlichen Grüßen<br>
+    Ihr Vorgangswerk
+  </p>
+</div>
+<p>
+  <strong>Anhang:</strong> Das Formular wird als PDF beigefügt, damit der Arbeitgeber
+  die Angaben vor der Unterzeichnung prüfen kann.
+</p>
+
+<h3>6.2 Die Bestätigungsseite</h3>
+<p>
+  Die Seite zeigt dem Arbeitgeber:
+</p>
+<ul>
+  <li>Name des Formulars und Vorgangsnummer</li>
+  <li>Alle ausgefüllten Angaben als Zusammenfassung (zum Prüfen)</li>
+  <li>Ein Unterschriftsfeld (Canvas) – zeichenbar mit Maus oder Touchscreen</li>
+  <li>Einen „Löschen"-Button zum Wiederholen der Unterschrift</li>
+  <li>Den Bestätigungs-Button: <em>„✓ Hiermit bestätige ich die oben aufgeführten Angaben"</em></li>
+</ul>
+
+<div class="sig-preview">
+  [ Unterschriftspad – hier zeichnet der Arbeitgeber ]
+</div>
+
+<p>
+  Nach der Unterzeichnung erscheint eine Bestätigungsseite mit der gespeicherten
+  Unterschrift, Datum und Uhrzeit. <strong>Der Link ist einmalig</strong> –
+  ein erneutes Öffnen nach bereits erfolgter Bestätigung zeigt nur die
+  Erfolgsseite ohne erneute Eingabemöglichkeit.
+</p>
+
+
+<!-- 7. Status in der Auswertung -->
+<h2>7. Status in der Auswertung prüfen</h2>
+
+<p>
+  Öffnen Sie die Auswertungstabelle des Formulars über den Editor:
+</p>
+<div class="screen">https://vorgangswerk.georg-klein.com/formulare/auswertung/60/</div>
+
+<p>
+  In der <strong>Status-Spalte</strong> erscheint neben dem Formular-Status
+  ein zusätzliches Badges:
+</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>Badge</th>
+      <th>Bedeutung</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><span class="badge-status-ok">✓ unterschrieben</span></td>
+      <td>Der Arbeitgeber hat die Unterschrift abgegeben. Datum im Tooltip sichtbar.</td>
+    </tr>
+    <tr>
+      <td><span class="badge-status-warn">✎ ausstehend</span></td>
+      <td>Bestätigungs-E-Mail wurde versandt, aber noch nicht unterzeichnet.</td>
+    </tr>
+    <tr>
+      <td><em>(kein Badge)</em></td>
+      <td>Kein Bestätigungs-Feld im Formular oder E-Mail nicht angegeben.</td>
+    </tr>
+  </tbody>
+</table>
+
+<div class="box box-info">
+  <strong>Tipp:</strong> Der Bestätigungsstatus wird in Echtzeit aktualisiert.
+  Laden Sie die Auswertungsseite neu, um den aktuellen Stand zu sehen.
+  Eine automatische Benachrichtigung per Webhook bei Eingang der Unterschrift
+  ist über die Webhook-Verwaltung konfigurierbar.
+</div>
+
+
+<!-- 8. Häufige Fragen -->
+<h2>8. Häufige Fragen</h2>
+
+<table>
+  <thead>
+    <tr>
+      <th>Frage</th>
+      <th>Antwort</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Was passiert, wenn der Arbeitgeber die E-Mail nicht erhält?</td>
+      <td>
+        Prüfen Sie Spam-Ordner und konfigurierte E-Mail-Versand-Einstellungen
+        (EMAIL_HOST in der Server-Konfiguration).
+        Der Link kann nicht erneut versendet werden – starten Sie ggf. einen
+        neuen Vorgang.
+      </td>
+    </tr>
+    <tr>
+      <td>Kann der Arbeitgeber die Angaben bearbeiten?</td>
+      <td>
+        Nein. Die Bestätigungsseite ist reine Lese- und Unterschriftsansicht.
+        Korrekturen müssen über einen neuen Antrag vorgenommen werden.
+      </td>
+    </tr>
+    <tr>
+      <td>Wie lange ist der Link gültig?</td>
+      <td>
+        Der Link ist dauerhaft gültig, bis die Unterschrift geleistet wurde.
+        Danach ist die Seite als „bereits bestätigt" gesperrt.
+      </td>
+    </tr>
+    <tr>
+      <td>Wo wird die Unterschrift gespeichert?</td>
+      <td>
+        Als PNG-Bild (base64-kodiert) in der Datenbank, verknüpft mit der
+        Vorgangsnummer. Sie ist in der Zusammenfassung auf der Bestätigt-Seite sichtbar.
+      </td>
+    </tr>
+    <tr>
+      <td>Kann ich mehrere Bestätigungs-E-Mail-Felder einsetzen?</td>
+      <td>
+        Derzeit wird nur das erste gefundene Feld dieses Typs ausgewertet.
+        Für mehrere Unterzeichner wäre eine Anpassung notwendig.
+      </td>
+    </tr>
+    <tr>
+      <td>Funktioniert das Feature auch für eingeloggte Nutzer?</td>
+      <td>
+        Das Feature ist primär für anonyme öffentliche Formulare ausgelegt.
+        Bei eingeloggten Nutzern wird die E-Mail nicht automatisch ausgelöst.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+<div class="box box-ok" style="margin-top:20pt;">
+  <strong>Fertig!</strong> Das Formular ist damit für den produktiven Einsatz
+  mit Arbeitgeber-Bestätigung eingerichtet.
+  Bei Fragen wenden Sie sich an Ihren Systemadministrator oder öffnen Sie
+  ein Ticket auf GitHub.
+</div>
+
+</body>
+</html>

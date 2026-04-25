@@ -10,6 +10,7 @@ urlpatterns = [
     path("fehler/", views.antrag_oeffentlich_fehler, name="antrag_oeffentlich_fehler"),
     path("s/<int:sitzung_pk>/", views.antrag_oeffentlich_schritt, name="antrag_oeffentlich_schritt"),
     path("s/<int:sitzung_pk>/abgeschlossen/", views.antrag_oeffentlich_abgeschlossen, name="antrag_oeffentlich_abgeschlossen"),
+    path("b/<str:token>/", views.bestaetigung_ansicht, name="bestaetigung_ansicht"),
     path("<str:kuerzel>/starten/", views.antrag_oeffentlich_starten, name="antrag_oeffentlich_starten"),
     path("<str:kuerzel>/", views.antrag_oeffentlich, name="antrag_oeffentlich"),
 ]

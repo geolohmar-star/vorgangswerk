@@ -1,0 +1,175 @@
+{% extends "formulare/base_public.html" %}
+
+{% block title %}Bestätigung – {{ sitzung.pfad.name }}{% endblock %}
+
+{% block content %}
+<div class="container py-4" style="max-width:720px;">
+    <div class="mb-4">
+        <h1 class="h4 fw-bold">Bestätigung erforderlich</h1>
+        <p class="text-muted mb-0">
+            {{ sitzung.pfad.name }}
+            {% if sitzung.vorgangsnummer %}
+            &middot; Vorgang {{ sitzung.vorgangsnummer }}
+            {% endif %}
+        </p>
+    </div>
+
+    <div class="alert alert-info d-flex gap-2 align-items-start mb-4">
+        <span style="font-size:1.3rem;">&#9432;</span>
+        <div>
+            Ein Antrag wurde eingereicht und wartet auf Ihre Bestätigung.
+            Bitte prüfen Sie die Angaben, füllen Sie Ihre Kontaktdaten aus und zeichnen Sie Ihre Unterschrift.
+        </div>
+    </div>
+
+    {% if zusammenfassung %}
+    <div class="card mb-4">
+        <div class="card-header fw-semibold">Angaben im Antrag</div>
+        <div class="card-body p-0">
+            <dl class="mb-0">
+            {% for eintrag in zusammenfassung %}
+            <div class="px-3 py-2 {% if not forloop.last %}border-bottom{% endif %}">
+                <dt class="text-muted small fw-semibold">{{ eintrag.label }}</dt>
+                <dd class="mb-0 mt-1">
+                    {% if eintrag.typ == "einwilligung" %}
+                        <span class="badge bg-success">&#10003; {{ eintrag.wert }}</span>
+                    {% elif eintrag.typ == "bool" %}
+                        {% if eintrag.wert %}<span class="badge bg-success">Ja</span>
+                        {% else %}<span class="badge bg-secondary">Nein</span>{% endif %}
+                    {% else %}
+                        {{ eintrag.wert }}
+                    {% endif %}
+                </dd>
+            </div>
+            {% endfor %}
+            </dl>
+        </div>
+    </div>
+    {% endif %}
+
+    <div class="card mb-4">
+        <div class="card-header fw-semibold">Ihre Kontaktdaten</div>
+        <div class="card-body">
+            <p class="text-muted small mb-3">
+                Diese Angaben werden gespeichert und ermöglichen der zuständigen Stelle
+                eine telefonische Rückfrage im Zweifelsfall.
+            </p>
+            {% if fehler %}
+            <div class="alert alert-danger py-2">{{ fehler }}</div>
+            {% endif %}
+            <form method="post" id="bestaetigung-form">
+                {% csrf_token %}
+                <div class="mb-3">
+                    <label class="form-label fw-semibold" for="id-firmenname">
+                        Firmenname <span class="text-danger">*</span>
+                    </label>
+                    <input type="text" class="form-control" id="id-firmenname" name="firmenname"
+                           value="{{ post_daten.firmenname }}" required
+                           placeholder="Musterfirma GmbH">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label fw-semibold" for="id-kontaktname">
+                        Ihr Name (Unterzeichner/in) <span class="text-danger">*</span>
+                    </label>
+                    <input type="text" class="form-control" id="id-kontaktname" name="kontaktname"
+                           value="{{ post_daten.kontaktname }}" required
+                           placeholder="Max Mustermann">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label fw-semibold" for="id-telefon">
+                        Telefon für Rückfragen <span class="text-danger">*</span>
+                    </label>
+                    <input type="tel" class="form-control" id="id-telefon" name="telefon"
+                           value="{{ post_daten.telefon }}" required
+                           placeholder="02241 123456">
+                    <div class="form-text">Wird nur bei konkretem Klärungsbedarf durch den Sachbearbeiter genutzt.</div>
+                </div>
+
+                <hr class="my-4">
+
+                <p class="fw-semibold mb-2">Digitale Unterschrift <span class="text-danger">*</span></p>
+                <p class="text-muted small mb-3">
+                    Bitte zeichnen Sie Ihre Unterschrift im Feld unten.
+                    Mit der Bestätigung erklären Sie sich mit den oben aufgeführten Angaben einverstanden.
+                </p>
+                <div class="border rounded bg-white mb-2" style="position:relative;touch-action:none;">
+                    <canvas id="sig-canvas" width="660" height="180"
+                            style="display:block;width:100%;height:180px;cursor:crosshair;border-radius:4px;background:#fff;"></canvas>
+                </div>
+                <div class="d-flex gap-2 mb-4">
+                    <button type="button" id="sig-clear" class="btn btn-outline-secondary btn-sm">Löschen</button>
+                    <span class="text-muted small align-self-center" id="sig-hint">Unterschreiben Sie im weißen Feld</span>
+                </div>
+
+                <input type="hidden" name="signatur" id="sig-data">
+                <button type="submit" class="btn btn-success px-4 w-100">
+                    &#10003; Hiermit bestätige ich die oben aufgeführten Angaben
+                </button>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+(function () {
+    var canvas = document.getElementById("sig-canvas");
+    var ctx = canvas.getContext("2d");
+    var drawing = false;
+    var hasSig = false;
+
+    function resize() {
+        var rect = canvas.getBoundingClientRect();
+        canvas._scaleX = canvas.width / rect.width;
+        canvas._scaleY = canvas.height / rect.height;
+    }
+    resize();
+    window.addEventListener("resize", resize);
+
+    function pos(e) {
+        var rect = canvas.getBoundingClientRect();
+        var src = e.touches ? e.touches[0] : e;
+        return {
+            x: (src.clientX - rect.left) * (canvas._scaleX || 1),
+            y: (src.clientY - rect.top)  * (canvas._scaleY || 1)
+        };
+    }
+
+    function startDraw(e) { e.preventDefault(); drawing = true; var p = pos(e); ctx.beginPath(); ctx.moveTo(p.x, p.y); }
+    function draw(e) {
+        if (!drawing) return;
+        e.preventDefault();
+        var p = pos(e);
+        ctx.lineWidth = 2; ctx.lineCap = "round"; ctx.strokeStyle = "#1a1a2e";
+        ctx.lineTo(p.x, p.y); ctx.stroke();
+        hasSig = true;
+        document.getElementById("sig-hint").textContent = "";
+    }
+    function endDraw() { drawing = false; }
+
+    canvas.addEventListener("mousedown",  startDraw);
+    canvas.addEventListener("mousemove",  draw);
+    canvas.addEventListener("mouseup",    endDraw);
+    canvas.addEventListener("mouseleave", endDraw);
+    canvas.addEventListener("touchstart", startDraw, {passive: false});
+    canvas.addEventListener("touchmove",  draw,      {passive: false});
+    canvas.addEventListener("touchend",   endDraw);
+
+    document.getElementById("sig-clear").addEventListener("click", function () {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        hasSig = false;
+        document.getElementById("sig-hint").textContent = "Unterschreiben Sie im weißen Feld";
+        document.getElementById("sig-hint").style.color = "";
+    });
+
+    document.getElementById("bestaetigung-form").addEventListener("submit", function (e) {
+        if (!hasSig) {
+            e.preventDefault();
+            document.getElementById("sig-hint").textContent = "Bitte zuerst unterschreiben.";
+            document.getElementById("sig-hint").style.color = "#dc3545";
+        } else {
+            document.getElementById("sig-data").value = canvas.toDataURL("image/png");
+        }
+    });
+})();
+</script>
+{% endblock %}
