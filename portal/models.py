@@ -55,6 +55,42 @@ class PortalAccount(models.Model):
         return True
 
 
+class Einladung(models.Model):
+    """Einladungstoken für neue Portal-Nutzer (einladungsbasierte Registrierung)."""
+    email = models.EmailField(unique=True)
+    token = models.CharField(max_length=64, unique=True, blank=True)
+    start_credits = models.IntegerField(default=0, help_text="Credits die dem neuen Konto gutgeschrieben werden")
+    erstellt_am = models.DateTimeField(auto_now_add=True)
+    gueltig_bis = models.DateTimeField(null=True, blank=True)
+    eingeloest_am = models.DateTimeField(null=True, blank=True)
+    eingeloest_von = models.OneToOneField(
+        User, null=True, blank=True, on_delete=models.SET_NULL, related_name="einladung"
+    )
+    notiz = models.TextField(blank=True, help_text="Interne Notiz (nicht sichtbar für Eingeladene)")
+
+    class Meta:
+        verbose_name = "Einladung"
+        verbose_name_plural = "Einladungen"
+        ordering = ["-erstellt_am"]
+
+    def __str__(self):
+        status = "eingelöst" if self.eingeloest_am else "offen"
+        return f"{self.email} [{status}]"
+
+    def save(self, *args, **kwargs):
+        if not self.token:
+            self.token = secrets.token_urlsafe(32)
+        super().save(*args, **kwargs)
+
+    def ist_gueltig(self):
+        from django.utils import timezone
+        if self.eingeloest_am:
+            return False
+        if self.gueltig_bis and self.gueltig_bis < timezone.now():
+            return False
+        return True
+
+
 class FormularAnalyse(models.Model):
     """Analyse-Job: PDF hochgeladen → Claude analysiert → Pfad-JSON."""
     STATUS_WARTEND = "wartend"

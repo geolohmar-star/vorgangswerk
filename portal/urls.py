@@ -8,7 +8,7 @@ app_name = "portal"
 urlpatterns = [
     # Auth
     path("", views.dashboard, name="index"),
-    path("registrierung/", views.registrierung, name="registrierung"),
+    path("registrierung/<str:token>/", views.registrierung, name="registrierung"),
     path("login/", views.portal_login, name="login"),
     path("logout/", views.portal_logout, name="logout"),
     path("verifizieren/<str:token>/", views.email_verifizieren, name="email_verifizieren"),

@@ -20,7 +20,7 @@ from django.urls import reverse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST, require_GET
 
-from .models import PortalAccount, FormularAnalyse, CreditTransaktion, CREDIT_PAKETE, CREDIT_PAKETE_BY_ID
+from .models import PortalAccount, FormularAnalyse, CreditTransaktion, Einladung, CREDIT_PAKETE, CREDIT_PAKETE_BY_ID
 from .services import analysiere_formular, importiere_pfad_aus_analyse
 
 logger = logging.getLogger("vorgangswerk.portal")
@@ -52,44 +52,71 @@ def portal_login_required(view_func):
 # Auth
 # ---------------------------------------------------------------------------
 
-def registrierung(request):
+def registrierung(request, token):
+    """Einladungsbasierte Registrierung — nur mit gültigem Token."""
+    try:
+        einladung = Einladung.objects.get(token=token)
+    except Einladung.DoesNotExist:
+        return render(request, "portal/registrierung_ungueltig.html", {
+            "grund": "Dieser Einladungslink ist ungültig."
+        })
+
+    if not einladung.ist_gueltig():
+        return render(request, "portal/registrierung_ungueltig.html", {
+            "grund": "Dieser Einladungslink wurde bereits verwendet oder ist abgelaufen."
+        })
+
     if request.method == "POST":
-        email = request.POST.get("email", "").strip().lower()
         passwort1 = request.POST.get("passwort1", "")
         passwort2 = request.POST.get("passwort2", "")
 
-        # Validierung
         fehler = []
-        if not email or "@" not in email:
-            fehler.append("Bitte eine gültige E-Mail-Adresse eingeben.")
         if passwort1 != passwort2:
             fehler.append("Die Passwörter stimmen nicht überein.")
         if len(passwort1) < 12:
             fehler.append("Das Passwort muss mindestens 12 Zeichen lang sein.")
-        if User.objects.filter(username=email).exists():
+        if User.objects.filter(username=einladung.email).exists():
             fehler.append("Diese E-Mail-Adresse ist bereits registriert.")
 
         if fehler:
-            return render(request, "portal/registrierung.html", {"fehler": fehler, "email": email})
+            return render(request, "portal/registrierung.html", {
+                "fehler": fehler, "einladung": einladung
+            })
 
-        # Benutzer anlegen
+        from django.utils import timezone as tz
         user = User.objects.create_user(
-            username=email,
-            email=email,
+            username=einladung.email,
+            email=einladung.email,
             password=passwort1,
             is_staff=False,
             is_superuser=False,
         )
-        account = PortalAccount.objects.create(user=user, credits=0, email_verifiziert=False)
-        token = account.neues_verifikations_token()
+        account = PortalAccount.objects.create(
+            user=user,
+            credits=einladung.start_credits,
+            email_verifiziert=True,
+        )
+        einladung.eingeloest_am = tz.now()
+        einladung.eingeloest_von = user
+        einladung.save(update_fields=["eingeloest_am", "eingeloest_von"])
 
-        # Verifizierungs-E-Mail senden
-        _sende_verifikationsmail(request, user.email, token)
+        if einladung.start_credits > 0:
+            from .models import CreditTransaktion
+            CreditTransaktion.objects.create(
+                account=account,
+                typ="kauf",
+                betrag=einladung.start_credits,
+                beschreibung="Start-Credits aus Einladung",
+            )
 
-        messages.success(request, "Konto erstellt! Bitte prüfe deine E-Mails zur Bestätigung.")
+        messages.success(request, f"Willkommen! Dein Konto wurde erstellt{' mit ' + str(einladung.start_credits) + ' Start-Credits' if einladung.start_credits else ''}.")
+        user_obj = authenticate(request, username=einladung.email, password=passwort1)
+        if user_obj:
+            login(request, user_obj)
+            return redirect(reverse("portal:dashboard"))
         return redirect(reverse("portal:login"))
 
-    return render(request, "portal/registrierung.html", {})
+    return render(request, "portal/registrierung.html", {"einladung": einladung})
 
 
 def _sende_verifikationsmail(request, email: str, token: str):

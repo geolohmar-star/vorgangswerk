@@ -7,6 +7,7 @@
         <div class="card">
             <div class="card-header py-3">
                 <h5 class="mb-0">Konto erstellen</h5>
+                <small class="text-muted">Einladung für <strong>{{ einladung.email }}</strong></small>
             </div>
             <div class="card-body p-4">
                 {% if fehler %}
@@ -15,17 +16,22 @@
                 </div>
                 {% endif %}
 
+                {% if einladung.start_credits %}
+                <div class="alert alert-success py-2 small">
+                    &#127381; Dein Konto wird mit <strong>{{ einladung.start_credits }} Start-Credits</strong> ausgestattet.
+                </div>
+                {% endif %}
+
                 <form method="post" novalidate>
                     {% csrf_token %}
                     <div class="mb-3">
                         <label class="form-label fw-semibold">E-Mail-Adresse</label>
-                        <input type="email" name="email" class="form-control" required
-                               value="{{ email|default:'' }}" autofocus>
+                        <input type="email" class="form-control" value="{{ einladung.email }}" disabled>
                     </div>
                     <div class="mb-3">
                         <label class="form-label fw-semibold">Passwort</label>
                         <input type="password" name="passwort1" class="form-control" required
-                               placeholder="mind. 12 Zeichen">
+                               placeholder="mind. 12 Zeichen" autofocus>
                     </div>
                     <div class="mb-4">
                         <label class="form-label fw-semibold">Passwort bestätigen</label>
@@ -33,12 +39,6 @@
                     </div>
                     <button type="submit" class="btn btn-primary w-100">Konto erstellen</button>
                 </form>
-
-                <div class="text-center mt-3">
-                    <small class="text-muted">
-                        Bereits registriert? <a href="{% url 'portal:login' %}">Anmelden</a>
-                    </small>
-                </div>
             </div>
         </div>
 
