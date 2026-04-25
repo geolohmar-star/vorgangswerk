@@ -833,6 +833,32 @@
                     {% endwith %}
                 </div>
 
+                {% elif typ == "bestaetigung_email" %}
+                <div class="col-12">
+                    <div class="card border-warning">
+                        <div class="card-header fw-semibold" style="background:#fff8e1;color:#7a5c00;">
+                            <span aria-hidden="true">&#9998;</span> {{ label }}
+                        </div>
+                        <div class="card-body">
+                            <p class="mb-3 text-muted small">
+                                Die hier eingetragene E-Mail-Adresse erhält nach Absenden des Formulars
+                                einen Link zur digitalen Unterzeichnung des Antrags.
+                            </p>
+                            <label class="form-label" for="f-{{ id }}">
+                                E-Mail-Adresse der bestätigenden Person
+                                {% if pflicht %}<span class="text-danger" aria-hidden="true">*</span>{% endif %}
+                            </label>
+                            <input type="email" class="form-control" name="{{ id }}" id="f-{{ id }}"
+                                   value="{{ vorwerte|get_item:id }}"
+                                   placeholder="beispiel@firma.de"
+                                   {% if pflicht %}required{% endif %}>
+                            {% if feld.hilfetext %}
+                            <div class="form-text">{{ feld.hilfetext }}</div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+
                 {% elif typ == "leerblock" %}
                 <div class="col-12" style="height:1rem;"></div>
 
@@ -1088,6 +1114,7 @@
 {{ gesammelte_daten_dict|json_script:"gesammelte-daten" }}
 {{ schritt.felder_json|json_script:"schritt-felder" }}
 {{ bankverbindungen_json|json_script:"bankverbindungen-daten" }}
+<script>window.VORGANGSNUMMER = "{{ sitzung.vorgangsnummer|default:'' }}";</script>
 <script src="{% static 'js/pfad_schritt.js' %}"></script>
 <script>
 function zahlung_demo_bestaetigen(feldId) {

@@ -131,12 +131,21 @@ document.addEventListener("DOMContentLoaded", function () {
             // Fallback: dynamisch berechnen (für Schritte ohne vorwerte-Kontext)
             var systemwert = anzeige.dataset.systemwert;
             var loopDurchlauf = parseInt(gesammelteDaten["__loop_durchlauf"] || 0, 10);
+            var heuteIso = new Date().toISOString().slice(0, 10);
+            var heuteDe = heuteIso.slice(8) + "." + heuteIso.slice(5, 7) + "." + heuteIso.slice(0, 4);
             if (systemwert === "loop_zaehler") {
                 wert = String(loopDurchlauf + 1);
             } else if (systemwert === "loop_durchlauf") {
                 wert = String(loopDurchlauf);
             } else if (systemwert === "heute") {
-                wert = new Date().toISOString().slice(0, 10);
+                wert = heuteIso;
+            } else if (systemwert === "antragsdatum") {
+                wert = heuteDe;
+            } else if (systemwert === "vorgangsnummer") {
+                wert = (window.VORGANGSNUMMER || "");
+            } else if (systemwert === "antragsnummer_zeitstempel") {
+                var vgnr = (window.VORGANGSNUMMER || "");
+                wert = vgnr ? vgnr + " | " + heuteDe : heuteDe;
             }
             anzeige.value = wert;
         }

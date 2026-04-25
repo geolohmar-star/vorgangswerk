@@ -184,6 +184,34 @@ input[type="checkbox"].form-check-input { cursor: pointer; }
 }
 .pdf-panel.koord-modus .pdf-overlay { display: none; }
 .pdf-panel.koord-modus .koord-badge { display: block !important; }
+
+/* AcroForm-Box-Overlays (Feldgrenzen aus /Rect) */
+.acroform-box {
+  position: absolute;
+  border: 2px dashed rgba(13,110,253,.55);
+  background: rgba(13,110,253,.07);
+  pointer-events: none;
+  z-index: 5;
+  box-sizing: border-box;
+}
+.acroform-box-label {
+  position: absolute;
+  top: 1px; left: 2px;
+  font-size: 7.5px;
+  font-family: monospace;
+  color: rgba(13,110,253,.75);
+  white-space: nowrap;
+  overflow: hidden;
+  max-width: 98%;
+  pointer-events: none;
+  line-height: 1;
+}
+/* Aktiv ausgewähltes Badge (für Pfeiltasten) */
+.koord-badge.pfeil-aktiv {
+  background: #0d6efd !important;
+  outline: 2px solid #084298;
+  z-index: 200 !important;
+}
 </style>
 {% endblock %}
 
@@ -316,6 +344,7 @@ input[type="checkbox"].form-check-input { cursor: pointer; }
 {% block extra_js %}
 <script>
 const DATEN = {{ ergebnis_json_str|safe }};
+const ACROFORM_RECTS = {{ acroform_rects_json|safe }};
 const FELDER_JSON_URL = "{% url 'portal:analyse_felder_json' analyse.pk %}";
 const SEITE_PNG_URL_TMPL = "{% url 'portal:analyse_seite_png' analyse.pk 999 %}".replace("/999.png", "/{n}.png");
 const KOORD_SPEICHERN_URL = "{% url 'portal:analyse_koordinaten_speichern' analyse.pk %}";
@@ -1220,11 +1249,81 @@ function pdfKlickPlatzieren(e, wrap) {
   setAktivesKoordFeld(null, null);
 }
 
+// ---- AcroForm-Box-Overlays ----
+
+let acroformBoxen = [];  // [{el, wrap}]
+let pfeilAktivesBadge = null;  // {badge, feld, wrap} für Pfeiltasten
+
+function acroformBoxenAnzeigen() {
+  acroformBoxenEntfernen();
+  const seiteWraps = [...document.querySelectorAll(".pdf-seite-wrap")];
+  const felderMitAcro = alleFelder().filter(f => f.acroform_name && !SKIP_TYPEN.has(f.typ));
+
+  for (const feld of felderMitAcro) {
+    const rect = ACROFORM_RECTS[feld.acroform_name];
+    if (!rect) continue;
+    const wrap = seiteWraps[rect.page] || seiteWraps[0];
+    if (!wrap) continue;
+
+    const box = document.createElement("div");
+    box.className = "acroform-box";
+    box.style.left   = (rect.x_pct * 100) + "%";
+    box.style.top    = (rect.y_pct * 100) + "%";
+    box.style.width  = ((rect.w_pct || 0.4) * 100) + "%";
+    box.style.height = (rect.h_pct * 100) + "%";
+    box.style.minHeight = "12px";
+
+    const lbl = document.createElement("div");
+    lbl.className = "acroform-box-label";
+    lbl.textContent = feld.acroform_name;
+    box.appendChild(lbl);
+    wrap.appendChild(box);
+    acroformBoxen.push({ el: box, wrap });
+
+    // Wenn noch keine manuelle Position gesetzt: auto aus Rect (Textzentrum)
+    const xPct = parseFloat(feld.x_pct) || 0;
+    const yPct = parseFloat(feld.y_pct) || 0;
+    if (xPct === 0 && yPct === 0) {
+      feld.x_pct    = parseFloat((rect.x_pct + 0.005).toFixed(4));
+      feld.y_pct    = parseFloat((rect.y_pct + rect.h_pct * 0.5).toFixed(4));
+      feld.seite_nr = rect.page;
+    }
+  }
+}
+
+function acroformBoxenEntfernen() {
+  acroformBoxen.forEach(b => b.el.remove());
+  acroformBoxen = [];
+}
+
+function setPfeilAktiv(badge, feld, wrap) {
+  if (pfeilAktivesBadge) pfeilAktivesBadge.badge.classList.remove("pfeil-aktiv");
+  pfeilAktivesBadge = badge ? { badge, feld, wrap } : null;
+  if (badge) badge.classList.add("pfeil-aktiv");
+}
+
+// ---- Pfeiltasten-Handler ----
+document.addEventListener("keydown", (e) => {
+  if (!koordModus || !pfeilAktivesBadge) return;
+  const DIRS = { ArrowLeft: [-1,0], ArrowRight: [1,0], ArrowUp: [0,-1], ArrowDown: [0,1] };
+  if (!DIRS[e.key]) return;
+  e.preventDefault();
+  const step = e.shiftKey ? 0.005 : 0.001;
+  const [dx, dy] = DIRS[e.key];
+  const { badge, feld, wrap } = pfeilAktivesBadge;
+  pushUndo(feld);
+  feld.x_pct = Math.max(0, Math.min(1, (parseFloat(feld.x_pct) || 0) + dx * step));
+  feld.y_pct = Math.max(0, Math.min(1, (parseFloat(feld.y_pct) || 0) + dy * step));
+  badge.style.left = (feld.x_pct * 100) + "%";
+  badge.style.top  = (feld.y_pct * 100) + "%";
+  badge.title = `${feld.id}\nx: ${feld.x_pct.toFixed(4)}, y: ${feld.y_pct.toFixed(4)}`;
+});
+
 function koordModeEin() {
   koordModus = true;
   document.getElementById("pdf-panel").classList.add("koord-modus");
   document.getElementById("koord-hinweis").style.display = "";
-  document.getElementById("koord-hinweis").textContent = "📌 Feld rechts anklicken, dann auf PDF-Position klicken";
+  document.getElementById("koord-hinweis").textContent = "📌 Badge ziehen oder anklicken → Pfeiltasten zum Feinpositionieren";
   document.getElementById("koord-speichern-bar").style.display = "flex";
   document.getElementById("koord-toggle").classList.add("btn-warning");
   document.getElementById("koord-toggle").classList.remove("btn-outline-warning");
@@ -1233,6 +1332,10 @@ function koordModeEin() {
 
   koordBadges.forEach(b => b.badge.remove());
   koordBadges.length = 0;
+  pfeilAktivesBadge = null;
+
+  // AcroForm-Boxen zuerst anzeigen (füllt auch auto x_pct/y_pct)
+  acroformBoxenAnzeigen();
 
   const seiteWraps = document.querySelectorAll(".pdf-seite-wrap");
   for (const feld of alleFelder().filter(f => f.id && !SKIP_TYPEN.has(f.typ))) {
@@ -1264,6 +1367,8 @@ function koordModeAus() {
   document.querySelectorAll(".koord-pin-btn").forEach(b => b.style.display = "none");
   koordBadges.forEach(b => b.badge.remove());
   koordBadges.length = 0;
+  acroformBoxenEntfernen();
+  if (pfeilAktivesBadge) { pfeilAktivesBadge.badge.classList.remove("pfeil-aktiv"); pfeilAktivesBadge = null; }
 }
 
 // PDF-Klick zum Platzieren
@@ -1281,6 +1386,7 @@ function makeDraggable(badge, feld, wrap) {
   badge.addEventListener("mousedown", (e) => {
     e.preventDefault();
     dragging = true;
+    setPfeilAktiv(badge, feld, wrap);
     pushUndo(feld);
     const rect = wrap.getBoundingClientRect();
     startX = e.clientX;
@@ -1325,7 +1431,8 @@ async function koordSpeichern() {
     .filter(f => {
       const hasMain = (parseFloat(f.x_pct) || 0) !== 0 || (parseFloat(f.y_pct) || 0) !== 0;
       const hasOpt  = f.optionen_koord && Object.keys(f.optionen_koord).length > 0;
-      return hasMain || hasOpt;
+      const hasAcro = !!(f.acroform_name || f.vorlage);
+      return hasMain || hasOpt || hasAcro;
     })
     .map(f => ({
       id: f.id,
@@ -1334,6 +1441,9 @@ async function koordSpeichern() {
       seite_nr: f.seite_nr || 0,
       vorlage: f.vorlage || "",
       optionen_koord: f.optionen_koord || {},
+      acroform_name: f.acroform_name || "",
+      typ: f.typ || "",
+      label: f.label || "",
     }));
   const pdfFont = {
     size: parseFloat(document.getElementById("pdf-font-size").value) || 9,
@@ -1375,6 +1485,8 @@ document.getElementById("koord-abbrechen-btn").addEventListener("click", koordMo
 document.getElementById("koord-undo-btn").addEventListener("click", undo);
 document.addEventListener("keydown", (e) => {
   if (koordModus && e.ctrlKey && e.key === "z") { e.preventDefault(); undo(); }
+  // Escape: Pfeiltasten-Selektion aufheben
+  if (koordModus && e.key === "Escape") setPfeilAktiv(null, null, null);
 });
 
 // Schrift-Einstellungen initialisieren

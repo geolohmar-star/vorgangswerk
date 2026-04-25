@@ -884,12 +884,24 @@ def analyse_pruefen(request, pk):
     ergebnis_json_str = _json.dumps(ergebnis, ensure_ascii=False)
     pdf_font_json = _json.dumps(ergebnis.get("pdf_font") or {"size": 9, "bold": False})
     bereits_importiert = analyse.status == FormularAnalyse.STATUS_IMPORTIERT
+
+    # AcroForm-Feld-Positionen für das Overlay im Prüfen-Editor
+    acroform_rects: dict = {}
+    if analyse.pdf_inhalt:
+        try:
+            from portal.pdf_fill import _extract_text_field_rects
+            acroform_rects = _extract_text_field_rects(analyse.pdf_inhalt)
+        except Exception as exc:
+            logger.warning("analyse_pruefen: AcroForm-Rects konnten nicht extrahiert werden – %s", exc)
+    acroform_rects_json = _json.dumps(acroform_rects, ensure_ascii=False)
+
     return render(request, "portal/analyse_pruefen.html", {
         "account": account,
         "analyse": analyse,
         "ergebnis_json_str": ergebnis_json_str,
         "pdf_font_json": pdf_font_json,
         "bereits_importiert": bereits_importiert,
+        "acroform_rects_json": acroform_rects_json,
     })
 
 

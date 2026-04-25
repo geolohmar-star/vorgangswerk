@@ -68,6 +68,7 @@ def _extract_text_field_rects(pdf_bytes: bytes) -> dict[str, dict]:
                     "page": page_idx,
                     "x_pct": x1 / pw,
                     "y_pct": 1.0 - y2 / ph,   # PDF-Koordinaten: y2 = Oberkante
+                    "w_pct": (x2 - x1) / pw,
                     "h_pct": (y2 - y1) / ph,
                 }
             except Exception:
@@ -256,7 +257,18 @@ def fuelle_acroform(
             if not feld_id:
                 continue
 
-            wert_roh = str(gesammelte_daten.get(feld_id, "")).strip()
+            if typ == "systemfeld":
+                import datetime as _dt
+                _heute_str = _dt.date.today().strftime("%d.%m.%Y")
+                _sys_map = {
+                    "antragsdatum":              _heute_str,
+                    "heute":                     _dt.date.today().isoformat(),
+                    "vorgangsnummer":            vorgangsnummer,
+                    "antragsnummer_zeitstempel": f"{vorgangsnummer} | {_heute_str}" if vorgangsnummer else _heute_str,
+                }
+                wert_roh = _sys_map.get(feld.get("systemwert", ""), str(gesammelte_daten.get(feld_id, ""))).strip()
+            else:
+                wert_roh = str(gesammelte_daten.get(feld_id, "")).strip()
 
             # ── Checkbox / Radio / Bool: per Optionstexten matchen ─────────
             if typ in ("checkboxen", "radio", "bool"):
@@ -375,21 +387,48 @@ def fuelle_acroform(
     # Flatten baked checkboxes (poppler regeneriert Appearance via NeedAppearances)
     filled_bytes = _flatten_pdf(buf.getvalue())
 
+    # Vom Nutzer manuell gesetzte Koordinaten sammeln (überschreiben tx_rects)
+    custom_koord: dict[str, dict] = {}
+    for schritt in schritte:
+        for feld in (schritt.felder_json or []):
+            acroform_name = (feld.get("acroform_name") or "").strip()
+            if not acroform_name or "," in acroform_name or acroform_name.startswith("loop:"):
+                continue
+            x = float(feld.get("x_pct") or 0)
+            y = float(feld.get("y_pct") or 0)
+            if x != 0 or y != 0:
+                custom_koord[acroform_name] = {
+                    "x_pct": x, "y_pct": y,
+                    "seite_nr": int(feld.get("seite_nr") or 0),
+                }
+
     # Textwerte per reportlab-Overlay einzeichnen (volle Latin-1 Unterstützung inkl. Umlaute)
-    text_eintraege: dict[int, list[dict]] = {}  # page → [{x_pct, y_pct, h_pct, wert}]
+    text_eintraege: dict[int, list[dict]] = {}  # page → [{x_pct, y_pct, h_pct, custom, wert}]
     for acroform_name, wert in final_map.items():
         if acroform_name in on_states or acroform_name in btn_map:
             continue  # Btn-Felder bereits erledigt
-        rect = tx_rects.get(acroform_name)
-        if not rect:
-            continue
-        page_idx = rect["page"]
-        text_eintraege.setdefault(page_idx, []).append({
-            "x_pct": rect["x_pct"],
-            "y_pct": rect["y_pct"],
-            "h_pct": rect["h_pct"],
-            "wert": wert,
-        })
+        if acroform_name in custom_koord:
+            c = custom_koord[acroform_name]
+            # Nutzer-Position: y_pct ist direkte Text-Baseline (wie fuelle_pdf_overlay)
+            h_pct = (tx_rects.get(acroform_name) or {}).get("h_pct", 0.03)
+            text_eintraege.setdefault(c["seite_nr"], []).append({
+                "x_pct": c["x_pct"],
+                "y_pct": c["y_pct"],
+                "h_pct": h_pct,
+                "custom": True,
+                "wert": wert,
+            })
+        else:
+            rect = tx_rects.get(acroform_name)
+            if not rect:
+                continue
+            text_eintraege.setdefault(rect["page"], []).append({
+                "x_pct": rect["x_pct"],
+                "y_pct": rect["y_pct"],
+                "h_pct": rect["h_pct"],
+                "custom": False,
+                "wert": wert,
+            })
 
     if text_eintraege:
         try:
@@ -411,10 +450,14 @@ def fuelle_acroform(
                 c.setFillColorRGB(0, 0, 0)
                 for e in eintraege:
                     x_pt = e["x_pct"] * pw + 2
-                    # Vertikal mittig im Feld ausrichten
-                    field_top = ph - e["y_pct"] * ph
-                    field_h   = e["h_pct"] * ph
-                    y_pt = field_top - field_h * 0.72
+                    if e.get("custom"):
+                        # Nutzer hat Position manuell gesetzt → direkte Baseline wie fuelle_pdf_overlay
+                        y_pt = ph - e["y_pct"] * ph + 3
+                    else:
+                        # Auto-Position aus AcroForm /Rect: Feldmitte näherungsweise
+                        field_top = ph - e["y_pct"] * ph
+                        field_h   = e["h_pct"] * ph
+                        y_pt = field_top - field_h * 0.72
                     c.drawString(x_pt, y_pt, e["wert"])
                 c.save()
                 overlay_buf.seek(0)
@@ -475,6 +518,7 @@ def fuelle_pdf_overlay(
     _system_werte = {
         "vorgangsnummer":             vorgangsnummer,
         "antragsdatum":               _heute,
+        "heute":                      _date.today().isoformat(),
         "antragsnummer_zeitstempel":  f"{vorgangsnummer} | {_heute}" if vorgangsnummer else _heute,
     }
 

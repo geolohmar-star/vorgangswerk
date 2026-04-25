@@ -677,15 +677,30 @@ def _validiere_schritt(schritt, post_data, vorige_daten=None, files_data=None, s
         # zeige_wenn: Feld überspringen wenn steuerndes Feld nicht aktiv
         zeige_wenn = feld.get("zeige_wenn", "")
         if zeige_wenn:
-            steuerwert = post_data.get(zeige_wenn, "")
-            # bool/checkbox: im POST vorhanden = True
-            if zeige_wenn in post_data and post_data[zeige_wenn] in ("on", "True", "true", "1"):
-                pass  # aktiv → normal validieren
-            elif zeige_wenn in post_data and post_data.getlist(zeige_wenn):
-                pass  # checkboxen mit Wert → aktiv
-            elif post_data.get(zeige_wenn, "") not in ("", "False", "false", "0"):
-                pass  # Textwert vorhanden → aktiv
+            if ":" in zeige_wenn:
+                # Erweiterte Syntax "feld_id:erwarteter_wert" (wie im JS)
+                _zw_id, _zw_erwartet = zeige_wenn.split(":", 1)
+                _zw_wert = str(post_data.get(_zw_id, ""))
+                _zw_liste = post_data.getlist(_zw_id)
+                _TRUTHY = {"1", "on", "true", "True", "yes", "ja"}
+                if _zw_erwartet in ("true", "True"):
+                    # Bool-Checkbox sendet "1" im POST, JS wertet cb.checked aus → "true"
+                    ist_aktiv = _zw_wert in _TRUTHY or any(v in _TRUTHY for v in _zw_liste)
+                elif _zw_erwartet in ("false", "False"):
+                    ist_aktiv = _zw_wert not in _TRUTHY and _zw_id not in post_data
+                else:
+                    ist_aktiv = (_zw_erwartet in _zw_liste) or (_zw_wert == _zw_erwartet)
             else:
+                # Einfache Truthy-Syntax "feld_id"
+                if zeige_wenn in post_data and post_data[zeige_wenn] in ("on", "True", "true", "1"):
+                    ist_aktiv = True
+                elif zeige_wenn in post_data and post_data.getlist(zeige_wenn):
+                    ist_aktiv = True
+                elif post_data.get(zeige_wenn, "") not in ("", "False", "false", "0"):
+                    ist_aktiv = True
+                else:
+                    ist_aktiv = False
+            if not ist_aktiv:
                 daten[feld_id] = (vorige_daten or {}).get(feld_id, "")
                 continue  # versteckt → überspringen
 
@@ -867,12 +882,20 @@ def _validiere_schritt(schritt, post_data, vorige_daten=None, files_data=None, s
         if not feld_id:
             continue
         systemwert = feld.get("systemwert", "loop_zaehler")
+        _heute = datetime.date.today()
+        _vgnr = (sitzung.vorgangsnummer if sitzung else None) or (f"ANT-{sitzung.pk:05d}" if sitzung else "")
         if systemwert == "loop_zaehler":
             daten[feld_id] = loop_durchlauf + 1
         elif systemwert == "loop_durchlauf":
             daten[feld_id] = loop_durchlauf
         elif systemwert == "heute":
-            daten[feld_id] = datetime.date.today().isoformat()
+            daten[feld_id] = _heute.isoformat()
+        elif systemwert == "antragsdatum":
+            daten[feld_id] = _heute.strftime("%d.%m.%Y")
+        elif systemwert == "vorgangsnummer":
+            daten[feld_id] = _vgnr
+        elif systemwert == "antragsnummer_zeitstempel":
+            daten[feld_id] = f"{_vgnr} | {_heute.strftime('%d.%m.%Y')}" if _vgnr else _heute.strftime("%d.%m.%Y")
 
     # Berechnungsfelder
     alle_werte = _variablen_werte(pfad) if pfad else {}
@@ -2697,9 +2720,30 @@ def sitzung_original_pdf(request, pk):
     from pypdf import PdfReader as _PR
     import io as _io
     _reader = _PR(_io.BytesIO(pdf_bytes))
-    _ist_acroform = bool(_reader.get_fields())
+    _pdf_felder = set(_reader.get_fields().keys() if _reader.get_fields() else [])
 
-    # AcroForm hat Vorrang – Overlay nur für PDFs ohne AcroForm-Felder
+    def _acroform_mappings_valide(schritte, pdf_felder):
+        """Prüft ob acroform_names eindeutig und alle im PDF vorhanden sind."""
+        seen = set()
+        gefunden = 0
+        for s in schritte:
+            for f in (s.felder_json or []):
+                name = (f.get("acroform_name") or "").strip()
+                if not name or name.startswith("loop:"):
+                    continue
+                if "," in name:   # Zeichen-Split – separat behandelt
+                    continue
+                if name in seen:
+                    return False  # Duplikat → Mappings ungültig
+                if name not in pdf_felder:
+                    continue      # Nicht im PDF → überspringen, kein Fehler
+                seen.add(name)
+                gefunden += 1
+        return gefunden > 0
+
+    _ist_acroform = bool(_pdf_felder) and _acroform_mappings_valide(schritte, _pdf_felder)
+
+    # AcroForm nur wenn Mappings eindeutig und valide – sonst Koordinaten-Overlay
     if _ist_acroform:
         try:
             filled_pdf = fuelle_acroform(
