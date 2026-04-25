@@ -805,6 +805,8 @@ def analyse_koordinaten_speichern(request, pk):
                         feld["label"] = k["label"]
                     if "loop_zeile_pct" in k:
                         feld["loop_zeile_pct"] = round(float(k["loop_zeile_pct"] or 0), 4)
+                    if "loop_y_offsets" in k:
+                        feld["loop_y_offsets"] = [round(float(v), 4) for v in (k["loop_y_offsets"] or [])]
                     changed = True
             if changed:
                 schritt.felder_json = felder_json
