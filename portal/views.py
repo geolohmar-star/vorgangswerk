@@ -3,10 +3,13 @@
 """
 Portal-Views: Registrierung, Dashboard, PDF-Upload, Stripe-Checkout.
 """
+import datetime
 import json
 import logging
 import threading
 import re
+
+from django.db.models import Count
 
 from django.contrib import messages
 from django.contrib.auth import authenticate, login, logout
@@ -182,6 +185,124 @@ def portal_login(request):
 def portal_logout(request):
     logout(request)
     return redirect(reverse("portal:login"))
+
+
+# ---------------------------------------------------------------------------
+# Admin-Verwaltung (nur Staff)
+# ---------------------------------------------------------------------------
+
+@login_required
+def admin_verwaltung(request):
+    """Verwaltungsoberfläche für Einladungen und Portal-Nutzer (nur Staff)."""
+    if not request.user.is_staff:
+        messages.error(request, "Kein Zugriff.")
+        return redirect(reverse("portal:login"))
+
+    from django.utils import timezone as tz
+
+    fehler = None
+    erfolg = None
+
+    if request.method == "POST":
+        aktion = request.POST.get("aktion")
+
+        if aktion == "einladung_erstellen":
+            email = request.POST.get("email", "").strip().lower()
+            start_credits = int(request.POST.get("start_credits", 0) or 0)
+            gueltig_tage = int(request.POST.get("gueltig_tage", 0) or 0)
+            notiz = request.POST.get("notiz", "").strip()
+
+            if not email or "@" not in email:
+                fehler = "Bitte eine gültige E-Mail-Adresse eingeben."
+            elif Einladung.objects.filter(email=email).exists():
+                fehler = f"Eine Einladung für {email} existiert bereits."
+            else:
+                gueltig_bis = tz.now() + datetime.timedelta(days=gueltig_tage) if gueltig_tage else None
+                einladung = Einladung.objects.create(
+                    email=email,
+                    start_credits=start_credits,
+                    gueltig_bis=gueltig_bis,
+                    notiz=notiz,
+                )
+                erfolg = f"Einladung für {email} erstellt."
+                # Sofort E-Mail senden wenn gewünscht
+                if request.POST.get("sofort_senden"):
+                    _sende_einladungsmail(request, einladung)
+                    erfolg += " E-Mail wurde verschickt."
+
+        elif aktion == "einladung_senden":
+            pk = request.POST.get("pk")
+            try:
+                einladung = Einladung.objects.get(pk=pk)
+                _sende_einladungsmail(request, einladung)
+                erfolg = f"Einladungs-E-Mail an {einladung.email} gesendet."
+            except Einladung.DoesNotExist:
+                fehler = "Einladung nicht gefunden."
+
+        elif aktion == "einladung_loeschen":
+            pk = request.POST.get("pk")
+            try:
+                einladung = Einladung.objects.get(pk=pk, eingeloest_am__isnull=True)
+                email = einladung.email
+                einladung.delete()
+                erfolg = f"Einladung für {email} gelöscht."
+            except Einladung.DoesNotExist:
+                fehler = "Einladung nicht gefunden oder bereits eingelöst."
+
+        elif aktion == "credits_anpassen":
+            account_pk = request.POST.get("account_pk")
+            betrag = int(request.POST.get("betrag", 0) or 0)
+            beschreibung = request.POST.get("beschreibung", "Manuelle Anpassung").strip()
+            try:
+                account = PortalAccount.objects.get(pk=account_pk)
+                account.credits = max(0, account.credits + betrag)
+                account.save(update_fields=["credits"])
+                CreditTransaktion.objects.create(
+                    account=account,
+                    typ="kauf" if betrag > 0 else "rueckerstattung",
+                    betrag=betrag,
+                    beschreibung=beschreibung,
+                )
+                erfolg = f"Credits für {account.user.email} angepasst ({betrag:+d})."
+            except PortalAccount.DoesNotExist:
+                fehler = "Konto nicht gefunden."
+
+        return redirect(reverse("portal:admin_verwaltung") + (f"?erfolg={erfolg}" if erfolg else f"?fehler={fehler}"))
+
+    einladungen = Einladung.objects.select_related("eingeloest_von").order_by("-erstellt_am")
+    nutzer = PortalAccount.objects.select_related("user").annotate(
+        analyse_anzahl=Count("analysen")
+    ).order_by("-erstellt_am")
+
+    return render(request, "portal/admin_verwaltung.html", {
+        "einladungen": einladungen,
+        "nutzer": nutzer,
+        "erfolg": request.GET.get("erfolg"),
+        "fehler": request.GET.get("fehler"),
+        "jetzt": tz.now(),
+    })
+
+
+def _sende_einladungsmail(request, einladung):
+    link = request.build_absolute_uri(
+        reverse("portal:registrierung", args=[einladung.token])
+    )
+    try:
+        send_mail(
+            subject="Einladung zum Vorgangswerk Portal",
+            message=(
+                f"Hallo,\n\n"
+                f"du wurdest eingeladen, das Vorgangswerk Portal zu nutzen.\n\n"
+                f"Registriere dich hier:\n{link}\n\n"
+                + (f"Dein Konto wird mit {einladung.start_credits} Start-Credits ausgestattet.\n\n" if einladung.start_credits else "")
+                + "Vorgangswerk"
+            ),
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            recipient_list=[einladung.email],
+            fail_silently=False,
+        )
+    except Exception as e:
+        logger.warning("Einladungsmail fehlgeschlagen: %s", e)
 
 
 # ---------------------------------------------------------------------------

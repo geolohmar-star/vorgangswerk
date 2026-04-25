@@ -1,0 +1,191 @@
+{% extends "portal/base.html" %}
+{% block title %}Verwaltung – Vorgangswerk Portal{% endblock %}
+
+{% block extra_css %}
+<style>
+.status-offen    { color: #0d6efd; font-weight: 600; }
+.status-geloest  { color: #198754; font-weight: 600; }
+.status-abgelaufen { color: #dc3545; font-weight: 600; }
+.card-section { border: 1px solid #dee2e6; border-radius: 8px; margin-bottom: 1.5rem; }
+.card-section-header { background: #f8f9fa; border-radius: 8px 8px 0 0; padding: .6rem 1rem; font-weight: 600; border-bottom: 1px solid #dee2e6; }
+.table td, .table th { vertical-align: middle; font-size: .85rem; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div style="max-width:1100px; margin:0 auto;">
+
+  <div class="d-flex align-items-center justify-content-between mb-3">
+    <h4 class="fw-bold mb-0">Portal-Verwaltung</h4>
+    <a href="{% url 'portal:dashboard' %}" class="btn btn-outline-secondary btn-sm">&larr; Dashboard</a>
+  </div>
+
+  {% if erfolg %}
+  <div class="alert alert-success py-2">{{ erfolg }}</div>
+  {% endif %}
+  {% if fehler %}
+  <div class="alert alert-danger py-2">{{ fehler }}</div>
+  {% endif %}
+
+  <!-- ── Neue Einladung ───────────────────────────────────────────────── -->
+  <div class="card-section">
+    <div class="card-section-header">&#128231; Neue Einladung erstellen</div>
+    <div class="p-3">
+      <form method="post" class="row g-2 align-items-end">
+        {% csrf_token %}
+        <input type="hidden" name="aktion" value="einladung_erstellen">
+        <div class="col-md-4">
+          <label class="form-label small fw-semibold mb-1">E-Mail-Adresse</label>
+          <input type="email" name="email" class="form-control form-control-sm" required placeholder="nutzer@beispiel.de" autofocus>
+        </div>
+        <div class="col-md-2">
+          <label class="form-label small fw-semibold mb-1">Start-Credits</label>
+          <input type="number" name="start_credits" class="form-control form-control-sm" value="3" min="0" max="100">
+        </div>
+        <div class="col-md-2">
+          <label class="form-label small fw-semibold mb-1">Gültig (Tage, 0=unbegrenzt)</label>
+          <input type="number" name="gueltig_tage" class="form-control form-control-sm" value="30" min="0">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label small fw-semibold mb-1">Notiz (intern)</label>
+          <input type="text" name="notiz" class="form-control form-control-sm" placeholder="z.B. Spotconsulting Demo">
+        </div>
+        <div class="col-md-1 d-flex flex-column gap-1">
+          <div class="form-check form-switch mb-1">
+            <input class="form-check-input" type="checkbox" name="sofort_senden" id="sofort_senden" checked>
+            <label class="form-check-label small" for="sofort_senden">E-Mail senden</label>
+          </div>
+          <button type="submit" class="btn btn-primary btn-sm">Erstellen</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ── Einladungen ─────────────────────────────────────────────────── -->
+  <div class="card-section">
+    <div class="card-section-header">&#128505; Einladungen ({{ einladungen|length }})</div>
+    <div class="table-responsive">
+      <table class="table table-sm table-hover mb-0">
+        <thead class="table-light">
+          <tr>
+            <th>E-Mail</th>
+            <th>Credits</th>
+            <th>Erstellt</th>
+            <th>Gültig bis</th>
+            <th>Status</th>
+            <th>Notiz</th>
+            <th>Einladungslink</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for e in einladungen %}
+          <tr>
+            <td class="fw-semibold">{{ e.email }}</td>
+            <td>{{ e.start_credits }}</td>
+            <td class="text-muted">{{ e.erstellt_am|date:"d.m.Y" }}</td>
+            <td class="text-muted">{{ e.gueltig_bis|date:"d.m.Y"|default:"–" }}</td>
+            <td>
+              {% if e.eingeloest_am %}
+                <span class="status-geloest">&#10003; Eingelöst {{ e.eingeloest_am|date:"d.m.Y" }}</span>
+                {% if e.eingeloest_von %}<br><span class="text-muted small">{{ e.eingeloest_von.email }}</span>{% endif %}
+              {% elif e.gueltig_bis and e.gueltig_bis < jetzt %}
+                <span class="status-abgelaufen">&#10005; Abgelaufen</span>
+              {% else %}
+                <span class="status-offen">&#9679; Offen</span>
+              {% endif %}
+            </td>
+            <td class="text-muted small">{{ e.notiz|default:"–"|truncatechars:30 }}</td>
+            <td>
+              {% if not e.eingeloest_am %}
+              <div class="input-group input-group-sm" style="min-width:260px;">
+                <input type="text" class="form-control form-control-sm font-monospace"
+                       value="{{ request.scheme }}://{{ request.get_host }}{% url 'portal:registrierung' e.token %}"
+                       readonly onclick="this.select();" style="font-size:.7rem;">
+                <button class="btn btn-outline-secondary btn-sm"
+                        onclick="navigator.clipboard.writeText(this.previousElementSibling.value); this.textContent='✓';"
+                        title="Kopieren">&#128203;</button>
+              </div>
+              {% else %}
+              <span class="text-muted small">eingelöst von {{ e.eingeloest_von.email|default:"–" }}</span>
+              {% endif %}
+            </td>
+            <td class="text-nowrap">
+              {% if not e.eingeloest_am %}
+              <form method="post" class="d-inline">
+                {% csrf_token %}
+                <input type="hidden" name="aktion" value="einladung_senden">
+                <input type="hidden" name="pk" value="{{ e.pk }}">
+                <button type="submit" class="btn btn-outline-primary btn-sm" title="E-Mail erneut senden">&#9993;</button>
+              </form>
+              <form method="post" class="d-inline"
+                    onsubmit="return confirm('Einladung für {{ e.email }} löschen?');">
+                {% csrf_token %}
+                <input type="hidden" name="aktion" value="einladung_loeschen">
+                <input type="hidden" name="pk" value="{{ e.pk }}">
+                <button type="submit" class="btn btn-outline-danger btn-sm">&#128465;</button>
+              </form>
+              {% endif %}
+            </td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="8" class="text-muted text-center py-3">Noch keine Einladungen.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ── Portal-Nutzer ───────────────────────────────────────────────── -->
+  <div class="card-section">
+    <div class="card-section-header">&#128100; Portal-Nutzer ({{ nutzer|length }})</div>
+    <div class="table-responsive">
+      <table class="table table-sm table-hover mb-0">
+        <thead class="table-light">
+          <tr>
+            <th>E-Mail</th>
+            <th>Credits</th>
+            <th>Analysen</th>
+            <th>Registriert</th>
+            <th>Credits anpassen</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for a in nutzer %}
+          <tr>
+            <td class="fw-semibold">
+              {{ a.user.username }}
+              {% if a.user.email and a.user.email != a.user.username %}
+              <br><span class="text-muted small fw-normal">{{ a.user.email }}</span>
+              {% endif %}
+            </td>
+            <td>
+              <span class="badge {% if a.credits == 0 %}bg-danger{% elif a.credits < 3 %}bg-warning text-dark{% else %}bg-success{% endif %}">
+                {{ a.credits }} Credits
+              </span>
+            </td>
+            <td class="text-muted">{{ a.analyse_anzahl }}</td>
+            <td class="text-muted">{{ a.erstellt_am|date:"d.m.Y" }}</td>
+            <td>
+              <form method="post" class="d-flex gap-1 align-items-center">
+                {% csrf_token %}
+                <input type="hidden" name="aktion" value="credits_anpassen">
+                <input type="hidden" name="account_pk" value="{{ a.pk }}">
+                <input type="number" name="betrag" class="form-control form-control-sm"
+                       style="width:5rem;" placeholder="±" required>
+                <input type="text" name="beschreibung" class="form-control form-control-sm"
+                       style="width:10rem;" placeholder="Grund" value="Manuelle Gutschrift">
+                <button type="submit" class="btn btn-outline-secondary btn-sm text-nowrap">&#10003; Buchen</button>
+              </form>
+            </td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="5" class="text-muted text-center py-3">Noch keine Nutzer registriert.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+{% endblock %}

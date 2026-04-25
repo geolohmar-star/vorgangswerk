@@ -34,6 +34,49 @@ _TRUTHY = {"ja", "yes", "true", "1", "x", "an", "on", "wahr", "checked"}
 # Hilfsfunktionen
 # ---------------------------------------------------------------------------
 
+def _extract_text_field_rects(pdf_bytes: bytes) -> dict[str, dict]:
+    """Gibt {feldname: {page, x_pct, y_pct, w_pct, h_pct}} für alle Tx-Felder zurück.
+
+    Liest die /Rect-Annotation aus dem AcroForm – damit können Textwerte
+    via reportlab präzise positioniert werden (umgeht Font-Subset-Probleme).
+    """
+    from pypdf import PdfReader
+    reader = PdfReader(io.BytesIO(pdf_bytes))
+    result: dict[str, dict] = {}
+
+    for page_idx, page in enumerate(reader.pages):
+        pw = float(page.mediabox.width)
+        ph = float(page.mediabox.height)
+        for ref in (page.get("/Annots") or []):
+            try:
+                obj = ref.get_object()
+                ft = obj.get("/FT")
+                if not ft:
+                    parent = obj.get("/Parent")
+                    if parent:
+                        ft = parent.get_object().get("/FT")
+                if str(ft) != "/Tx":
+                    continue
+                name = str(obj.get("/T", ""))
+                if not name or name in result:
+                    continue
+                rect = obj.get("/Rect")
+                if not rect:
+                    continue
+                x1, y1, x2, y2 = [float(v) for v in rect]
+                result[name] = {
+                    "page": page_idx,
+                    "x_pct": x1 / pw,
+                    "y_pct": 1.0 - y2 / ph,   # PDF-Koordinaten: y2 = Oberkante
+                    "h_pct": (y2 - y1) / ph,
+                }
+            except Exception:
+                pass
+
+    logger.debug("_extract_text_field_rects: %d Tx-Felder gefunden", len(result))
+    return result
+
+
 def _checkbox_on_states(pdf_bytes: bytes) -> dict[str, str]:
     """Gibt {feldname: on-state-wert} für alle Checkbox-/Radio-Felder zurück.
 
@@ -189,7 +232,15 @@ def fuelle_acroform(
     # Checkbox-On-States vorab ermitteln (einmalig)
     on_states = _checkbox_on_states(pdf_bytes)
 
+    # Normalisierter Lookup: bereinigter Name → echter AcroForm-Feldname
+    # (AcroForm-Namen sind Optionstexte ohne Sonderzeichen)
+    def _norm(text: str) -> str:
+        return re.sub(r'[^a-zA-Z0-9À-ž]', '', text).lower()
+
+    acro_norm_lookup: dict[str, str] = {_norm(k): k for k in on_states}
+
     field_map: dict[str, list[str]] = {}   # acroform_name → [werte]
+    btn_map: dict[str, str] = {}           # AcroForm-Btn-Feld → on-state oder "/Off"
     overflow_eintraege: list[dict] = []    # Daten ohne AcroForm-Slot
 
     for schritt in schritte:
@@ -198,9 +249,34 @@ def fuelle_acroform(
         for feld in (schritt.felder_json or []):
             acroform_name = feld.get("acroform_name", "").strip()
             feld_id = feld.get("id", "").strip()
+            typ = feld.get("typ", "")
             label = feld.get("label", feld_id)
+            optionen = feld.get("optionen") or []
 
-            if not feld_id or not acroform_name:
+            if not feld_id:
+                continue
+
+            wert_roh = str(gesammelte_daten.get(feld_id, "")).strip()
+
+            # ── Checkbox / Radio / Bool: per Optionstexten matchen ─────────
+            if typ in ("checkboxen", "radio", "bool"):
+                if typ == "bool":
+                    selected_set = {_norm(acroform_name)} if wert_roh.lower() in _TRUTHY else set()
+                    search_list = [acroform_name]
+                else:
+                    # Wert ist kommagetrennte Liste gewählter Optionen
+                    selected_set = {_norm(v.strip()) for v in wert_roh.split(",") if v.strip()}
+                    search_list = optionen or [acroform_name]
+
+                for option in search_list:
+                    acro_real = acro_norm_lookup.get(_norm(option))
+                    if not acro_real:
+                        continue
+                    is_selected = _norm(option) in selected_set
+                    btn_map[acro_real] = on_states[acro_real] if is_selected else "/Off"
+                continue
+
+            if not acroform_name:
                 continue
 
             # Alle Werte für dieses Feld (inkl. Loop-Iterationen) sammeln
@@ -245,15 +321,13 @@ def fuelle_acroform(
                         })
                 continue
 
-            # ── C) Einfaches Feld ─────────────────────────────────────────
+            # ── C) Einfaches Textfeld ─────────────────────────────────────
             for suffix, wert_str in werte:
                 if not wert_str:
                     continue
                 if not suffix:
-                    # Erste / einzige Iteration → AcroForm-Feld
                     field_map.setdefault(acroform_name, []).append(wert_str)
                 elif loop_bez:
-                    # Weitere Loop-Iterationen ohne dedizierten Slot → Overflow
                     try:
                         iter_nr = int(suffix.strip("_")) + 1
                     except ValueError:
@@ -265,14 +339,10 @@ def fuelle_acroform(
                         "wert": wert_str,
                     })
 
-    # Mehrere Teilwerte pro Feld verbinden; Checkboxen auf on-state mappen
+    # Textwerte zusammenführen
     final_map: dict[str, str] = {}
     for k, v in field_map.items():
-        joined = " ".join(v).strip()
-        if k in on_states:
-            final_map[k] = on_states[k] if joined.lower() in _TRUTHY else "/Off"
-        else:
-            final_map[k] = _format_wert(joined)
+        final_map[k] = _format_wert(" ".join(v).strip())
 
     if not final_map:
         logger.warning("fuelle_acroform: keine Zuordnungen – PDF unverändert")
@@ -281,19 +351,82 @@ def fuelle_acroform(
     logger.info("fuelle_acroform: %d Felder befüllen, %d Overflow-Einträge",
                 len(final_map), len(overflow_eintraege))
 
-    # PDF befüllen
+    # Tx-Feld-Positionen vorab aus AcroForm lesen (für reportlab-Overlay)
+    tx_rects = _extract_text_field_rects(pdf_bytes)
+
+    # Nur Checkbox-/Radio-Felder per AcroForm setzen (Text via reportlab, s.u.)
+    checkbox_map = {k: v for k, v in final_map.items() if k in on_states}
     reader = PdfReader(io.BytesIO(pdf_bytes))
     writer = PdfWriter()
     writer.append(reader)
-    for page in writer.pages:
-        try:
-            writer.update_page_form_field_values(page, final_map)
-        except Exception as exc:
-            logger.warning("fuelle_acroform: Fehler auf Seite – %s", exc)
+    if btn_map:
+        for page in writer.pages:
+            try:
+                writer.update_page_form_field_values(page, btn_map, auto_regenerate=False)
+            except Exception as exc:
+                logger.warning("fuelle_acroform: Checkbox-Fehler – %s", exc)
+        from pypdf.generic import BooleanObject, NameObject
+        if "/AcroForm" in writer._root_object:
+            writer._root_object["/AcroForm"][NameObject("/NeedAppearances")] = BooleanObject(True)
+        logger.info("fuelle_acroform: %d Btn-Felder gesetzt", len(btn_map))
 
     buf = io.BytesIO()
     writer.write(buf)
+    # Flatten baked checkboxes (poppler regeneriert Appearance via NeedAppearances)
     filled_bytes = _flatten_pdf(buf.getvalue())
+
+    # Textwerte per reportlab-Overlay einzeichnen (volle Latin-1 Unterstützung inkl. Umlaute)
+    text_eintraege: dict[int, list[dict]] = {}  # page → [{x_pct, y_pct, h_pct, wert}]
+    for acroform_name, wert in final_map.items():
+        if acroform_name in on_states or acroform_name in btn_map:
+            continue  # Btn-Felder bereits erledigt
+        rect = tx_rects.get(acroform_name)
+        if not rect:
+            continue
+        page_idx = rect["page"]
+        text_eintraege.setdefault(page_idx, []).append({
+            "x_pct": rect["x_pct"],
+            "y_pct": rect["y_pct"],
+            "h_pct": rect["h_pct"],
+            "wert": wert,
+        })
+
+    if text_eintraege:
+        try:
+            from reportlab.pdfgen import canvas as rl_canvas
+            from pypdf import PdfReader as _PR2, PdfWriter as _PW2
+            reader2 = _PR2(io.BytesIO(filled_bytes))
+            writer2 = _PW2()
+            writer2.append(reader2)
+            num_pages = len(reader2.pages)
+            for page_idx, eintraege in text_eintraege.items():
+                if page_idx >= num_pages:
+                    continue
+                page = writer2.pages[page_idx]
+                pw = float(page.mediabox.width)
+                ph = float(page.mediabox.height)
+                overlay_buf = io.BytesIO()
+                c = rl_canvas.Canvas(overlay_buf, pagesize=(pw, ph))
+                c.setFont("Helvetica", 10)
+                c.setFillColorRGB(0, 0, 0)
+                for e in eintraege:
+                    x_pt = e["x_pct"] * pw + 2
+                    # Vertikal mittig im Feld ausrichten
+                    field_top = ph - e["y_pct"] * ph
+                    field_h   = e["h_pct"] * ph
+                    y_pt = field_top - field_h * 0.72
+                    c.drawString(x_pt, y_pt, e["wert"])
+                c.save()
+                overlay_buf.seek(0)
+                from pypdf import PdfReader as _PR3
+                overlay_page = _PR3(overlay_buf).pages[0]
+                page.merge_page(overlay_page)
+            out_buf = io.BytesIO()
+            writer2.write(out_buf)
+            filled_bytes = out_buf.getvalue()
+            logger.info("fuelle_acroform: Tx-Overlay für %d Seiten angewendet", len(text_eintraege))
+        except Exception as exc:
+            logger.error("fuelle_acroform: Tx-Overlay fehlgeschlagen – %s", exc)
 
     # Beiblatt anhängen wenn Overflow vorhanden
     if overflow_eintraege:

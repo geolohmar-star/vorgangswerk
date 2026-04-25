@@ -15,6 +15,7 @@ urlpatterns = [
 
     # Dashboard
     path("dashboard/", views.dashboard, name="dashboard"),
+    path("verwaltung/", views.admin_verwaltung, name="admin_verwaltung"),
 
     # Upload & Analyse
     path("upload/", views.upload, name="upload"),

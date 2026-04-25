@@ -228,6 +228,14 @@ input[type="checkbox"].form-check-input { cursor: pointer; }
         <label class="form-check-label small" for="pdf-font-bold">Fett</label>
       </div>
       <button type="button" class="btn btn-outline-secondary btn-sm" id="koord-undo-btn" disabled title="Rückgängig (Strg+Z)">&#8630; Undo</button>
+      <div class="input-group input-group-sm" style="width:auto;">
+        <div class="input-group-text p-0 ps-2 pe-1">
+          <input class="form-check-input mt-0" type="checkbox" id="snap-toggle" title="Fanggitter an/aus">
+        </div>
+        <label class="input-group-text small" for="snap-toggle">Gitter</label>
+        <input type="number" id="snap-size" class="form-control form-control-sm" value="2" min="1" max="10" style="width:3.5rem;" title="Rastergröße in %">
+        <span class="input-group-text small">%</span>
+      </div>
       <button type="button" class="btn btn-success btn-sm flex-grow-1" id="koord-speichern-btn">&#10003; Speichern</button>
       <button type="button" class="btn btn-outline-secondary btn-sm" id="koord-abbrechen-btn">Abbrechen</button>
     </div>
@@ -962,6 +970,41 @@ function alleFelder() {
 
 const SKIP_TYPEN = new Set(["textblock", "abschnitt", "zusammenfassung", "quizergebnis", "einwilligung"]);
 
+// ---- Fanggitter ----
+function snapAktiv() { return document.getElementById("snap-toggle")?.checked; }
+function snapGroesse() { return (parseFloat(document.getElementById("snap-size")?.value) || 2) / 100; }
+function snap(val) {
+  const g = snapGroesse();
+  return Math.round(val / g) * g;
+}
+function snapPct(xPct, yPct) {
+  if (!snapAktiv()) return [xPct, yPct];
+  return [snap(xPct), snap(yPct)];
+}
+
+function gitterZeichnen() {
+  document.querySelectorAll(".pdf-seite-wrap").forEach(wrap => {
+    let overlay = wrap.querySelector(".snap-grid-overlay");
+    if (!snapAktiv()) { if (overlay) overlay.remove(); return; }
+    if (!overlay) {
+      overlay = document.createElement("div");
+      overlay.className = "snap-grid-overlay";
+      overlay.style.cssText = "position:absolute;inset:0;pointer-events:none;";
+      wrap.appendChild(overlay);
+    }
+    const g = snapGroesse() * 100;
+    overlay.style.backgroundImage =
+      `linear-gradient(to right, rgba(99,102,241,.25) 1px, transparent 1px),
+       linear-gradient(to bottom, rgba(99,102,241,.25) 1px, transparent 1px)`;
+    overlay.style.backgroundSize = `${g}% ${g}%`;
+  });
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+  document.getElementById("snap-toggle")?.addEventListener("change", gitterZeichnen);
+  document.getElementById("snap-size")?.addEventListener("input", gitterZeichnen);
+});
+
 // ---- Undo-Stack ----
 const undoStack = [];
 
@@ -1124,8 +1167,9 @@ function makeOptionDraggable(badge, feld, optionWert, wrap) {
     const rect = wrap.getBoundingClientRect();
     const newLeft = Math.max(0, Math.min(rect.width,  startLeft + e.clientX - startX));
     const newTop  = Math.max(0, Math.min(rect.height, startTop  + e.clientY - startY));
-    const xPct = Math.round(newLeft / rect.width  * 10000) / 10000;
-    const yPct = Math.round(newTop  / rect.height * 10000) / 10000;
+    let xPct = Math.round(newLeft / rect.width  * 10000) / 10000;
+    let yPct = Math.round(newTop  / rect.height * 10000) / 10000;
+    [xPct, yPct] = snapPct(xPct, yPct);
     if (!feld.optionen_koord) feld.optionen_koord = {};
     feld.optionen_koord[optionWert] = { ...feld.optionen_koord[optionWert], x_pct: xPct, y_pct: yPct };
     badge.style.left = (xPct * 100) + "%";
@@ -1153,8 +1197,9 @@ function renderOptionenPinButtons(feld) {
 function pdfKlickPlatzieren(e, wrap) {
   if (!koordModus || !aktivesKoordFeld) return;
   const rect = wrap.getBoundingClientRect();
-  const xPct = Math.round((e.clientX - rect.left) / rect.width  * 10000) / 10000;
-  const yPct = Math.round((e.clientY - rect.top)  / rect.height * 10000) / 10000;
+  let xPct = Math.round((e.clientX - rect.left) / rect.width  * 10000) / 10000;
+  let yPct = Math.round((e.clientY - rect.top)  / rect.height * 10000) / 10000;
+  [xPct, yPct] = snapPct(xPct, yPct);
   const seiteWraps = [...document.querySelectorAll(".pdf-seite-wrap")];
   const { feld, optionWert } = aktivesKoordFeld;
   const seiteNr = seiteWraps.indexOf(wrap);
@@ -1184,6 +1229,7 @@ function koordModeEin() {
   document.getElementById("koord-toggle").classList.add("btn-warning");
   document.getElementById("koord-toggle").classList.remove("btn-outline-warning");
   document.querySelectorAll(".koord-pin-btn").forEach(b => b.style.display = "inline-block");
+  gitterZeichnen();
 
   koordBadges.forEach(b => b.badge.remove());
   koordBadges.length = 0;
@@ -1252,13 +1298,14 @@ function makeDraggable(badge, feld, wrap) {
     const dy = e.clientY - startY;
     const newLeft = Math.max(0, Math.min(rect.width,  startLeft + dx));
     const newTop  = Math.max(0, Math.min(rect.height, startTop  + dy));
-    const xPct = newLeft / rect.width;
-    const yPct = newTop  / rect.height;
-    feld.x_pct = Math.round(xPct * 10000) / 10000;
-    feld.y_pct = Math.round(yPct * 10000) / 10000;
+    let xPct = Math.round(newLeft / rect.width  * 10000) / 10000;
+    let yPct = Math.round(newTop  / rect.height * 10000) / 10000;
+    [xPct, yPct] = snapPct(xPct, yPct);
+    feld.x_pct = xPct;
+    feld.y_pct = yPct;
     badge.style.left = (xPct * 100) + "%";
     badge.style.top  = (yPct * 100) + "%";
-    badge.title = `${feld.id}\nx: ${feld.x_pct.toFixed(3)}, y: ${feld.y_pct.toFixed(3)}`;
+    badge.title = `${feld.id}\nx: ${xPct.toFixed(3)}, y: ${yPct.toFixed(3)}`;
   });
 
   document.addEventListener("mouseup", () => {

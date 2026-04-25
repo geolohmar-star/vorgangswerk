@@ -2694,42 +2694,44 @@ def sitzung_original_pdf(request, pk):
     pfad_name = sitzung.pfad.name
     filled_pdf = None
 
-    # Koordinaten-Overlay bevorzugen wenn Felder mit x_pct/y_pct vorhanden
-    _hat_koord = any(
-        float(f.get("x_pct") or 0) != 0 or float(f.get("y_pct") or 0) != 0
-        for s in schritte
-        for f in (s.felder_json or [])
-    )
+    from pypdf import PdfReader as _PR
+    import io as _io
+    _reader = _PR(_io.BytesIO(pdf_bytes))
+    _ist_acroform = bool(_reader.get_fields())
 
-    if _hat_koord:
+    # AcroForm hat Vorrang – Overlay nur für PDFs ohne AcroForm-Felder
+    if _ist_acroform:
         try:
-            from portal.pdf_fill import fuelle_pdf_overlay
-            _pdf_font = (analyse.ergebnis_json or {}).get("pdf_font", {})
-            filled_pdf = fuelle_pdf_overlay(
+            filled_pdf = fuelle_acroform(
                 pdf_bytes, schritte, gesammelte_daten,
                 pfad_name=pfad_name,
                 vorgangsnummer=vorgangsnummer,
-                font_size=_pdf_font.get("size", 9),
-                font_bold=_pdf_font.get("bold", False),
             )
-            logger.info("sitzung_original_pdf: Overlay genutzt (%d Schritte)", schritte.count())
+            logger.info("sitzung_original_pdf: AcroForm genutzt (%d Schritte)", schritte.count())
         except Exception as exc:
-            logger.error("sitzung_original_pdf: Overlay fehlgeschlagen – %s", exc)
+            logger.error("sitzung_original_pdf: AcroForm fehlgeschlagen – %s", exc)
 
     if not filled_pdf:
-        # Fallback: AcroForm-Filling
-        from pypdf import PdfReader as _PR
-        import io as _io
-        _reader = _PR(_io.BytesIO(pdf_bytes))
-        if bool(_reader.get_fields()):
+        # Koordinaten-Overlay für Non-AcroForm-PDFs
+        _hat_koord = any(
+            float(f.get("x_pct") or 0) != 0 or float(f.get("y_pct") or 0) != 0
+            for s in schritte
+            for f in (s.felder_json or [])
+        )
+        if _hat_koord:
             try:
-                filled_pdf = fuelle_acroform(
+                from portal.pdf_fill import fuelle_pdf_overlay
+                _pdf_font = (analyse.ergebnis_json or {}).get("pdf_font", {})
+                filled_pdf = fuelle_pdf_overlay(
                     pdf_bytes, schritte, gesammelte_daten,
                     pfad_name=pfad_name,
                     vorgangsnummer=vorgangsnummer,
+                    font_size=_pdf_font.get("size", 9),
+                    font_bold=_pdf_font.get("bold", False),
                 )
+                logger.info("sitzung_original_pdf: Overlay genutzt (%d Schritte)", schritte.count())
             except Exception as exc:
-                logger.info("sitzung_original_pdf: AcroForm fehlgeschlagen – %s", exc)
+                logger.error("sitzung_original_pdf: Overlay fehlgeschlagen – %s", exc)
 
     if not filled_pdf:
         messages.error(request, "PDF-Erstellung fehlgeschlagen: keine Felder befüllbar.")
