@@ -283,6 +283,52 @@ def admin_verwaltung(request):
     })
 
 
+@login_required
+def admin_sicherheitspruefung(request):
+    """Führt pip-audit aus und gibt Ergebnis als JSON zurück (Staff only, 1h Cache)."""
+    if not request.user.is_staff:
+        return JsonResponse({"fehler": "Kein Zugriff."}, status=403)
+
+    from django.core.cache import cache
+    CACHE_KEY = "admin_pip_audit_ergebnis"
+    cached = cache.get(CACHE_KEY)
+    if cached is not None:
+        return JsonResponse(cached)
+
+    import subprocess, sys
+    try:
+        result = subprocess.run(
+            [sys.executable, "-m", "pip_audit", "--format", "json", "--progress-spinner", "off"],
+            capture_output=True, text=True, timeout=120,
+        )
+        import json as _json
+        try:
+            daten = _json.loads(result.stdout)
+            befunde = daten.get("dependencies", [])
+        except Exception:
+            befunde = []
+
+        vulns = []
+        for dep in befunde:
+            for v in dep.get("vulns", []):
+                vulns.append({
+                    "paket": dep.get("name", ""),
+                    "version": dep.get("version", ""),
+                    "id": v.get("id", ""),
+                    "fix": ", ".join(v.get("fix_versions", [])) or "–",
+                    "beschreibung": v.get("description", "")[:120],
+                })
+
+        antwort = {"vulns": vulns, "fehler": None}
+    except subprocess.TimeoutExpired:
+        antwort = {"vulns": [], "fehler": "Timeout nach 120s"}
+    except Exception as exc:
+        antwort = {"vulns": [], "fehler": str(exc)}
+
+    cache.set(CACHE_KEY, antwort, timeout=3600)
+    return JsonResponse(antwort)
+
+
 def _sende_einladungsmail(request, einladung):
     link = request.build_absolute_uri(
         reverse("portal:registrierung", args=[einladung.token])
@@ -715,6 +761,12 @@ def analyse_koordinaten_speichern(request, pk):
                     feld["vorlage"] = k["vorlage"]
                 if "optionen_koord" in k:
                     feld["optionen_koord"] = k["optionen_koord"]
+                if k.get("acroform_name") is not None:
+                    feld["acroform_name"] = k["acroform_name"]
+                if k.get("typ"):
+                    feld["typ"] = k["typ"]
+                if k.get("label"):
+                    feld["label"] = k["label"]
 
     # Schrift-Einstellungen speichern
     if "pdf_font" in data:
@@ -741,6 +793,12 @@ def analyse_koordinaten_speichern(request, pk):
                         feld["vorlage"] = k["vorlage"]
                     if "optionen_koord" in k:
                         feld["optionen_koord"] = k["optionen_koord"]
+                    if k.get("acroform_name") is not None:
+                        feld["acroform_name"] = k["acroform_name"]
+                    if k.get("typ"):
+                        feld["typ"] = k["typ"]
+                    if k.get("label"):
+                        feld["label"] = k["label"]
                     changed = True
             if changed:
                 schritt.felder_json = felder_json
@@ -797,6 +855,9 @@ def analyse_pruefen(request, pk):
                             "x_pct": f.get("x_pct", 0),
                             "y_pct": f.get("y_pct", 0),
                             "seite_nr": f.get("seite_nr", 0),
+                            "acroform_name": f.get("acroform_name", ""),
+                            "vorlage": f.get("vorlage", ""),
+                            "optionen_koord": f.get("optionen_koord") or {},
                         }
             # Schritte aus DB neu aufbauen, Koordinaten übertragen
             neue_schritte = []
