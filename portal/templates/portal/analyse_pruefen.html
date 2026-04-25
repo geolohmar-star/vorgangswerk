@@ -150,6 +150,21 @@ input[type="checkbox"].form-check-input { cursor: pointer; }
 .pdf-panel.koord-modus img { cursor: crosshair; }
 .koord-badge:active { cursor: grabbing; }
 .koord-badge.aktiv { background: #198754; }
+.koord-badge-geist {
+  position: absolute;
+  background: rgba(108,117,125,.65);
+  color: #fff;
+  font-size: .62rem;
+  padding: 1px 5px;
+  border-radius: 3px;
+  white-space: nowrap;
+  transform: translate(0, -100%);
+  border: 1px dashed #adb5bd;
+  z-index: 40;
+  cursor: grab;
+  user-select: none;
+}
+.koord-badge-geist:active { cursor: grabbing; background: rgba(52,58,64,.85); }
 .koord-badge::after {
   content: '';
   position: absolute;
@@ -257,12 +272,21 @@ input[type="checkbox"].form-check-input { cursor: pointer; }
       </div>
       <button type="button" class="btn btn-outline-secondary btn-sm" id="koord-undo-btn" disabled title="Rückgängig (Strg+Z)">&#8630; Undo</button>
       <div class="input-group input-group-sm" style="width:auto;">
-        <div class="input-group-text p-0 ps-2 pe-1">
-          <input class="form-check-input mt-0" type="checkbox" id="snap-toggle" title="Fanggitter an/aus">
+        <div class="input-group-text p-0 ps-2 pe-1" title="Vertikale Linien (X-Snap)">
+          <input class="form-check-input mt-0" type="checkbox" id="snap-v" checked>
         </div>
-        <label class="input-group-text small" for="snap-toggle">Gitter</label>
+        <label class="input-group-text small px-1" for="snap-v">V</label>
+        <div class="input-group-text p-0 ps-1 pe-1" title="Horizontale Linien (Y-Snap)">
+          <input class="form-check-input mt-0" type="checkbox" id="snap-h" checked>
+        </div>
+        <label class="input-group-text small px-1" for="snap-h">H</label>
         <input type="number" id="snap-size" class="form-control form-control-sm" value="2" min="1" max="10" style="width:3.5rem;" title="Rastergröße in %">
         <span class="input-group-text small">%</span>
+      </div>
+      <div id="loop-zeile-gruppe" style="display:none; align-items:center; gap:.4rem;" class="d-flex">
+        <span class="small text-muted text-nowrap" id="loop-zeile-feldname" style="max-width:8rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></span>
+        <label class="small mb-0 text-nowrap fw-semibold text-warning-emphasis">Δy&nbsp;%:</label>
+        <input type="number" id="loop-zeile-input" class="form-control form-control-sm" step="0.1" min="0" max="50" style="width:4.5rem;" title="Zeilenabstand in % der Seitenhöhe pro Loop-Durchlauf (0 = kein Loop)">
       </div>
       <button type="button" class="btn btn-success btn-sm flex-grow-1" id="koord-speichern-btn">&#10003; Speichern</button>
       <button type="button" class="btn btn-outline-secondary btn-sm" id="koord-abbrechen-btn">Abbrechen</button>
@@ -1000,21 +1024,19 @@ function alleFelder() {
 const SKIP_TYPEN = new Set(["textblock", "abschnitt", "zusammenfassung", "quizergebnis", "einwilligung"]);
 
 // ---- Fanggitter ----
-function snapAktiv() { return document.getElementById("snap-toggle")?.checked; }
+function snapV() { return document.getElementById("snap-v")?.checked; }
+function snapH() { return document.getElementById("snap-h")?.checked; }
 function snapGroesse() { return (parseFloat(document.getElementById("snap-size")?.value) || 2) / 100; }
-function snap(val) {
-  const g = snapGroesse();
-  return Math.round(val / g) * g;
-}
+function snap(val) { const g = snapGroesse(); return Math.round(val / g) * g; }
 function snapPct(xPct, yPct) {
-  if (!snapAktiv()) return [xPct, yPct];
-  return [snap(xPct), snap(yPct)];
+  return [snapV() ? snap(xPct) : xPct, snapH() ? snap(yPct) : yPct];
 }
 
 function gitterZeichnen() {
+  const v = snapV(), h = snapH();
   document.querySelectorAll(".pdf-seite-wrap").forEach(wrap => {
     let overlay = wrap.querySelector(".snap-grid-overlay");
-    if (!snapAktiv()) { if (overlay) overlay.remove(); return; }
+    if (!v && !h) { if (overlay) overlay.remove(); return; }
     if (!overlay) {
       overlay = document.createElement("div");
       overlay.className = "snap-grid-overlay";
@@ -1022,15 +1044,17 @@ function gitterZeichnen() {
       wrap.appendChild(overlay);
     }
     const g = snapGroesse() * 100;
-    overlay.style.backgroundImage =
-      `linear-gradient(to right, rgba(99,102,241,.25) 1px, transparent 1px),
-       linear-gradient(to bottom, rgba(99,102,241,.25) 1px, transparent 1px)`;
-    overlay.style.backgroundSize = `${g}% ${g}%`;
+    const vLine = v ? `linear-gradient(to right, rgba(99,102,241,.25) 1px, transparent 1px)` : "";
+    const hLine = h ? `linear-gradient(to bottom, rgba(99,102,241,.25) 1px, transparent 1px)` : "";
+    overlay.style.backgroundImage = [vLine, hLine].filter(Boolean).join(", ");
+    overlay.style.backgroundSize  = v && h ? `${g}% ${g}%` : v ? `${g}% 100%` : `100% ${g}%`;
   });
 }
 
 document.addEventListener("DOMContentLoaded", () => {
-  document.getElementById("snap-toggle")?.addEventListener("change", gitterZeichnen);
+  ["snap-v", "snap-h", "snap-size"].forEach(id =>
+    document.getElementById(id)?.addEventListener("change", gitterZeichnen)
+  );
   document.getElementById("snap-size")?.addEventListener("input", gitterZeichnen);
 });
 
@@ -1136,6 +1160,15 @@ function erstelleBadge(feld, wrap, xPct, yPct) {
   });
   badge.appendChild(closeBtn);
 
+  badge.addEventListener("dblclick", (ev) => {
+    ev.stopPropagation();
+    if (loopGeisterAktiv && pfeilAktivesBadge && pfeilAktivesBadge.feld === feld) {
+      entferneLoopGeister();
+    } else {
+      setPfeilAktiv(badge, feld, wrap);
+      zeigeLoopGeister(feld, wrap);
+    }
+  });
   makeDraggable(badge, feld, wrap);
   wrap.appendChild(badge);
   koordBadges.push({ badge, feldId: feld.id });
@@ -1299,7 +1332,15 @@ function acroformBoxenEntfernen() {
 function setPfeilAktiv(badge, feld, wrap) {
   if (pfeilAktivesBadge) pfeilAktivesBadge.badge.classList.remove("pfeil-aktiv");
   pfeilAktivesBadge = badge ? { badge, feld, wrap } : null;
-  if (badge) badge.classList.add("pfeil-aktiv");
+  if (badge) {
+    badge.classList.add("pfeil-aktiv");
+    document.getElementById("loop-zeile-gruppe").style.display = "flex";
+    document.getElementById("loop-zeile-feldname").textContent = feld.label || feld.id;
+    document.getElementById("loop-zeile-input").value = parseFloat(feld.loop_zeile_pct) || 0;
+  } else {
+    document.getElementById("loop-zeile-gruppe").style.display = "none";
+    entferneLoopGeister();
+  }
 }
 
 // ---- Pfeiltasten-Handler ----
@@ -1318,6 +1359,79 @@ document.addEventListener("keydown", (e) => {
   badge.style.top  = (feld.y_pct * 100) + "%";
   badge.title = `${feld.id}\nx: ${feld.x_pct.toFixed(4)}, y: ${feld.y_pct.toFixed(4)}`;
 });
+
+document.getElementById("loop-zeile-input").addEventListener("input", () => {
+  if (!pfeilAktivesBadge) return;
+  const val = parseFloat(document.getElementById("loop-zeile-input").value) || 0;
+  pfeilAktivesBadge.feld.loop_zeile_pct = val;
+  if (loopGeisterAktiv) zeigeLoopGeister(pfeilAktivesBadge.feld, pfeilAktivesBadge.wrap);
+});
+
+let loopGeister = [];
+let loopGeisterAktiv = false;
+
+function entferneLoopGeister() {
+  loopGeister.forEach(g => g.remove());
+  loopGeister = [];
+  loopGeisterAktiv = false;
+}
+
+function makeGeistDraggable(g, feld, n, wrap) {
+  let startX, startY, startLeft, startTop;
+  g.addEventListener("mousedown", (ev) => {
+    if (ev.button !== 0) return;
+    ev.stopPropagation();
+    ev.preventDefault();
+    const rect = wrap.getBoundingClientRect();
+    startX = ev.clientX; startY = ev.clientY;
+    startLeft = parseFloat(g.style.left) / 100 * rect.width;
+    startTop  = parseFloat(g.style.top)  / 100 * rect.height;
+    g.style.zIndex = 120;
+
+    function onMove(e) {
+      const rect2 = wrap.getBoundingClientRect();
+      const newLeft = Math.max(0, Math.min(rect2.width,  startLeft + e.clientX - startX));
+      const newTop  = Math.max(0, Math.min(rect2.height, startTop  + e.clientY - startY));
+      let xPct = Math.round(newLeft / rect2.width  * 10000) / 10000;
+      let yPct = Math.round(newTop  / rect2.height * 10000) / 10000;
+      [xPct, yPct] = snapPct(xPct, yPct);
+      feld.loop_y_offsets[n] = yPct;
+      g.style.left = (xPct * 100) + "%";
+      g.style.top  = (yPct * 100) + "%";
+    }
+    function onUp() {
+      g.style.zIndex = 40;
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onUp);
+    }
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+  });
+}
+
+function zeigeLoopGeister(feld, wrap) {
+  entferneLoopGeister();
+  const delta = (parseFloat(feld.loop_zeile_pct) || 0) / 100;
+  const xPct  = parseFloat(feld.x_pct) || 0;
+  const yPct  = parseFloat(feld.y_pct) || 0;
+  if (!feld.loop_y_offsets) feld.loop_y_offsets = [];
+  const MAX_GEISTER = 7;
+  for (let n = 0; n < MAX_GEISTER; n++) {
+    const yN = feld.loop_y_offsets[n] != null
+      ? feld.loop_y_offsets[n]
+      : yPct + (n + 1) * delta;
+    if (yN > 1.02 && feld.loop_y_offsets[n] == null) break;
+    const g = document.createElement("div");
+    g.className = "koord-badge-geist";
+    g.textContent = `${feld.label || feld.id} [${n + 2}]`;
+    g.style.left = (xPct * 100) + "%";
+    g.style.top  = (yN   * 100) + "%";
+    makeGeistDraggable(g, feld, n, wrap);
+    wrap.appendChild(g);
+    loopGeister.push(g);
+  }
+  loopGeisterAktiv = true;
+}
 
 function koordModeEin() {
   koordModus = true;
@@ -1368,7 +1482,9 @@ function koordModeAus() {
   koordBadges.forEach(b => b.badge.remove());
   koordBadges.length = 0;
   acroformBoxenEntfernen();
+  entferneLoopGeister();
   if (pfeilAktivesBadge) { pfeilAktivesBadge.badge.classList.remove("pfeil-aktiv"); pfeilAktivesBadge = null; }
+  document.getElementById("loop-zeile-gruppe").style.display = "none";
 }
 
 // PDF-Klick zum Platzieren
@@ -1444,6 +1560,8 @@ async function koordSpeichern() {
       acroform_name: f.acroform_name || "",
       typ: f.typ || "",
       label: f.label || "",
+      loop_zeile_pct: parseFloat(f.loop_zeile_pct) || 0,
+      loop_y_offsets: f.loop_y_offsets || [],
     }));
   const pdfFont = {
     size: parseFloat(document.getElementById("pdf-font-size").value) || 9,

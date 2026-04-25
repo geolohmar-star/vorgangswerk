@@ -586,14 +586,42 @@ def fuelle_pdf_overlay(
                 ).strip()
             else:
                 wert = str(daten.get(fid, "")).strip()
-            if not wert:
+            loop_zeile_pct = float(feld.get("loop_zeile_pct") or 0) / 100.0
+            if not wert and not loop_zeile_pct:
                 continue
-            wert = _format_wert(wert)
-            if seite < num_pages:
-                eintrag = {"x_pct": x_pct, "y_pct": y_pct, "wert": wert}
-                if typ == "bool":
-                    eintrag["zentriert"] = True
-                felder_pro_seite[seite].append(eintrag)
+            if wert:
+                wert = _format_wert(wert)
+                if seite < num_pages:
+                    eintrag = {"x_pct": x_pct, "y_pct": y_pct, "wert": wert}
+                    if typ == "bool":
+                        eintrag["zentriert"] = True
+                    felder_pro_seite[seite].append(eintrag)
+
+            # Loop-Zeilen: __loop_0__fid, __loop_1__fid ...
+            loop_y_offsets = feld.get("loop_y_offsets") or []
+            if loop_zeile_pct or loop_y_offsets:
+                loop_n = 0
+                while True:
+                    loop_key = f"__loop_{loop_n}__{fid}"
+                    if loop_key not in daten:
+                        break
+                    if vorlage:
+                        n_cap = loop_n
+                        wert_loop = _re.sub(
+                            r"\{(\w+)\}",
+                            lambda m: str(daten.get(f"__loop_{n_cap}__{m.group(1)}", "")).strip(),
+                            vorlage,
+                        ).strip()
+                    else:
+                        wert_loop = str(daten[loop_key]).strip()
+                    if wert_loop:
+                        if loop_n < len(loop_y_offsets):
+                            y_loop = float(loop_y_offsets[loop_n])
+                        else:
+                            y_loop = y_pct + (loop_n + 1) * loop_zeile_pct
+                        if seite < num_pages:
+                            felder_pro_seite[seite].append({"x_pct": x_pct, "y_pct": y_loop, "wert": _format_wert(wert_loop)})
+                    loop_n += 1
 
     # Overlay pro Seite erzeugen und einmergen
     writer = PdfWriter()

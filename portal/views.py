@@ -767,6 +767,10 @@ def analyse_koordinaten_speichern(request, pk):
                     feld["typ"] = k["typ"]
                 if k.get("label"):
                     feld["label"] = k["label"]
+                if "loop_zeile_pct" in k:
+                    feld["loop_zeile_pct"] = round(float(k["loop_zeile_pct"] or 0), 4)
+                if "loop_y_offsets" in k:
+                    feld["loop_y_offsets"] = [round(float(v), 4) for v in (k["loop_y_offsets"] or [])]
 
     # Schrift-Einstellungen speichern
     if "pdf_font" in data:
@@ -799,6 +803,8 @@ def analyse_koordinaten_speichern(request, pk):
                         feld["typ"] = k["typ"]
                     if k.get("label"):
                         feld["label"] = k["label"]
+                    if "loop_zeile_pct" in k:
+                        feld["loop_zeile_pct"] = round(float(k["loop_zeile_pct"] or 0), 4)
                     changed = True
             if changed:
                 schritt.felder_json = felder_json
@@ -858,6 +864,8 @@ def analyse_pruefen(request, pk):
                             "acroform_name": f.get("acroform_name", ""),
                             "vorlage": f.get("vorlage", ""),
                             "optionen_koord": f.get("optionen_koord") or {},
+                            "loop_zeile_pct": f.get("loop_zeile_pct", 0),
+                            "loop_y_offsets": f.get("loop_y_offsets") or [],
                         }
             # Schritte aus DB neu aufbauen, Koordinaten übertragen
             neue_schritte = []
