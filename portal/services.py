@@ -488,29 +488,30 @@ def analysiere_formular(analyse_id: int) -> None:
         prompt = _erstelle_prompt(dateiname, felder, seitenanzahl)
         pdf_b64 = base64.standard_b64encode(pdf_bytes).decode("utf-8")
 
-        nachricht = client.messages.create(
-            model="claude-sonnet-4-6",
-            max_tokens=16000,
-            messages=[{
-                "role": "user",
-                "content": [
-                    {
-                        "type": "document",
-                        "source": {
-                            "type": "base64",
-                            "media_type": "application/pdf",
-                            "data": pdf_b64,
-                        },
+        messages = [{
+            "role": "user",
+            "content": [
+                {
+                    "type": "document",
+                    "source": {
+                        "type": "base64",
+                        "media_type": "application/pdf",
+                        "data": pdf_b64,
                     },
-                    {
-                        "type": "text",
-                        "text": prompt,
-                    },
-                ],
-            }],
-        )
+                },
+                {
+                    "type": "text",
+                    "text": prompt,
+                },
+            ],
+        }]
 
-        antwort_text = nachricht.content[0].text
+        with client.messages.stream(
+            model="claude-sonnet-4-6",
+            max_tokens=32000,
+            messages=messages,
+        ) as stream:
+            antwort_text = stream.get_final_text()
 
         # 3. JSON parsen + Pydantic-Validierung
         pfad_def = _parse_json_antwort(antwort_text)

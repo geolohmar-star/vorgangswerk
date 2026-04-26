@@ -1678,9 +1678,11 @@ def pfad_acroform_pruefen(request, pk):
         except Exception:
             return JsonResponse({"ok": False, "fehler": "Ungültiges JSON"}, status=400)
 
+        vorlagen = _json.loads(request.POST.get("vorlagen", "{}"))
         for schritt in pfad.schritte.all():
             mapping = zuordnungen.get(str(schritt.pk), {})
-            if not mapping:
+            vmap = vorlagen.get(str(schritt.pk), {})
+            if not mapping and not vmap:
                 continue
             felder = schritt.felder_json or []
             geaendert = False
@@ -1688,6 +1690,13 @@ def pfad_acroform_pruefen(request, pk):
                 fid = feld.get("id", "")
                 if fid in mapping:
                     feld["acroform_name"] = mapping[fid]
+                    geaendert = True
+                if fid in vmap:
+                    v = vmap[fid]
+                    if v:
+                        feld["vorlage"] = v
+                    else:
+                        feld.pop("vorlage", None)
                     geaendert = True
             if geaendert:
                 schritt.felder_json = felder
@@ -1704,6 +1713,7 @@ def pfad_acroform_pruefen(request, pk):
                 "label": f.get("label", f.get("id", "")),
                 "typ": f.get("typ", "text"),
                 "acroform_name": f.get("acroform_name", ""),
+                "vorlage": f.get("vorlage", ""),
             }
             for f in (schritt.felder_json or [])
             if f.get("id")

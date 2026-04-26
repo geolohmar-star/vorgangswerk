@@ -633,18 +633,19 @@ function optionenEditor(feld, wrapper) {
         type: "button", class: "btn btn-outline-danger btn-sm",
         onclick: () => { feld.optionen.splice(i, 1); renderOptionen(); }
       }, "×");
-      // Pin-Button für Ankreuz-Position (nur im Koordinaten-Modus sichtbar)
+      // Pin-Button für Ankreuz-Position (immer sichtbar)
       const hatKoord = !!(feld.optionen_koord && feld.optionen_koord[opt] &&
         (feld.optionen_koord[opt].x_pct || feld.optionen_koord[opt].y_pct));
       const pinBtn = el("button", {
         type: "button",
-        class: "btn btn-sm koord-pin-btn" + (hatKoord ? " btn-success" : " btn-outline-secondary"),
+        class: "btn btn-sm opt-pin-btn" + (hatKoord ? " btn-success" : " btn-outline-secondary"),
         title: `Ankreuz-Position für „${opt}" setzen`,
-        style: "font-size:.7rem; padding:1px 4px; display:none;",
+        style: "font-size:.7rem; padding:1px 4px;",
         "data-opt": opt,
       }, "📌");
       pinBtn.addEventListener("click", (e) => {
         e.stopPropagation();
+        if (!koordModus) koordModeEin();
         setAktivesKoordFeld(feld, wrapper, opt);
       });
       row.append(inp, pinBtn, removeBtn);
@@ -700,12 +701,16 @@ function boolKoordEditor(feld, wrapper) {
       (feld.optionen_koord[opt].x_pct || feld.optionen_koord[opt].y_pct));
     const pinBtn = el("button", {
       type: "button",
-      class: "btn btn-sm koord-pin-btn me-1" + (hatKoord ? " btn-success" : " btn-outline-secondary"),
+      class: "btn btn-sm bool-pin-btn me-1" + (hatKoord ? " btn-success" : " btn-outline-secondary"),
       title: `Ankreuz-Position für „${opt === "ja" ? "Ja" : "Nein"}" setzen`,
-      style: "font-size:.7rem; padding:1px 6px; display:none;",
+      style: "font-size:.7rem; padding:1px 6px;",
       "data-opt": opt,
     }, `📌 ${opt === "ja" ? "Ja" : "Nein"}`);
-    pinBtn.addEventListener("click", (e) => { e.stopPropagation(); setAktivesKoordFeld(feld, wrapper, opt); });
+    pinBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      if (!koordModus) koordModeEin();
+      setAktivesKoordFeld(feld, wrapper, opt);
+    });
     wrap.append(pinBtn);
   }
   return wrap;

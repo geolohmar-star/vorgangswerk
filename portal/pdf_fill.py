@@ -403,18 +403,18 @@ def fuelle_acroform(
                 }
 
     # Textwerte per reportlab-Overlay einzeichnen (volle Latin-1 Unterstützung inkl. Umlaute)
-    text_eintraege: dict[int, list[dict]] = {}  # page → [{x_pct, y_pct, h_pct, custom, wert}]
+    text_eintraege: dict[int, list[dict]] = {}  # page → [{x_pct, y_pct, w_pct, h_pct, custom, wert}]
     for acroform_name, wert in final_map.items():
         if acroform_name in on_states or acroform_name in btn_map:
             continue  # Btn-Felder bereits erledigt
         if acroform_name in custom_koord:
             c = custom_koord[acroform_name]
-            # Nutzer-Position: y_pct ist direkte Text-Baseline (wie fuelle_pdf_overlay)
-            h_pct = (tx_rects.get(acroform_name) or {}).get("h_pct", 0.03)
+            rect_info = tx_rects.get(acroform_name) or {}
             text_eintraege.setdefault(c["seite_nr"], []).append({
                 "x_pct": c["x_pct"],
                 "y_pct": c["y_pct"],
-                "h_pct": h_pct,
+                "w_pct": rect_info.get("w_pct", 0),
+                "h_pct": rect_info.get("h_pct", 0.03),
                 "custom": True,
                 "wert": wert,
             })
@@ -425,6 +425,7 @@ def fuelle_acroform(
             text_eintraege.setdefault(rect["page"], []).append({
                 "x_pct": rect["x_pct"],
                 "y_pct": rect["y_pct"],
+                "w_pct": rect["w_pct"],
                 "h_pct": rect["h_pct"],
                 "custom": False,
                 "wert": wert,
@@ -445,20 +446,43 @@ def fuelle_acroform(
                 pw = float(page.mediabox.width)
                 ph = float(page.mediabox.height)
                 overlay_buf = io.BytesIO()
+                from reportlab.pdfbase.pdfmetrics import stringWidth
+                FONT_NAME = "Helvetica"
+                FONT_SIZE = 10
+                LINE_GAP  = FONT_SIZE * 1.2
+
                 c = rl_canvas.Canvas(overlay_buf, pagesize=(pw, ph))
-                c.setFont("Helvetica", 10)
+                c.setFont(FONT_NAME, FONT_SIZE)
                 c.setFillColorRGB(0, 0, 0)
                 for e in eintraege:
                     x_pt = e["x_pct"] * pw + 2
+                    w_pt = e["w_pct"] * pw - 4 if e["w_pct"] else 0
                     if e.get("custom"):
-                        # Nutzer hat Position manuell gesetzt → direkte Baseline wie fuelle_pdf_overlay
                         y_pt = ph - e["y_pct"] * ph + 3
                     else:
-                        # Auto-Position aus AcroForm /Rect: Feldmitte näherungsweise
                         field_top = ph - e["y_pct"] * ph
                         field_h   = e["h_pct"] * ph
                         y_pt = field_top - field_h * 0.72
-                    c.drawString(x_pt, y_pt, e["wert"])
+
+                    text = e["wert"]
+                    # Zeilenumbruch nur wenn Feldbreite bekannt und Text zu lang
+                    if w_pt > 20 and stringWidth(text, FONT_NAME, FONT_SIZE) > w_pt:
+                        # Wörter umbrechen bis sie in die Breite passen
+                        worte = text.split()
+                        zeilen, zeile = [], []
+                        for wort in worte:
+                            probe = " ".join(zeile + [wort])
+                            if zeile and stringWidth(probe, FONT_NAME, FONT_SIZE) > w_pt:
+                                zeilen.append(" ".join(zeile))
+                                zeile = [wort]
+                            else:
+                                zeile.append(wort)
+                        if zeile:
+                            zeilen.append(" ".join(zeile))
+                        for i, z in enumerate(zeilen):
+                            c.drawString(x_pt, y_pt - i * LINE_GAP, z)
+                    else:
+                        c.drawString(x_pt, y_pt, text)
                 c.save()
                 overlay_buf.seek(0)
                 from pypdf import PdfReader as _PR3

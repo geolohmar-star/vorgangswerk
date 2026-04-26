@@ -29,12 +29,19 @@
 .schritt-header { background:#f8f9fa; border-radius:8px 8px 0 0; padding:.5rem 1rem;
   font-weight:600; font-size:.85rem; border-bottom:1px solid #dee2e6; }
 .schritt-body { padding:.5rem .75rem; }
-.feld-row { display:grid; grid-template-columns: 1.5fr 2fr 5rem; gap:.4rem;
-  align-items:center; padding:.3rem 0; border-bottom:1px solid #f0f0f0; }
+.feld-row { display:grid; grid-template-columns: 1fr auto; gap:.4rem;
+  align-items:start; padding:.3rem 0; border-bottom:1px solid #f0f0f0; }
 .feld-row:last-child { border-bottom:none; }
-.feld-row-hdr { display:grid; grid-template-columns:1.5fr 2fr 5rem; gap:.4rem;
+.feld-row-hdr { display:grid; grid-template-columns:1fr auto; gap:.4rem;
   font-size:.7rem; font-weight:600; text-transform:uppercase; color:#6c757d;
   border-bottom:2px solid #dee2e6; padding:.2rem 0; margin-bottom:.25rem; }
+.acro-col { display:flex; flex-direction:column; gap:2px; min-width:120px; }
+.nr-badge { display:inline-block; background:#0d6efd; color:#fff; font-size:.65rem;
+  font-weight:700; padding:0 4px; border-radius:3px; min-width:18px; text-align:center; }
+.nr-badge.leer { background:#adb5bd; }
+.vorlage-row { display:none; margin-top:3px; }
+.vorlage-row.offen { display:block; }
+.vorlage-inp { font-family:monospace; font-size:.72rem; }
 .acro-inp { font-family:monospace; font-size:.72rem; background:#f0f4ff;
   border:1px solid #b8caff; color:#084298; border-radius:4px; padding:2px 5px; }
 .acro-inp.fokus { background:#fff3cd !important; border-color:#ff8c00 !important;
@@ -99,6 +106,7 @@ const CSRF       = "{{ csrf_token }}";
 
 let pdfFelder = [], pdfSeiten = [], sortiert = [];
 const acroRects = {};
+const nrMap = {};   // acroform-name → Nummer
 let fokus = null;
 
 // ---- Linking ----
@@ -154,6 +162,7 @@ function buildSortiert() {
     if (Math.abs(b.y2 - a.y2) > 4) return b.y2 - a.y2;
     return a.x1 - b.x1;
   });
+  sortiert.forEach((f, i) => { nrMap[f.name] = i + 1; });
 }
 
 function scrollZuFeld(name) {
@@ -199,7 +208,8 @@ async function ladePdf() {
       if (!acroRects[f.name]) acroRects[f.name] = [];
       acroRects[f.name].push(rect);
       const txt = document.createElementNS(ns, "text");
-      txt.setAttribute("x", x+2); txt.setAttribute("y", y+1); txt.textContent = f.name;
+      txt.setAttribute("x", x+2); txt.setAttribute("y", y+1);
+      txt.textContent = String(nrMap[f.name] || "");
       svg.appendChild(txt);
     }
     wrap.append(img, svg);
@@ -207,6 +217,7 @@ async function ladePdf() {
     container.append(nr, wrap);
   }
   document.getElementById("pdf-ladehinweis")?.remove();
+  aktualisiereBadges();
 }
 
 // ---- Editor aufbauen ----
@@ -220,6 +231,21 @@ function el(tag, attrs={}, ...kids) {
   return e;
 }
 
+// Vorgangswerk-Felder nummerieren: nr → feld.id
+const feldNrMap = {};   // nr → id
+const feldIdNr  = {};   // id → nr
+(function() {
+  let n = 1;
+  for (const schritt of SCHRITTE)
+    for (const feld of schritt.felder) { feldNrMap[n] = feld.id; feldIdNr[feld.id] = n++; }
+})();
+
+function nummernZuVorlage(eingabe, trenner) {
+  return eingabe.trim().split(/[\s,]+/).map(s => parseInt(s))
+    .filter(n => !isNaN(n) && feldNrMap[n])
+    .map(n => `{${feldNrMap[n]}}`).join(trenner);
+}
+
 function buildEditor() {
   const container = document.getElementById("schritte-container");
   for (const schritt of SCHRITTE) {
@@ -227,14 +253,24 @@ function buildEditor() {
     card.append(el("div", { class:"schritt-header" }, schritt.titel));
     const body = el("div", { class:"schritt-body" });
     const hdr = el("div", { class:"feld-row-hdr" });
-    hdr.append(el("span",{},"Feld-ID"), el("span",{},"Beschriftung"), el("span",{title:"AcroForm-Feldname"},"AcroForm"));
+    hdr.append(el("span",{},"#  Beschriftung"), el("span",{},""), el("span",{title:"AcroForm-Nr + Vorlage"},"AcroForm"));
     body.append(hdr);
     for (const feld of schritt.felder) {
+      const feldNr = feldIdNr[feld.id] || "";
       const row = el("div", { class:"feld-row", "data-acroform-row":"", "data-acroform": feld.acroform_name || "" });
-      row.append(
-        el("div", { class:"small text-muted text-truncate", title:feld.id }, feld.id),
-        el("div", { class:"small text-truncate" }, feld.label),
+
+      // Spalte 1: Nummer + Label (kein as_...)
+      const labelCol = el("div", { class:"d-flex align-items-start gap-1", style:"grid-column:1/3;" });
+      labelCol.append(
+        el("span", { class:"nr-badge", style:"background:#6c757d;flex-shrink:0;margin-top:2px;" }, String(feldNr)),
+        el("span", { class:"small text-truncate", title:feld.id }, feld.label || feld.id),
       );
+      row.append(labelCol);
+
+      // AcroForm-Spalte: PDF-Nummer-Badge + Input + Vorlage-Builder
+      const acroCol = el("div", { class:"acro-col" });
+      const acroZeile = el("div", { style:"display:flex;align-items:center;gap:3px;" });
+      const pdfNrBadge = el("span", { class:"nr-badge leer", title:"AcroForm-Nr im PDF" }, "–");
       const inp = el("input", {
         type:"text", class:"acro-inp form-control form-control-sm",
         value: feld.acroform_name || "",
@@ -242,30 +278,112 @@ function buildEditor() {
         "data-feld": feld.id,
         placeholder:"–",
       });
+      function aktualisiereBadge() {
+        const nr = nrMap[inp.value.trim()];
+        if (nr) { pdfNrBadge.textContent = String(nr); pdfNrBadge.classList.remove("leer"); }
+        else { pdfNrBadge.textContent = "–"; pdfNrBadge.classList.add("leer"); }
+      }
       inp.addEventListener("focus", () => { inp.classList.remove("vorschlag"); setFokus(inp); });
       inp.addEventListener("blur", () => setTimeout(() => { if (fokus===inp) setFokus(null); }, 250));
-      inp.addEventListener("input", () => { row.setAttribute("data-acroform", inp.value.trim()); inp.dataset.acroform = inp.value.trim(); });
-      row.append(inp);
-      // Hover
+      inp.addEventListener("input", () => {
+        const v = inp.value.trim();
+        row.setAttribute("data-acroform", v); inp.dataset.acroform = v;
+        aktualisiereBadge();
+      });
+
+      const vorlageBtn = el("button", {
+        type:"button", class:"btn btn-outline-secondary btn-sm px-1",
+        title:"Felder zusammenfassen (Nummern eingeben)",
+        style:"font-size:.7rem;padding:1px 4px;flex-shrink:0;",
+      }, "⊕");
+      acroZeile.append(pdfNrBadge, inp, vorlageBtn);
+      acroCol.append(acroZeile);
+
+      // Vorlage-Builder: Nummern eingeben → {feld_id1} {feld_id2}
+      const vorlageRow = el("div", { class:"vorlage-row" });
+      let aktiverTrenner = " ";
+      const TRENNER = [" ", ", ", " – ", " / "];
+
+      // Nummern-Input
+      const nrInp = el("input", {
+        type:"text", class:"form-control form-control-sm mt-1",
+        placeholder:"Nummern, z.B.  3 4  oder  3, 4",
+        style:"font-family:monospace;",
+      });
+      // Vorhandene Vorlage → Nummern zurückrechnen
+      if (feld.vorlage) {
+        const ids = [...feld.vorlage.matchAll(/\{(\w+)\}/g)].map(m => m[1]);
+        nrInp.value = ids.map(id => feldIdNr[id] || id).join(" ");
+      }
+
+      // Trennzeichen-Buttons
+      const trennerWrap = el("div", { style:"display:flex;gap:2px;margin-top:3px;" });
+      TRENNER.forEach(t => {
+        const btn = el("button", { type:"button", class:"btn btn-outline-secondary btn-sm px-1", style:"font-size:.65rem;" },
+          t === " " ? "Leer" : t.trim() || "–");
+        btn.addEventListener("click", () => { aktiverTrenner = t; aktualisiereMuster(); });
+        trennerWrap.append(btn);
+      });
+
+      // Muster-Anzeige + versteckter Vorlage-Input
+      const musterDiv = el("div", { class:"small text-muted mt-1", style:"font-family:monospace;font-size:.7rem;" });
+      const vorlageInp = el("input", {
+        type:"hidden", class:"vorlage-inp",
+        value: feld.vorlage || "",
+        "data-schritt": schritt.pk,
+        "data-feld": feld.id,
+      });
+
+      function aktualisiereMuster() {
+        const v = nummernZuVorlage(nrInp.value, aktiverTrenner);
+        vorlageInp.value = v;
+        musterDiv.textContent = v ? `→ ${v}` : "";
+      }
+      nrInp.addEventListener("input", aktualisiereMuster);
+      if (feld.vorlage) { musterDiv.textContent = `→ ${feld.vorlage}`; }
+
+      vorlageRow.append(nrInp, trennerWrap, musterDiv, vorlageInp);
+      acroCol.append(vorlageRow);
+
+      vorlageBtn.addEventListener("click", () => {
+        const offen = vorlageRow.classList.toggle("offen");
+        vorlageBtn.classList.toggle("btn-warning", offen);
+        if (offen) nrInp.focus();
+      });
+
+      row.append(acroCol);
       row.addEventListener("mouseenter", () => { const n=row.dataset.acroform; if(n) hoverPdf(n,true); });
       row.addEventListener("mouseleave", () => { const n=row.dataset.acroform; if(n) hoverPdf(n,false); });
       body.append(row);
+      row._aktualisiereBadge = aktualisiereBadge;
     }
     card.append(body);
     container.append(card);
   }
 }
 
+function aktualisiereBadges() {
+  document.querySelectorAll("[data-acroform-row]").forEach(row => {
+    if (row._aktualisiereBadge) row._aktualisiereBadge();
+  });
+}
+
 // ---- Speichern ----
 document.getElementById("speichern-btn").addEventListener("click", async () => {
-  const zuordnungen = {};
+  const zuordnungen = {}, vorlagen = {};
   document.querySelectorAll(".acro-inp").forEach(inp => {
     const s = inp.dataset.schritt, f = inp.dataset.feld;
     if (!zuordnungen[s]) zuordnungen[s] = {};
     zuordnungen[s][f] = inp.value.trim();
   });
+  document.querySelectorAll(".vorlage-inp").forEach(inp => {
+    const s = inp.dataset.schritt, f = inp.dataset.feld;
+    if (!vorlagen[s]) vorlagen[s] = {};
+    vorlagen[s][f] = inp.value.trim();
+  });
   const fd = new FormData();
   fd.append("zuordnungen", JSON.stringify(zuordnungen));
+  fd.append("vorlagen", JSON.stringify(vorlagen));
   fd.append("csrfmiddlewaretoken", CSRF);
   const r = await fetch(SAVE_URL, { method:"POST", body:fd });
   const info = document.getElementById("speichern-info");
