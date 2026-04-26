@@ -897,10 +897,11 @@ html, body { overflow: hidden; height: 100%; }
                 </div>
                 <div class="mt-3 pt-2 border-top" id="zeige-wenn-row">
                     <label class="form-label fw-semibold small text-muted mb-1">Nur anzeigen wenn …</label>
-                    <select class="form-select form-select-sm" id="feld-zeige-wenn">
+                    <select class="form-select form-select-sm mb-2" id="zw-feld-select">
                         <option value="">— immer anzeigen —</option>
                     </select>
-                    <small class="text-muted">Feld erscheint nur, wenn das gewählte Ja/Nein-Feld aktiviert ist.</small>
+                    <div id="zw-werte-container" class="ps-1 mb-1"></div>
+                    <input type="hidden" id="feld-zeige-wenn">
                 </div>
             </div>
             <div class="modal-footer">

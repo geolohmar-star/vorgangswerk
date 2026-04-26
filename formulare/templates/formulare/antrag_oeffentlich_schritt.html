@@ -625,7 +625,7 @@
         var el = document.querySelector('[name="' + feldId + '"]');
         return el ? el.value : "";
     }
-    function _istAktiv(bedingung) {
+    function _istAktivEinzel(bedingung) {
         var doppelpunkt = bedingung.indexOf(":");
         if (doppelpunkt !== -1) {
             var feldId = bedingung.substring(0, doppelpunkt);
@@ -638,6 +638,12 @@
         if (Array.isArray(wert)) return wert.length > 0;
         if (typeof wert === "boolean") return wert;
         return wert && wert !== "False" && wert !== "false";
+    }
+    function _istAktiv(bedingung) {
+        if (bedingung.indexOf("|") !== -1) {
+            return bedingung.split("|").some(function(b) { return _istAktivEinzel(b.trim()); });
+        }
+        return _istAktivEinzel(bedingung);
     }
     function _aktualisiere() {
         document.querySelectorAll(".zeige-wenn-wrapper").forEach(function (wrapper) {

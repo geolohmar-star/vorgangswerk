@@ -1500,7 +1500,7 @@
             elBoolFeldId.value = (feld && typ === "bool") ? (feld.id || "") : "";
             delete elBoolFeldId.dataset.manuallyEdited;
         }
-        // zeige_wenn: Dropdown mit bool-Feldern des aktuellen Schritts füllen
+        // zeige_wenn-UI aufbauen
         _fuelleZeigeWennDropdown(feld ? (feld.zeige_wenn || "") : "");
         document.getElementById("feld-formel").value = feld ? (feld.formel || "") : "";
         document.getElementById("feld-einheit").value = feld ? (feld.einheit || "") : "";
@@ -1792,25 +1792,112 @@
     }
 
     // -----------------------------------------------------------------------
-    // zeige_wenn – Dropdown befüllen
+    // zeige_wenn – UI aufbauen
     // -----------------------------------------------------------------------
 
     function _fuelleZeigeWennDropdown(aktuellerWert) {
-        var sel = document.getElementById("feld-zeige-wenn");
-        if (!sel) return;
-        // Alle bool-Felder des aktuellen Schritts sammeln
-        var boolFelder = schritteFelder.filter(function (f) { return f.typ === "bool" && f.id; });
+        var sel = document.getElementById("zw-feld-select");
+        var hidden = document.getElementById("feld-zeige-wenn");
+        if (!sel || !hidden) return;
+        hidden.value = aktuellerWert || "";
+
+        // Dropdown befüllen
         sel.innerHTML = '<option value="">— immer anzeigen —</option>';
-        boolFelder.forEach(function (f) {
+        schritteFelder.forEach(function (f) {
+            if (!f.id) return;
             var opt = document.createElement("option");
             opt.value = f.id;
-            opt.textContent = (f.label || f.id) + " (" + f.id + ")";
-            if (f.id === aktuellerWert) opt.selected = true;
+            opt.textContent = (f.label || f.id) + " [" + f.id + "]";
             sel.appendChild(opt);
         });
-        // Zeige-wenn-Row verstecken wenn es keine bool-Felder gibt
-        var row = document.getElementById("zeige-wenn-row");
-        if (row) row.style.display = boolFelder.length ? "" : "none";
+
+        // Aktuellen Wert parsen: "feldId:wert1|feldId:wert2"
+        var feldId = "";
+        var werte = [];
+        if (aktuellerWert) {
+            var teile = aktuellerWert.split("|");
+            var ersteFeldId = teile[0].indexOf(":") !== -1 ? teile[0].split(":")[0] : teile[0];
+            var alleGleich = teile.every(function (t) { return t.split(":")[0] === ersteFeldId; });
+            if (alleGleich) {
+                feldId = ersteFeldId;
+                werte = teile.map(function (t) { return t.indexOf(":") !== -1 ? t.split(":").slice(1).join(":") : ""; });
+            }
+        }
+
+        sel.value = feldId;
+        _zwWerteAnzeigen(feldId, werte);
+        sel.onchange = function () { _zwWerteAnzeigen(sel.value, []); _zwAktualisieren(); };
+    }
+
+    function _zwWerteAnzeigen(feldId, selectedWerte) {
+        var container = document.getElementById("zw-werte-container");
+        if (!container) return;
+        container.innerHTML = "";
+        if (!feldId) return;
+
+        var feld = null;
+        for (var i = 0; i < schritteFelder.length; i++) {
+            if (schritteFelder[i].id === feldId) { feld = schritteFelder[i]; break; }
+        }
+        if (!feld) {
+            // unbekanntes Feld (z.B. aus anderem Schritt) → Textanzeige
+            container.innerHTML = '<small class="text-muted">Bedingung: <code>' + esc(document.getElementById("feld-zeige-wenn").value) + '</code></small>';
+            return;
+        }
+
+        if (feld.typ === "bool") {
+            container.innerHTML = '<small class="text-muted">Wird angezeigt wenn das Feld aktiviert ist.</small>';
+            var h = document.getElementById("feld-zeige-wenn");
+            if (h) h.value = feldId;
+            return;
+        }
+
+        var optionen = (feld.optionen || []).map(function (o) { return o.split("|")[0]; });
+        if (optionen.length > 0) {
+            optionen.forEach(function (label) {
+                var div = document.createElement("div");
+                div.className = "form-check";
+                var checked = selectedWerte.indexOf(label) !== -1 ? " checked" : "";
+                div.innerHTML = '<input class="form-check-input zw-opt-cb" type="checkbox" value="' + esc(label) + '"' + checked + '>'
+                              + '<label class="form-check-label small">' + esc(label) + '</label>';
+                div.querySelector("input").addEventListener("change", _zwAktualisieren);
+                container.appendChild(div);
+            });
+        } else {
+            var inp = document.createElement("input");
+            inp.type = "text";
+            inp.className = "form-control form-control-sm";
+            inp.id = "zw-wert-text";
+            inp.placeholder = "Erwarteter Wert";
+            inp.value = selectedWerte.length ? selectedWerte[0] : "";
+            inp.addEventListener("input", _zwAktualisieren);
+            container.appendChild(inp);
+        }
+        _zwAktualisieren();
+    }
+
+    function _zwAktualisieren() {
+        var hidden = document.getElementById("feld-zeige-wenn");
+        if (!hidden) return;
+        var sel = document.getElementById("zw-feld-select");
+        var feldId = sel ? sel.value : "";
+        if (!feldId) { hidden.value = ""; return; }
+
+        var feld = null;
+        for (var i = 0; i < schritteFelder.length; i++) {
+            if (schritteFelder[i].id === feldId) { feld = schritteFelder[i]; break; }
+        }
+        if (!feld) return;
+        if (feld.typ === "bool") { hidden.value = feldId; return; }
+
+        var cbs = document.querySelectorAll("#zw-werte-container .zw-opt-cb:checked");
+        if (cbs.length > 0) {
+            hidden.value = Array.from(cbs).map(function (cb) { return feldId + ":" + cb.value; }).join("|");
+            return;
+        }
+        var txtInp = document.getElementById("zw-wert-text");
+        if (txtInp && txtInp.value.trim()) { hidden.value = feldId + ":" + txtInp.value.trim(); return; }
+        hidden.value = "";
     }
 
     // -----------------------------------------------------------------------
@@ -2039,9 +2126,10 @@
         feld.breite = breiteInput ? parseInt(breiteInput.value, 10) : 100;
 
         // zeige_wenn auslesen
-        var zeigeWennSel = document.getElementById("feld-zeige-wenn");
-        var zeigeWennVal = zeigeWennSel ? zeigeWennSel.value : "";
+        var zeigeWennInp = document.getElementById("feld-zeige-wenn");
+        var zeigeWennVal = zeigeWennInp ? zeigeWennInp.value.trim() : "";
         if (zeigeWennVal) feld.zeige_wenn = zeigeWennVal;
+        else delete feld.zeige_wenn;
 
         // bool: explizite Feld-ID pflicht
         if (typ === "bool") {

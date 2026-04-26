@@ -677,29 +677,30 @@ def _validiere_schritt(schritt, post_data, vorige_daten=None, files_data=None, s
         # zeige_wenn: Feld überspringen wenn steuerndes Feld nicht aktiv
         zeige_wenn = feld.get("zeige_wenn", "")
         if zeige_wenn:
-            if ":" in zeige_wenn:
-                # Erweiterte Syntax "feld_id:erwarteter_wert" (wie im JS)
-                _zw_id, _zw_erwartet = zeige_wenn.split(":", 1)
-                _zw_wert = str(post_data.get(_zw_id, ""))
-                _zw_liste = post_data.getlist(_zw_id)
+            def _zw_einzel(bedingung, pd):
                 _TRUTHY = {"1", "on", "true", "True", "yes", "ja"}
-                if _zw_erwartet in ("true", "True"):
-                    # Bool-Checkbox sendet "1" im POST, JS wertet cb.checked aus → "true"
-                    ist_aktiv = _zw_wert in _TRUTHY or any(v in _TRUTHY for v in _zw_liste)
-                elif _zw_erwartet in ("false", "False"):
-                    ist_aktiv = _zw_wert not in _TRUTHY and _zw_id not in post_data
-                else:
-                    ist_aktiv = (_zw_erwartet in _zw_liste) or (_zw_wert == _zw_erwartet)
+                if ":" in bedingung:
+                    _id, _erw = bedingung.split(":", 1)
+                    _wert  = str(pd.get(_id, ""))
+                    _liste = pd.getlist(_id)
+                    if _erw in ("true", "True"):
+                        return _wert in _TRUTHY or any(v in _TRUTHY for v in _liste)
+                    if _erw in ("false", "False"):
+                        return _wert not in _TRUTHY and _id not in pd
+                    return (_erw in _liste) or (_wert == _erw)
+                # Einfache Truthy-Syntax
+                _wert = post_data.get(bedingung, "")
+                if bedingung in pd and pd[bedingung] in _TRUTHY:
+                    return True
+                if pd.getlist(bedingung):
+                    return True
+                return _wert not in ("", "False", "false", "0")
+
+            # Oder-Syntax: "bed1|bed2|bed3"
+            if "|" in zeige_wenn:
+                ist_aktiv = any(_zw_einzel(b.strip(), post_data) for b in zeige_wenn.split("|"))
             else:
-                # Einfache Truthy-Syntax "feld_id"
-                if zeige_wenn in post_data and post_data[zeige_wenn] in ("on", "True", "true", "1"):
-                    ist_aktiv = True
-                elif zeige_wenn in post_data and post_data.getlist(zeige_wenn):
-                    ist_aktiv = True
-                elif post_data.get(zeige_wenn, "") not in ("", "False", "false", "0"):
-                    ist_aktiv = True
-                else:
-                    ist_aktiv = False
+                ist_aktiv = _zw_einzel(zeige_wenn, post_data)
             if not ist_aktiv:
                 daten[feld_id] = (vorige_daten or {}).get(feld_id, "")
                 continue  # versteckt → überspringen

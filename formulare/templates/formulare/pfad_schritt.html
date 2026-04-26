@@ -1165,8 +1165,7 @@ function zahlung_demo_bestaetigen(feldId) {
         return el ? el.value : "";
     }
 
-    function _istAktiv(bedingung) {
-        // Erweiterte Syntax: "feld_id:erwarteter_wert" (z.B. "hat_hund:ja")
+    function _istAktivEinzel(bedingung) {
         var doppelpunkt = bedingung.indexOf(":");
         if (doppelpunkt !== -1) {
             var feldId = bedingung.substring(0, doppelpunkt);
@@ -1175,11 +1174,16 @@ function zahlung_demo_bestaetigen(feldId) {
             if (Array.isArray(wert)) return wert.indexOf(erwartet) !== -1;
             return String(wert) === erwartet;
         }
-        // Einfache Syntax: "feld_id" – truthy-Prüfung
         var wert = _feldWert(bedingung);
         if (Array.isArray(wert)) return wert.length > 0;
         if (typeof wert === "boolean") return wert;
         return wert && wert !== "False" && wert !== "false";
+    }
+    function _istAktiv(bedingung) {
+        if (bedingung.indexOf("|") !== -1) {
+            return bedingung.split("|").some(function(b) { return _istAktivEinzel(b.trim()); });
+        }
+        return _istAktivEinzel(bedingung);
     }
 
     function _aktualisiere() {
