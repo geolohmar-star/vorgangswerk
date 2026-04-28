@@ -213,6 +213,7 @@ def fuelle_acroform(
     gesammelte_daten: dict,
     pfad_name: str = "",
     vorgangsnummer: str = "",
+    baseline_offset: float = 0.0,
 ) -> bytes:
     """Füllt AcroForm-Felder im Original-PDF mit den Sitzungsdaten.
 
@@ -243,6 +244,7 @@ def fuelle_acroform(
     field_map: dict[str, list[str]] = {}   # acroform_name → [werte]
     btn_map: dict[str, str] = {}           # AcroForm-Btn-Feld → on-state oder "/Off"
     overflow_eintraege: list[dict] = []    # Daten ohne AcroForm-Slot
+    sig_eintraege: dict[int, list[dict]] = {}  # page → [{x_pct, y_pct, bild_b64}]
 
     for schritt in schritte:
         loop_bez = getattr(schritt, "loop_bezeichnung", "") or ""
@@ -269,6 +271,22 @@ def fuelle_acroform(
                 wert_roh = _sys_map.get(feld.get("systemwert", ""), str(gesammelte_daten.get(feld_id, ""))).strip()
             else:
                 wert_roh = str(gesammelte_daten.get(feld_id, "")).strip()
+
+            # ── Signatur: Koordinaten für Bild-Overlay merken ───────────────
+            if typ == "signatur":
+                x_sig = float(feld.get("x_pct") or 0)
+                y_sig = float(feld.get("y_pct") or 0)
+                seite_sig = int(feld.get("seite_nr") or 0)
+                if x_sig != 0 or y_sig != 0:
+                    wert_sig = str(gesammelte_daten.get(feld_id, "")).strip()
+                    if wert_sig.startswith("data:image"):
+                        b64 = wert_sig.split(",", 1)[-1]
+                        eintrag = {"x_pct": x_sig, "y_pct": y_sig, "bild_b64": b64}
+                        audit = str(gesammelte_daten.get(f"__sig_audit__{feld_id}", "")).strip()
+                        if audit:
+                            eintrag["audit_text"] = audit
+                        sig_eintraege.setdefault(seite_sig, []).append(eintrag)
+                continue
 
             # ── Checkbox / Radio / Bool: per Optionstexten matchen ─────────
             if typ in ("checkboxen", "radio", "bool"):
@@ -360,8 +378,8 @@ def fuelle_acroform(
         logger.warning("fuelle_acroform: keine Zuordnungen – PDF unverändert")
         return pdf_bytes
 
-    logger.info("fuelle_acroform: %d Felder befüllen, %d Overflow-Einträge",
-                len(final_map), len(overflow_eintraege))
+    logger.info("fuelle_acroform: %d Felder befüllen, %d Overflow-Einträge, baseline_offset=%.1f",
+                len(final_map), len(overflow_eintraege), baseline_offset)
 
     # Tx-Feld-Positionen vorab aus AcroForm lesen (für reportlab-Overlay)
     tx_rects = _extract_text_field_rects(pdf_bytes)
@@ -403,25 +421,14 @@ def fuelle_acroform(
                 }
 
     # Textwerte per reportlab-Overlay einzeichnen (volle Latin-1 Unterstützung inkl. Umlaute)
+    # Priorität: AcroForm-Rect (tx_rects) > manuell gesetzte Badge-Koordinaten (custom_koord)
     text_eintraege: dict[int, list[dict]] = {}  # page → [{x_pct, y_pct, w_pct, h_pct, custom, wert}]
     for acroform_name, wert in final_map.items():
         if acroform_name in on_states or acroform_name in btn_map:
             continue  # Btn-Felder bereits erledigt
-        if acroform_name in custom_koord:
-            c = custom_koord[acroform_name]
-            rect_info = tx_rects.get(acroform_name) or {}
-            text_eintraege.setdefault(c["seite_nr"], []).append({
-                "x_pct": c["x_pct"],
-                "y_pct": c["y_pct"],
-                "w_pct": rect_info.get("w_pct", 0),
-                "h_pct": rect_info.get("h_pct", 0.03),
-                "custom": True,
-                "wert": wert,
-            })
-        else:
-            rect = tx_rects.get(acroform_name)
-            if not rect:
-                continue
+        rect = tx_rects.get(acroform_name)
+        if rect:
+            # AcroForm-Feldgeometrie hat Vorrang – präzise Positionierung ohne manuelle Badges
             text_eintraege.setdefault(rect["page"], []).append({
                 "x_pct": rect["x_pct"],
                 "y_pct": rect["y_pct"],
@@ -430,6 +437,20 @@ def fuelle_acroform(
                 "custom": False,
                 "wert": wert,
             })
+        elif acroform_name in custom_koord:
+            # Fallback: manuell gesetzte Badge-Koordinaten (kein AcroForm-Rect vorhanden)
+            c = custom_koord[acroform_name]
+            text_eintraege.setdefault(c["seite_nr"], []).append({
+                "x_pct": c["x_pct"],
+                "y_pct": c["y_pct"],
+                "w_pct": 0,
+                "h_pct": 0.03,
+                "custom": True,
+                "wert": wert,
+            })
+
+    for p, entries in sig_eintraege.items():
+        text_eintraege.setdefault(p, []).extend(entries)
 
     if text_eintraege:
         try:
@@ -456,13 +477,30 @@ def fuelle_acroform(
                 c.setFillColorRGB(0, 0, 0)
                 for e in eintraege:
                     x_pt = e["x_pct"] * pw + 2
-                    w_pt = e["w_pct"] * pw - 4 if e["w_pct"] else 0
+                    if "bild_b64" in e:
+                        import base64 as _b64
+                        from reportlab.lib.utils import ImageReader as _IR
+                        sig_bytes = _b64.b64decode(e["bild_b64"])
+                        sig_img = _IR(io.BytesIO(sig_bytes))
+                        sig_w = pw * 0.25
+                        sig_h = sig_w * 0.25
+                        y_pt = ph - e["y_pct"] * ph  # Bildboden auf Badge-Position
+                        c.drawImage(sig_img, x_pt, y_pt, width=sig_w, height=sig_h, mask="auto")
+                        if e.get("audit_text"):
+                            c.setFont("Helvetica", 6)
+                            c.setFillColorRGB(0.4, 0.4, 0.4)
+                            c.drawString(x_pt, y_pt - 8, e["audit_text"])
+                            c.setFont("Helvetica", FONT_SIZE)
+                            c.setFillColorRGB(0, 0, 0)
+                        continue
+                    w_pt = e["w_pct"] * pw - 4 if e.get("w_pct") else 0
                     if e.get("custom"):
                         y_pt = ph - e["y_pct"] * ph + 3
                     else:
                         field_top = ph - e["y_pct"] * ph
                         field_h   = e["h_pct"] * ph
-                        y_pt = field_top - field_h * 0.72
+                        # Baseline knapp über der Feldunterkante (wie Schreiben auf eine Linie)
+                        y_pt = field_top - field_h + max(2.0, FONT_SIZE * 0.25) + baseline_offset
 
                     text = e["wert"]
                     # Zeilenumbruch nur wenn Feldbreite bekannt und Text zu lang
@@ -546,7 +584,7 @@ def fuelle_pdf_overlay(
         "antragsnummer_zeitstempel":  f"{vorgangsnummer} | {_heute}" if vorgangsnummer else _heute,
     }
 
-    _SKIP = {"textblock", "abschnitt", "zusammenfassung", "quizergebnis", "signatur", "einwilligung"}
+    _SKIP = {"textblock", "abschnitt", "zusammenfassung", "quizergebnis", "einwilligung"}
     import re as _re
 
     # Felder pro Seite sammeln
@@ -593,6 +631,19 @@ def fuelle_pdf_overlay(
             y_pct = float(feld.get("y_pct") or 0.0)
             seite = int(feld.get("seite_nr") or 0)
             if x_pct == 0.0 and y_pct == 0.0:
+                continue
+
+            # ── Signatur: base64-PNG als Bild einbetten ──────────────────────
+            if typ == "signatur":
+                wert_sig = str(daten.get(fid, "")).strip()
+                if wert_sig.startswith("data:image"):
+                    b64 = wert_sig.split(",", 1)[-1]
+                    if seite < num_pages:
+                        eintrag = {"x_pct": x_pct, "y_pct": y_pct, "bild_b64": b64}
+                        audit = str(daten.get(f"__sig_audit__{fid}", "")).strip()
+                        if audit:
+                            eintrag["audit_text"] = audit
+                        felder_pro_seite[seite].append(eintrag)
                 continue
 
             vorlage = feld.get("vorlage", "").strip()
@@ -666,7 +717,22 @@ def fuelle_pdf_overlay(
 
         for entry in eintraege:
             x_pt = entry["x_pct"] * pw
-            if entry.get("zentriert"):
+            if "bild_b64" in entry:
+                import base64 as _b64
+                from reportlab.lib.utils import ImageReader as _IR
+                sig_bytes = _b64.b64decode(entry["bild_b64"])
+                sig_img = _IR(io.BytesIO(sig_bytes))
+                sig_w = pw * 0.35
+                sig_h = sig_w * 0.3
+                y_pt = ph - entry["y_pct"] * ph  # Bildboden auf Badge-Position
+                c.drawImage(sig_img, x_pt, y_pt, width=sig_w, height=sig_h, mask="auto")
+                if entry.get("audit_text"):
+                    c.setFont("Helvetica", 6)
+                    c.setFillColorRGB(0.4, 0.4, 0.4)
+                    c.drawString(x_pt, y_pt - 8, entry["audit_text"])
+                    c.setFont(_font, float(font_size))
+                    c.setFillColorRGB(0, 0, 0)
+            elif entry.get("zentriert"):
                 # Ankreuz-Felder: Kreuz zentriert auf Klickposition (vertikal + horizontal)
                 y_pt = ph - entry["y_pct"] * ph - float(font_size) * 0.25
                 c.drawCentredString(x_pt, y_pt, entry["wert"])

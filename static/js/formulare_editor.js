@@ -1509,6 +1509,8 @@
         var elSfEin = document.getElementById("feld-systemfeld-einheit");
         if (elSfEin) elSfEin.value = (feld && feld.typ === "systemfeld") ? (feld.einheit || "") : "";
         document.getElementById("feld-akzeptieren").value = feld ? (feld.akzeptieren || "") : "";
+        var elWeiterleitungAn = document.getElementById("feld-weiterleitung-an");
+        if (elWeiterleitungAn) elWeiterleitungAn.value = feld ? (feld.weiterleitung_an || "") : "";
         document.getElementById("feld-textblock-inhalt").value = feld ? (feld.text || "") : "";
         document.getElementById("feld-abschnitt-groesse").value = feld ? (feld.groesse || "mittel") : "mittel";
         document.getElementById("feld-abschnitt-ausrichtung").value = feld ? (feld.ausrichtung || "links") : "links";
@@ -1710,6 +1712,8 @@
         document.getElementById("systemfeld-row").style.display = mitSystemfeld.indexOf(typ) >= 0 ? "" : "none";
         document.getElementById("systemfeld-einheit-row").style.display = mitSystemfeld.indexOf(typ) >= 0 ? "" : "none";
         document.getElementById("akzeptieren-row").style.display = mitDatei.indexOf(typ) >= 0 ? "" : "none";
+        var weiterleitungAnRow = document.getElementById("weiterleitung-an-row");
+        if (weiterleitungAnRow) weiterleitungAnRow.style.display = typ === "signatur" ? "" : "none";
         document.getElementById("textblock-row").style.display = mitTextblock.indexOf(typ) >= 0 ? "" : "none";
         document.getElementById("abschnitt-row").style.display = mitAbschnitt.indexOf(typ) >= 0 ? "" : "none";
         document.getElementById("gruppe-row").style.display = mitGruppe.indexOf(typ) >= 0 ? "" : "none";
@@ -1994,6 +1998,11 @@
         if (typ === "datei") {
             var akz = document.getElementById("feld-akzeptieren").value.trim();
             if (akz) feld.akzeptieren = akz;
+        }
+        if (typ === "signatur") {
+            var elWAn = document.getElementById("feld-weiterleitung-an");
+            var wAn = elWAn ? elWAn.value.trim() : "";
+            if (wAn) feld.weiterleitung_an = wAn;
         }
         if (typ === "textblock") {
             feld.text = document.getElementById("feld-textblock-inhalt").value;

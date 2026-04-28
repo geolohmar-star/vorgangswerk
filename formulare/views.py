@@ -36,7 +36,7 @@ from django.utils import timezone
 from django.views.decorators.http import require_GET, require_POST
 from django.views.decorators.clickjacking import xframe_options_exempt
 
-from .models import AntrDatei, AntrPfad, AntrSchritt, AntrSitzung, AntrTransition, AntrVersion
+from .models import AntrDatei, AntrPfad, AntrSchritt, AntrSitzung, AntrTransition, AntrVersion, UnterzeichnungsToken
 
 logger = logging.getLogger(__name__)
 
@@ -855,7 +855,7 @@ def _validiere_schritt(schritt, post_data, vorige_daten=None, files_data=None, s
             else:
                 wert = bic_bereinigt
         if typ == "telefon" and wert:
-            if not re.match(r"^[+0-9][0-9\s\-/()+]{4,29}$", wert):
+            if not re.match(r"^[+0-9a-zA-Z][0-9\s\-/()+a-zA-Z]{1,49}$", wert):
                 fehler.append(f'"{feld.get("label", feld_id)}" ist keine gueltige Telefonnummer.')
         if typ == "plz" and wert:
             if not re.match(r"^[0-9]{5}$", wert.strip()):
@@ -1162,6 +1162,163 @@ def _versende_pdf_email(sitzung):
     return list(dict.fromkeys(gesendete))
 
 
+def _erzeuge_ausgefuelltes_pdf_bytes(sitzung, extra_daten: dict | None = None) -> bytes | None:
+    """Gibt das mit Sitzungsdaten ausgefüllte Original-PDF als Bytes zurück.
+
+    extra_daten: optionale zusätzliche Felder (z.B. zweite Unterschrift) die
+    in gesammelte_daten eingemischt werden bevor das PDF erzeugt wird.
+    """
+    try:
+        from portal.models import FormularAnalyse
+        from portal.pdf_fill import fuelle_acroform, fuelle_pdf_overlay
+        from pypdf import PdfReader as _PR
+    except ImportError:
+        return None
+
+    analyse = (
+        FormularAnalyse.objects
+        .filter(importierter_pfad_pk=sitzung.pfad.pk)
+        .order_by("-erstellt_am")
+        .first()
+    )
+    if not analyse:
+        return None
+
+    pdf_bytes = bytes(analyse.pdf_original if analyse.pdf_original else analyse.pdf_inhalt)
+    schritte = sitzung.pfad.schritte.all()
+    daten = dict(sitzung.gesammelte_daten or {})
+    if extra_daten:
+        daten.update(extra_daten)
+
+    # Signatur-Dateireferenzen (__datei__:<pk>:...) → base64 data-URL auflösen
+    import base64 as _b64
+    for schritt in schritte:
+        for feld in (schritt.felder_json or []):
+            if feld.get("typ") != "signatur":
+                continue
+            fid = feld.get("id", "")
+            wert = daten.get(fid, "")
+            if isinstance(wert, str) and wert.startswith(f"{_DATEI_PRAEFX}:"):
+                try:
+                    datei_pk = int(wert.split(":")[1])
+                    datei_obj = AntrDatei.objects.get(pk=datei_pk)
+                    b64str = _b64.b64encode(bytes(datei_obj.inhalt)).decode()
+                    daten[fid] = f"data:{datei_obj.mime_type};base64,{b64str}"
+                except Exception:
+                    pass
+
+    vorgangsnummer = sitzung.vorgangsnummer or f"ANT-{sitzung.pk:05d}"
+    pfad_name = sitzung.pfad.name
+
+    _reader = _PR(io.BytesIO(pdf_bytes))
+    _pdf_felder = set(_reader.get_fields().keys() if _reader.get_fields() else [])
+
+    def _acroform_valide(schritte, pdf_felder):
+        seen, gefunden = set(), 0
+        for s in schritte:
+            for f in (s.felder_json or []):
+                name = (f.get("acroform_name") or "").strip()
+                if not name or name.startswith("loop:") or "," in name:
+                    continue
+                if name in seen:
+                    continue
+                if name in pdf_felder:
+                    gefunden += 1
+                seen.add(name)
+        return gefunden > 0
+
+    if bool(_pdf_felder) and _acroform_valide(schritte, _pdf_felder):
+        try:
+            _baseline_offset = float((analyse.ergebnis_json or {}).get("baseline_offset", 0))
+            return fuelle_acroform(pdf_bytes, schritte, daten,
+                                   pfad_name=pfad_name, vorgangsnummer=vorgangsnummer,
+                                   baseline_offset=_baseline_offset)
+        except Exception as exc:
+            logger.error("_erzeuge_ausgefuelltes_pdf_bytes: AcroForm fehlgeschlagen – %s", exc)
+
+    _hat_koord = any(
+        float(f.get("x_pct") or 0) != 0 or float(f.get("y_pct") or 0) != 0
+        for s in schritte
+        for f in (s.felder_json or [])
+    )
+    if _hat_koord:
+        try:
+            _pdf_font = (analyse.ergebnis_json or {}).get("pdf_font", {})
+            return fuelle_pdf_overlay(
+                pdf_bytes, schritte, daten,
+                pfad_name=pfad_name, vorgangsnummer=vorgangsnummer,
+                font_size=_pdf_font.get("size", 9),
+                font_bold=_pdf_font.get("bold", False),
+            )
+        except Exception as exc:
+            logger.error("_erzeuge_ausgefuelltes_pdf_bytes: Overlay fehlgeschlagen – %s", exc)
+    return None
+
+
+# Alias für Rückwärtskompatibilität (workflow/services.py)
+_generiere_pdf_bytes = _erzeuge_ausgefuelltes_pdf_bytes
+
+
+def _pruefe_unterzeichnungs_anforderung(sitzung):
+    """Nach Abschluss: erzeugt Token + sendet E-Mail für signatur-Felder mit weiterleitung_an."""
+    import secrets as _sec
+    from django.conf import settings as _conf
+    from django.core.mail import EmailMessage as _EM
+    from django.utils import timezone as _tz
+
+    base_url = getattr(_conf, "VORGANGSWERK_BASE_URL", "").rstrip("/")
+    daten = sitzung.gesammelte_daten or {}
+
+    for schritt in sitzung.pfad.schritte.all():
+        for feld in (schritt.felder_json or []):
+            if feld.get("typ") != "signatur":
+                continue
+            email_feld_id = (feld.get("weiterleitung_an") or "").strip()
+            if not email_feld_id:
+                continue
+            empfaenger = str(daten.get(email_feld_id, "")).strip()
+            if not empfaenger or "@" not in empfaenger:
+                continue
+            feld_id = feld.get("id", "")
+            if not feld_id:
+                continue
+
+            # Bestehenden offenen Token wiederverwenden
+            token_obj = (
+                UnterzeichnungsToken.objects
+                .filter(sitzung=sitzung, feld_id=feld_id, verwendet=False)
+                .first()
+            )
+            if not token_obj:
+                token_obj = UnterzeichnungsToken.objects.create(
+                    token=_sec.token_hex(32),
+                    sitzung=sitzung,
+                    feld_id=feld_id,
+                    empfaenger_email=empfaenger,
+                    abgelaufen_am=_tz.now() + datetime.timedelta(days=30),
+                )
+
+            link = f"{base_url}/antrag/u/{token_obj.token}/"
+            vgnr = sitzung.vorgangsnummer or f"ANT-{sitzung.pk:05d}"
+            betreff = f"Bitte unterzeichnen: {sitzung.pfad.name} – {vgnr}"
+            text = (
+                f"Guten Tag,\n\n"
+                f"Sie wurden gebeten, den folgenden Antrag gegenzuzeichnen:\n\n"
+                f"  Formular:        {sitzung.pfad.name}\n"
+                f"  Vorgangsnummer:  {vgnr}\n\n"
+                f"Bitte öffnen Sie den folgenden Link, lesen Sie den Antrag durch\n"
+                f"und leisten Sie Ihre Unterschrift:\n\n"
+                f"  {link}\n\n"
+                f"Der Link ist 30 Tage gültig.\n\n"
+                f"Mit freundlichen Grüßen\nIhr Vorgangswerk-Team"
+            )
+            try:
+                _EM(subject=betreff, body=text, to=[empfaenger]).send(fail_silently=True)
+                logger.info("Unterzeichnungs-E-Mail an %s gesendet (Token %s)", empfaenger, token_obj.token[:8])
+            except Exception as exc:
+                logger.error("Unterzeichnungs-E-Mail fehlgeschlagen: %s", exc)
+
+
 def _versende_bestaetigung_email(sitzung, email_adresse: str, request):
     """Generiert einen Token und sendet die Bestätigungsanforderung per E-Mail."""
     import secrets as _sec
@@ -1191,12 +1348,14 @@ def _versende_bestaetigung_email(sitzung, email_adresse: str, request):
         )
         if analyse and (analyse.pdf_original or analyse.pdf_inhalt):
             raw = bytes(analyse.pdf_original if analyse.pdf_original else analyse.pdf_inhalt)
+            _bo = float((analyse.ergebnis_json or {}).get("baseline_offset", 0))
             pdf_bytes = fuelle_acroform(
                 raw,
                 sitzung.pfad.schritte.all(),
                 sitzung.gesammelte_daten or {},
                 pfad_name=sitzung.pfad.name,
                 vorgangsnummer=vorgangsnummer,
+                baseline_offset=_bo,
             )
             pdf_dateiname = f"{vorgangsnummer}.pdf"
     except Exception as exc:
@@ -1704,13 +1863,19 @@ def pfad_acroform_pruefen(request, pk):
                 schritt.felder_json = felder
                 schritt.save(update_fields=["felder_json"])
 
-        # Ignorierte AcroForm-Felder in der Analyse speichern
+        # Ignorierte AcroForm-Felder + baseline_offset in der Analyse speichern
+        import copy as _copy
+        ergebnis = _copy.deepcopy(analyse.ergebnis_json or {})
         if isinstance(ignoriert, list):
-            import copy as _copy
-            ergebnis = _copy.deepcopy(analyse.ergebnis_json or {})
             ergebnis["ignorierte_acroform_felder"] = ignoriert
-            analyse.ergebnis_json = ergebnis
-            analyse.save(update_fields=["ergebnis_json"])
+        baseline_offset_raw = request.POST.get("baseline_offset", "")
+        if baseline_offset_raw != "":
+            try:
+                ergebnis["baseline_offset"] = float(baseline_offset_raw)
+            except (ValueError, TypeError):
+                pass
+        analyse.ergebnis_json = ergebnis
+        analyse.save(update_fields=["ergebnis_json"])
 
         return JsonResponse({"ok": True})
 
@@ -1736,6 +1901,7 @@ def pfad_acroform_pruefen(request, pk):
             })
 
     import json as _json
+    _baseline_offset = float((analyse.ergebnis_json or {}).get("baseline_offset", 0))
     return render(request, "formulare/pfad_acroform_pruefen.html", {
         "pfad": pfad,
         "analyse": analyse,
@@ -1743,6 +1909,7 @@ def pfad_acroform_pruefen(request, pk):
         "felder_json_url": f"/portal/analyse/{analyse.pk}/felder.json",
         "seite_png_url_tmpl": f"/portal/analyse/{analyse.pk}/seite/{{n}}.png",
         "diagnose_pdf_url": f"/portal/analyse/{analyse.pk}/diagnose-pdf/",
+        "baseline_offset": _baseline_offset,
     })
 
 
@@ -2437,7 +2604,9 @@ def pfad_schritt(request, sitzung_pk):
                 }
 
         if schritt.ist_ende:
+            sitzung.save(update_fields=["gesammelte_daten", "einwilligungen_json"])
             sitzung.abschliessen()
+            _pruefe_unterzeichnungs_anforderung(sitzung)
             _starte_workflow_trigger(sitzung)
             _starte_quiz_auswertung(sitzung)
             from core.models import audit
@@ -2522,6 +2691,7 @@ def pfad_schritt(request, sitzung_pk):
         ])
         if naechster.ist_ende and not naechster.felder():
             sitzung.abschliessen()
+            _pruefe_unterzeichnungs_anforderung(sitzung)
             _starte_workflow_trigger(sitzung)
             _starte_quiz_auswertung(sitzung)
             from core.models import audit
@@ -2712,10 +2882,8 @@ def sitzung_original_pdf(request, pk):
         from django.http import HttpResponseForbidden
         return HttpResponseForbidden()
 
-    # FormularAnalyse zum importierten Pfad suchen
     try:
         from portal.models import FormularAnalyse
-        from portal.pdf_fill import fuelle_acroform
     except ImportError:
         messages.error(request, "Portal-Modul nicht verfügbar.")
         return redirect("formulare:meine_antraege")
@@ -2730,73 +2898,7 @@ def sitzung_original_pdf(request, pk):
         messages.error(request, "Kein Original-PDF vorhanden – dieser Pfad wurde nicht per KI-Portal importiert.")
         return redirect("formulare:meine_antraege")
 
-    pdf_bytes = bytes(analyse.pdf_original if analyse.pdf_original else analyse.pdf_inhalt)
-    schritte = sitzung.pfad.schritte.all()
-    gesammelte_daten = sitzung.gesammelte_daten or {}
-
-    vorgangsnummer = sitzung.vorgangsnummer or f"ANT-{sitzung.pk:05d}"
-    pfad_name = sitzung.pfad.name
-    filled_pdf = None
-
-    from pypdf import PdfReader as _PR
-    import io as _io
-    _reader = _PR(_io.BytesIO(pdf_bytes))
-    _pdf_felder = set(_reader.get_fields().keys() if _reader.get_fields() else [])
-
-    def _acroform_mappings_valide(schritte, pdf_felder):
-        """Prüft ob acroform_names eindeutig und alle im PDF vorhanden sind."""
-        seen = set()
-        gefunden = 0
-        for s in schritte:
-            for f in (s.felder_json or []):
-                name = (f.get("acroform_name") or "").strip()
-                if not name or name.startswith("loop:"):
-                    continue
-                if "," in name:   # Zeichen-Split – separat behandelt
-                    continue
-                if name in seen:
-                    return False  # Duplikat → Mappings ungültig
-                if name not in pdf_felder:
-                    continue      # Nicht im PDF → überspringen, kein Fehler
-                seen.add(name)
-                gefunden += 1
-        return gefunden > 0
-
-    _ist_acroform = bool(_pdf_felder) and _acroform_mappings_valide(schritte, _pdf_felder)
-
-    # AcroForm nur wenn Mappings eindeutig und valide – sonst Koordinaten-Overlay
-    if _ist_acroform:
-        try:
-            filled_pdf = fuelle_acroform(
-                pdf_bytes, schritte, gesammelte_daten,
-                pfad_name=pfad_name,
-                vorgangsnummer=vorgangsnummer,
-            )
-            logger.info("sitzung_original_pdf: AcroForm genutzt (%d Schritte)", schritte.count())
-        except Exception as exc:
-            logger.error("sitzung_original_pdf: AcroForm fehlgeschlagen – %s", exc)
-
-    if not filled_pdf:
-        # Koordinaten-Overlay für Non-AcroForm-PDFs
-        _hat_koord = any(
-            float(f.get("x_pct") or 0) != 0 or float(f.get("y_pct") or 0) != 0
-            for s in schritte
-            for f in (s.felder_json or [])
-        )
-        if _hat_koord:
-            try:
-                from portal.pdf_fill import fuelle_pdf_overlay
-                _pdf_font = (analyse.ergebnis_json or {}).get("pdf_font", {})
-                filled_pdf = fuelle_pdf_overlay(
-                    pdf_bytes, schritte, gesammelte_daten,
-                    pfad_name=pfad_name,
-                    vorgangsnummer=vorgangsnummer,
-                    font_size=_pdf_font.get("size", 9),
-                    font_bold=_pdf_font.get("bold", False),
-                )
-                logger.info("sitzung_original_pdf: Overlay genutzt (%d Schritte)", schritte.count())
-            except Exception as exc:
-                logger.error("sitzung_original_pdf: Overlay fehlgeschlagen – %s", exc)
+    filled_pdf = _erzeuge_ausgefuelltes_pdf_bytes(sitzung)
 
     if not filled_pdf:
         messages.error(request, "PDF-Erstellung fehlgeschlagen: keine Felder befüllbar.")
@@ -3242,7 +3344,9 @@ def antrag_oeffentlich_schritt(request, sitzung_pk):
                     "schritt_node_id": schritt.node_id,
                 }
         if schritt.ist_ende:
+            sitzung.save(update_fields=["gesammelte_daten", "einwilligungen_json"])
             sitzung.abschliessen()
+            _pruefe_unterzeichnungs_anforderung(sitzung)
             from core.models import AuditLog
             AuditLog.objects.create(
                 user=None,
@@ -3321,6 +3425,7 @@ def antrag_oeffentlich_schritt(request, sitzung_pk):
         ])
         if naechster.ist_ende and not naechster.felder():
             sitzung.abschliessen()
+            _pruefe_unterzeichnungs_anforderung(sitzung)
             return redirect("formulare:antrag_oeffentlich_abgeschlossen", sitzung_pk=sitzung.pk)
         return redirect("formulare:antrag_oeffentlich_schritt", sitzung_pk=sitzung.pk)
 
@@ -3732,3 +3837,114 @@ SELECT ?gemName ?kreisName ?bundeslandName WHERE {{
     except Exception:
         pass
     return fallback
+
+
+# ---------------------------------------------------------------------------
+# Öffentliche Gegenzeichnungs-Seite
+# ---------------------------------------------------------------------------
+
+@xframe_options_exempt
+def unterzeichnen(request, token_str):
+    """Tokengeschützte Seite: zweiter Unterzeichner sieht das ausgefüllte PDF und unterschreibt."""
+    token_obj = UnterzeichnungsToken.objects.filter(token=token_str).select_related("sitzung__pfad").first()
+
+    if not token_obj or not token_obj.ist_gueltig():
+        return render(request, "formulare/unterzeichnen_ungueltig.html", status=410)
+
+    sitzung = token_obj.sitzung
+
+    if request.method == "POST":
+        signatur_data = request.POST.get("signatur_data", "").strip()
+        if not signatur_data or not signatur_data.startswith("data:image"):
+            return render(request, "formulare/unterzeichnen.html", {
+                "token": token_obj,
+                "sitzung": sitzung,
+                "fehler": "Bitte leisten Sie Ihre Unterschrift bevor Sie absenden.",
+                "seiten_bilder": _pdf_seiten_als_b64(sitzung),
+            })
+
+        # Unterschrift in Sitzungsdaten speichern
+        daten = dict(sitzung.gesammelte_daten or {})
+        daten[token_obj.feld_id] = signatur_data
+        sitzung.gesammelte_daten = daten
+        sitzung.save(update_fields=["gesammelte_daten"])
+
+        # Token als verwendet markieren + Audit-Daten speichern
+        _ip = (
+            request.META.get("HTTP_X_FORWARDED_FOR", "").split(",")[0].strip()
+            or request.META.get("REMOTE_ADDR") or None
+        )
+        token_obj.verwendet = True
+        token_obj.unterzeichnet_am = timezone.now()
+        token_obj.unterzeichnet_ip = _ip
+        token_obj.save(update_fields=["verwendet", "unterzeichnet_am", "unterzeichnet_ip"])
+
+        # Audit-Vermerk in gesammelte_daten als Systemfeld
+        daten[f"__sig_audit__{token_obj.feld_id}"] = (
+            f"Unterzeichnet am {token_obj.unterzeichnet_am.strftime('%d.%m.%Y um %H:%M')} Uhr"
+            f" · IP {_ip or 'unbekannt'}"
+            f" · {token_obj.empfaenger_email}"
+        )
+        sitzung.gesammelte_daten = daten
+        sitzung.save(update_fields=["gesammelte_daten"])
+
+        # Ausgefülltes PDF mit beiden Unterschriften erzeugen
+        pdf_bytes = _erzeuge_ausgefuelltes_pdf_bytes(sitzung)
+
+        # Kopie per E-Mail an Unterzeichner
+        if pdf_bytes:
+            try:
+                from django.core.mail import EmailMessage as _EM
+                vgnr = sitzung.vorgangsnummer or f"ANT-{sitzung.pk:05d}"
+                dateiname = f"{vgnr}_unterzeichnet.pdf"
+                betreff = f"Ihre Kopie: {sitzung.pfad.name} – {vgnr}"
+                text = (
+                    f"Guten Tag,\n\n"
+                    f"vielen Dank für Ihre Unterschrift.\n\n"
+                    f"Anbei finden Sie eine Kopie des unterzeichneten Antrags.\n\n"
+                    f"  Formular:        {sitzung.pfad.name}\n"
+                    f"  Vorgangsnummer:  {vgnr}\n\n"
+                    f"Mit freundlichen Grüßen\nIhr Vorgangswerk-Team"
+                )
+                mail = _EM(subject=betreff, body=text, to=[token_obj.empfaenger_email])
+                mail.attach(dateiname, pdf_bytes, "application/pdf")
+                mail.send(fail_silently=True)
+            except Exception as exc:
+                logger.error("Gegenzeichnungs-Kopie konnte nicht gesendet werden: %s", exc)
+
+        return render(request, "formulare/unterzeichnen_danke.html", {
+            "sitzung": sitzung,
+            "pdf_gesendet": bool(pdf_bytes),
+        })
+
+    # GET: PDF als Seitenbilder rendern
+    seiten_bilder = _pdf_seiten_als_b64(sitzung)
+    return render(request, "formulare/unterzeichnen.html", {
+        "token": token_obj,
+        "sitzung": sitzung,
+        "seiten_bilder": seiten_bilder,
+        "fehler": None,
+    })
+
+
+def _pdf_seiten_als_b64(sitzung) -> list[str]:
+    """Rendert das ausgefüllte PDF als base64-PNG-Liste (eine Eintrag pro Seite)."""
+    import base64
+    try:
+        from pdf2image import convert_from_bytes
+    except ImportError:
+        return []
+    pdf_bytes = _erzeuge_ausgefuelltes_pdf_bytes(sitzung)
+    if not pdf_bytes:
+        return []
+    try:
+        bilder = convert_from_bytes(pdf_bytes, dpi=120)
+        result = []
+        for bild in bilder:
+            buf = io.BytesIO()
+            bild.save(buf, format="PNG")
+            result.append(base64.b64encode(buf.getvalue()).decode())
+        return result
+    except Exception as exc:
+        logger.error("PDF→Bild fehlgeschlagen: %s", exc)
+        return []

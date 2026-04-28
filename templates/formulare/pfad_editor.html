@@ -573,6 +573,21 @@ html, body { overflow: hidden; height: 100%; }
                     <small class="text-muted">HTML-<code>accept</code>-Attribut</small>
                 </div>
 
+                <!-- Gegenzeichnung per E-Mail (nur signatur) -->
+                <div class="mb-3" id="weiterleitung-an-row" style="display:none;">
+                    <label class="form-label fw-semibold">Gegenzeichnung – E-Mail-Feld-ID</label>
+                    <input type="text" class="form-control font-monospace" id="feld-weiterleitung-an"
+                           placeholder="z.B. leihnehmer_email">
+                    <div class="alert alert-info py-2 px-3 mt-2 mb-0 small">
+                        <strong>Wie funktioniert das?</strong> Tragen Sie hier die <em>Feld-ID</em> eines
+                        <strong>E-Mail-Feldes</strong> aus diesem Formular ein. Sobald der Antrag abgeschickt
+                        wird, erhält die dort eingetragene Adresse automatisch einen personalisierten Link.
+                        Der Empfänger sieht das ausgefüllte Originaldokument, kann digital unterschreiben
+                        und bekommt danach eine Kopie mit beiden Unterschriften per E-Mail zugeschickt.
+                        <br>Leer lassen = keine automatische Weiterleitung.
+                    </div>
+                </div>
+
                 <!-- PDF-E-Mail-Konfiguration -->
                 <div id="pdf-email-row" style="display:none;">
                     <div class="alert alert-info p-2 mb-3" style="font-size:0.82rem;">
