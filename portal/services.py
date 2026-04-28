@@ -453,6 +453,280 @@ def _parse_json_antwort(antwort: str) -> PfadDefinition:
 
 
 # ---------------------------------------------------------------------------
+# AcroForm – seitenweise Analyse
+# ---------------------------------------------------------------------------
+
+def _felder_pro_seite(pdf_bytes: bytes) -> dict[int, list[str]]:
+    """Gibt {page_idx: ["FeldName [Typ]", ...]} zurück – nur Annotations der jeweiligen Seite.
+
+    Radio-Gruppen: Kinder haben kein /T, aber der Elternknoten hat den Feldnamen.
+    Wir nehmen den Elternnamen und deduplizieren pro Seite.
+    """
+    try:
+        from pypdf import PdfReader
+    except ImportError:
+        return {}
+    reader = PdfReader(io.BytesIO(pdf_bytes))
+    result: dict[int, list[str]] = {}
+    for page_idx, page in enumerate(reader.pages):
+        result[page_idx] = []
+        gesehen: set[str] = set()
+        for ref in (page.get("/Annots") or []):
+            try:
+                obj = ref.get_object()
+                ft = obj.get("/FT")
+                parent_obj = None
+                if not ft:
+                    parent = obj.get("/Parent")
+                    if parent:
+                        parent_obj = parent.get_object()
+                        ft = parent_obj.get("/FT")
+                if str(ft) not in ("/Tx", "/Btn", "/Ch"):
+                    continue
+                name = _sanitize_text(str(obj.get("/T", "")))
+                # Kein eigener /T → Elternnamen verwenden (Radio-Gruppen)
+                if not name:
+                    if parent_obj is None:
+                        parent = obj.get("/Parent")
+                        if parent:
+                            parent_obj = parent.get_object()
+                    if parent_obj is not None:
+                        name = _sanitize_text(str(parent_obj.get("/T", "")))
+                if name and name not in gesehen:
+                    gesehen.add(name)
+                    result[page_idx].append(f"{name} [{str(ft).lstrip('/')}]")
+            except Exception:
+                pass
+    return result
+
+
+def _seite_zu_bytes(pdf_bytes: bytes, page_idx: int) -> bytes:
+    """Extrahiert eine einzelne Seite als PDF-Bytes."""
+    from pypdf import PdfReader, PdfWriter
+    reader = PdfReader(io.BytesIO(pdf_bytes))
+    writer = PdfWriter()
+    writer.add_page(reader.pages[page_idx])
+    buf = io.BytesIO()
+    writer.write(buf)
+    return buf.getvalue()
+
+
+def _erstelle_seiten_prompt(dateiname: str, seite_nr: int, seitenanzahl: int, felder: list[str]) -> str:
+    felder_str = "\n".join(f"  - {f}" for f in felder) if felder else "  (keine AcroForm-Felder auf dieser Seite)"
+    name_sauber = _sanitize_text(dateiname)[:100]
+    # Vollständiger Prompt mit allen Marker-Konventionen – identisch zu _erstelle_prompt,
+    # aber auf eine einzelne Seite eingeschränkt. Claude sieht das gesamte Marker-System
+    # (GRÜN/BLAU/ROT/BRAUN/GELB/TÜRKIS/VIOLETT) und kann es korrekt anwenden.
+    return f"""Du analysierst **Seite {seite_nr} von {seitenanzahl}** des Formulars "{name_sauber}" und erzeugst Schritt-Definitionen für das System "Vorgangswerk".
+
+AcroForm-Felder auf dieser Seite:
+{felder_str}
+
+**WICHTIG:** Setze für jedes erzeugte Feld `acroform_name` auf den passenden AcroForm-Feldnamen aus der Liste oben. Felder ohne passendes AcroForm-Feld bekommen `acroform_name: ""`.
+Erfasse NUR Felder dieser Seite – keine Felder anderer Seiten erfinden.
+Verwende IDs in snake_case, eindeutig im gesamten Formular (Seitenpräfix z.B. "s{seite_nr}_" falls nötig).
+
+## Marker-Konvention im PDF
+
+Das PDF kann mit farbigen Markierungen vorbereitet sein.
+**WICHTIG:** Diese Farbmarkierungen sind Strukturierungsanweisungen – kein Formularinhalt.
+
+Farbcode:
+- **BLAU** (blauer Hintergrund ODER blauer Rahmen/Border) → LOOP-Marker
+- **GRÜN** (grüner Hintergrund, weiße oder dunkle Schrift) → GRUPPE-Marker
+- **ROT mit Text** (roter Hintergrund, weiße Schrift, mit Zahl oder Beschriftung) → Verzweigungs-/Entscheidungsweg-Marker
+- **ROT ausgefüllt ohne Text** (vollflächig rote Fläche, kein lesbarer Text) → IGNORIEREN: alle darunter liegenden Felder weglassen
+- **TÜRKIS/CYAN** (türkiser Hintergrund) → AUTOFILL-Marker
+- **GELB** (gelber Hintergrund) → SPLIT-Marker
+- **VIOLETT/LILA** (violetter Hintergrund) → ZEIGE_WENN-Marker
+- **BRAUN/DUNKELORANGE** (brauner Rahmen oder Fläche) → BERECHNUNG-Marker
+
+### LOOP-Marker (blauer Rahmen oder blaue Fläche)
+Felder innerhalb eines blauen Rahmens/Fläche sind wiederholende Eingaben.
+Struktur:
+1. Schritt für Felder VOR dem Loop (pdf_gruppe setzen)
+2. Schritt für Loop-Felder mit pdf_gruppe = Loop-Name, node_id z.B. "s_loop_body"
+3. Schritt "Weiteres [Name]?" mit radio-Feld (optionen: ["ja","nein"]), pdf_ausblenden: true
+4. Loop-Trigger-Schritt mit loop_bezeichnung = Loop-Name, loop_titel_feld = erstes Namensfeld
+
+### GRUPPE-Marker (grüner Rahmen/Fläche)
+Jeder grüne Marker = ein eigener Schritt.
+- `GRUPPE: Wohnort` → Schritt mit Titel "Wohnort"
+- `GRUPPE: 2 · Neue Hauptwohnung` → Titel "Neue Hauptwohnung", Reihenfolge = 2
+- `GRUPPE: 3` → Reihenfolge = 3, Titel aus Feldinhalt ableiten
+Setze am Schritt: `"pdf_gruppe": "Name"` und `"titel": "Name"`.
+
+### SPLIT-Marker (gelber Rahmen/Fläche)
+Variante A: `SPLIT: PLZ, Gemeinde, Ortsteil` direkt am Feld
+Variante B: `SPLIT 1` am Feld + `SPLIT 1: PLZ, Gemeinde, Ortsteil` irgendwo auf der Seite
+Variante C (PFLICHT, auch ohne Marker): Feldbezeichnung enthält Komma-Liste bekannter Adressbegriffe → automatisch aufteilen.
+Bekannte Begriffe: Postleitzahl, PLZ, Gemeinde, Ort, Stadt, Ortsteil, Straße, Hausnummer, Haus-Nr., Zusatz, Kreis, Landkreis, Land, Bundesland
+
+### AUTOFILL (türkiser Marker)
+`AUTOFILL: quelle_feld_id` → `"typ": "autofill", "quelle": "quelle_feld_id"`.
+Automatisch (ohne Marker): GKZ-Feld + Gemeinde/Kreis/Land/PLZ → autofill mit passenden quelle-Werten.
+
+### ZEIGE_WENN-Marker (violetter Hintergrund)
+`ZEIGE_WENN: feld_id = wert` → `"zeige_wenn": "feld_id:wert"` am abhängigen Feld.
+Auch ohne Marker setzen wenn typisches Ja/Nein-Muster erkennbar.
+
+### BERECHNUNG-Marker (brauner/dunkelorangener Rahmen)
+Mit `=`: explizite Formel → `typ: "berechnung"`, `formel: "ausdruck"`
+Mit Summen-Schlüsselwort (Summe, Gesamt, Total): alle zahl-Felder im Kontext addieren.
+
+### IGNORIEREN-Marker (vollflächig rotes Rechteck ohne Text)
+Alle Felder darunter überspringen (amtliche Vermerke, Behördenfelder).
+
+### Entscheidungswege (roter Rahmen mit Zahl)
+Jede visuell abgegrenzte Gruppe → eigener Schritt. Ziffernreihe im Header → checkboxen-Feld.
+
+## JSON-Ausgabe
+
+Gib NUR ein JSON-Objekt mit `schritte` zurück (kein Text davor/danach):
+{{"schritte": [
+  {{
+    "node_id": "s{seite_nr:02d}_01",
+    "titel": "Abschnittstitel",
+    "pdf_gruppe": "",
+    "loop_bezeichnung": "",
+    "loop_titel_feld": "",
+    "loop_max": 0,
+    "felder_json": [
+      {{"id": "feld_id", "typ": "text", "label": "Feldbeschriftung", "pflicht": true, "acroform_name": "", "fim_id": ""}}
+    ]
+  }}
+]}}
+
+## Verfügbare Feldtypen
+text, mehrzeil, zahl, datum, email, telefon, plz, gemeindekennzahl, autofill, radio, checkboxen, bool, signatur, einwilligung, textblock, abschnitt, systemfeld, berechnung, zusammenfassung, quizfrage, quizergebnis
+
+## Feld-Attribute
+- "pflicht": true/false
+- "pdf_ausblenden": true – nicht in PDF-Zusammenfassung
+- "acroform_name": AcroForm-Feldname(n), kommagetrennt bei Zeichen-Split, "loop:Slot1,Slot2" bei Loop-Feldern
+- "fim_id": F60000003=Vorname, F60000004=Nachname, F60000022=Straße, F60000024=PLZ, F60000025=Ort, F60000030=E-Mail, F60000060=Datum
+- "zeige_wenn": "feld_id:wert"
+- "optionen": ["A","B"] bei radio/checkboxen
+- "formel": "a + b" bei berechnung
+- "quelle": "feld_variable" bei autofill
+
+Antworte AUSSCHLIESSLICH mit dem JSON-Objekt."""
+
+
+def _parse_seiten_schritte(text: str) -> list[dict]:
+    """Parst die Seiten-Antwort und gibt rohe Schritt-Dicts zurück."""
+    from json_repair import repair_json
+    antwort = text.strip()
+    if "```" in antwort:
+        antwort = re.sub(r"^```[a-z]*\n?", "", antwort)
+        antwort = re.sub(r"\n?```$", "", antwort.strip())
+    try:
+        roh = json.loads(antwort)
+    except json.JSONDecodeError:
+        roh = json.loads(repair_json(antwort, return_objects=False))
+    if not isinstance(roh, dict):
+        return []
+    schritte = roh.get("schritte", [])
+    # Normalisierung: "felder" → "felder_json" falls KI alten Schlüssel verwendet
+    for s in schritte:
+        if "felder" in s and "felder_json" not in s:
+            s["felder_json"] = s.pop("felder")
+    return schritte
+
+
+def _analysiere_acroform_seitenweise(
+    client: "anthropic.Anthropic",
+    pdf_bytes: bytes,
+    dateiname: str,
+    seitenanzahl: int,
+    felder_pro_seite: dict[int, list[str]],
+) -> "PfadDefinition":
+    """Analysiert jede Seite einzeln und fügt die Ergebnisse zusammen."""
+    from pydantic import ValidationError
+
+    alle_schritte_roh: list[dict] = []
+
+    for page_idx in range(seitenanzahl):
+        seite_felder = felder_pro_seite.get(page_idx, [])
+        # Seiten ohne AcroForm-Felder überspringen (z.B. reine Textseiten)
+        if not seite_felder:
+            logger.info("Seite %d: keine AcroForm-Felder – übersprungen", page_idx + 1)
+            continue
+
+        logger.info("Seite %d/%d analysieren (%d Felder)…", page_idx + 1, seitenanzahl, len(seite_felder))
+        seite_bytes = _seite_zu_bytes(pdf_bytes, page_idx)
+        seite_b64 = base64.standard_b64encode(seite_bytes).decode("utf-8")
+        prompt = _erstelle_seiten_prompt(dateiname, page_idx + 1, seitenanzahl, seite_felder)
+
+        with client.messages.stream(
+            model="claude-sonnet-4-6",
+            max_tokens=8000,
+            messages=[{
+                "role": "user",
+                "content": [
+                    {"type": "document", "source": {"type": "base64", "media_type": "application/pdf", "data": seite_b64}},
+                    {"type": "text", "text": prompt},
+                ],
+            }],
+        ) as stream:
+            antwort = stream.get_final_text()
+
+        schritte = _parse_seiten_schritte(antwort)
+        logger.info("Seite %d: %d Schritte erkannt", page_idx + 1, len(schritte))
+        alle_schritte_roh.extend(schritte)
+
+    # Zusammenführen: gleiche Titel → Felder zusammenlegen, alle Attribute erhalten
+    merged: list[dict] = []
+    for schritt in alle_schritte_roh:
+        titel = (schritt.get("titel") or "").strip()
+        if not titel:
+            titel = "Schritt"
+        felder = schritt.get("felder_json") or []
+        if not felder:
+            continue
+        vorh = next((s for s in merged if s["titel"] == titel), None)
+        if vorh:
+            vorh["felder_json"].extend(felder)
+        else:
+            # Alle Schritt-Attribute übernehmen (pdf_gruppe, loop_bezeichnung etc.)
+            eintrag = {
+                "titel": titel,
+                "felder_json": felder,
+                "pdf_gruppe": schritt.get("pdf_gruppe", ""),
+                "loop_bezeichnung": schritt.get("loop_bezeichnung", ""),
+                "loop_titel_feld": schritt.get("loop_titel_feld", ""),
+                "loop_max": schritt.get("loop_max", 0),
+            }
+            merged.append(eintrag)
+
+    if not merged:
+        raise ValueError("Seitenweise Analyse ergab keine Felder")
+
+    # node_ids vergeben, Start/Ende setzen
+    for i, s in enumerate(merged):
+        s["node_id"] = s.get("node_id") or f"s_{i+1:02d}"
+        s["ist_start"] = (i == 0)
+        s["ist_ende"] = (i == len(merged) - 1)
+        s["pos_x"] = 300
+        s["pos_y"] = 80 + i * 160
+
+    # PfadDefinition zusammenbauen (Transitionen werden vom Validator erzeugt)
+    pfad_name = re.sub(r"\.[^.]+$", "", dateiname).replace("_", " ").replace("-", " ").strip()
+    roh = {
+        "name": pfad_name or dateiname,
+        "beschreibung": "",
+        "kuerzel": "",
+        "leika_schluessel": "",
+        "schritte": merged,
+        "transitionen": [],
+    }
+    try:
+        return PfadDefinition.model_validate(roh)
+    except Exception as e:
+        raise ValueError(f"Zusammenführung fehlgeschlagen: {e}") from e
+
+
+# ---------------------------------------------------------------------------
 # Haupt-Analyse-Funktion
 # ---------------------------------------------------------------------------
 
@@ -485,36 +759,45 @@ def analysiere_formular(analyse_id: int) -> None:
             raise ValueError("ANTHROPIC_API_KEY nicht konfiguriert")
 
         client = anthropic.Anthropic(api_key=api_key)
-        prompt = _erstelle_prompt(dateiname, felder, seitenanzahl)
-        pdf_b64 = base64.standard_b64encode(pdf_bytes).decode("utf-8")
 
-        messages = [{
-            "role": "user",
-            "content": [
-                {
-                    "type": "document",
-                    "source": {
-                        "type": "base64",
-                        "media_type": "application/pdf",
-                        "data": pdf_b64,
+        if len(felder) > 0:
+            # AcroForm-PDF: seitenweise analysieren um Token-Limit zu umgehen
+            felder_pro_seite = _felder_pro_seite(pdf_bytes)
+            pfad_def = _analysiere_acroform_seitenweise(
+                client, pdf_bytes, dateiname, seitenanzahl, felder_pro_seite
+            )
+        else:
+            # Normales PDF: ganzes Dokument auf einmal
+            prompt = _erstelle_prompt(dateiname, felder, seitenanzahl)
+            pdf_b64 = base64.standard_b64encode(pdf_bytes).decode("utf-8")
+
+            messages = [{
+                "role": "user",
+                "content": [
+                    {
+                        "type": "document",
+                        "source": {
+                            "type": "base64",
+                            "media_type": "application/pdf",
+                            "data": pdf_b64,
+                        },
                     },
-                },
-                {
-                    "type": "text",
-                    "text": prompt,
-                },
-            ],
-        }]
+                    {
+                        "type": "text",
+                        "text": prompt,
+                    },
+                ],
+            }]
 
-        with client.messages.stream(
-            model="claude-sonnet-4-6",
-            max_tokens=32000,
-            messages=messages,
-        ) as stream:
-            antwort_text = stream.get_final_text()
+            with client.messages.stream(
+                model="claude-sonnet-4-6",
+                max_tokens=32000,
+                messages=messages,
+            ) as stream:
+                antwort_text = stream.get_final_text()
 
-        # 3. JSON parsen + Pydantic-Validierung
-        pfad_def = _parse_json_antwort(antwort_text)
+            # 3. JSON parsen + Pydantic-Validierung
+            pfad_def = _parse_json_antwort(antwort_text)
 
         # 4. Ergebnis speichern (als dict für JSONField)
         analyse.ergebnis_json = pfad_def.model_dump()

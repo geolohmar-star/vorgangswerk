@@ -108,6 +108,7 @@ let pdfFelder = [], pdfSeiten = [], sortiert = [];
 const acroRects = {};
 const nrMap = {};   // acroform-name → Nummer
 let fokus = null;
+const ignorierteMenge = new Set();  // dauerhaft ignorierte AcroForm-Felder
 
 // ---- Linking ----
 function setFokus(inp) {
@@ -175,6 +176,8 @@ async function ladePdf() {
     const r = await fetch(FELDER_URL);
     const d = await r.json();
     pdfFelder = d.felder || []; pdfSeiten = d.seiten || [];
+    // Bereits ignorierte Felder wiederherstellen
+    (d.ignoriert || []).forEach(n => ignorierteMenge.add(n));
   } catch { document.getElementById("pdf-ladehinweis").textContent = "PDF-Felder konnten nicht geladen werden."; return; }
 
   buildSortiert();
@@ -197,6 +200,9 @@ async function ladePdf() {
       const y = (dim.hoehe - f.y2) / dim.hoehe * dim.hoehe;
       const w = (f.x2 - f.x1) / dim.breite * dim.breite;
       const h = (f.y2 - f.y1) / dim.hoehe * dim.hoehe;
+      const grp = document.createElementNS(ns, "g");
+      grp.setAttribute("class", "feld-grp");
+
       const rect = document.createElementNS(ns, "rect");
       rect.setAttribute("x", x); rect.setAttribute("y", y);
       rect.setAttribute("width", w); rect.setAttribute("height", h);
@@ -204,13 +210,40 @@ async function ladePdf() {
       rect.addEventListener("click", () => { if (!weise(f.name)) scrollZuFeld(f.name); });
       rect.addEventListener("mouseenter", () => hoverPdf(f.name, true));
       rect.addEventListener("mouseleave", () => hoverPdf(f.name, false));
-      svg.appendChild(rect);
-      if (!acroRects[f.name]) acroRects[f.name] = [];
-      acroRects[f.name].push(rect);
+
       const txt = document.createElementNS(ns, "text");
       txt.setAttribute("x", x+2); txt.setAttribute("y", y+1);
       txt.textContent = String(nrMap[f.name] || "");
-      svg.appendChild(txt);
+      txt.style.pointerEvents = "none";
+
+      // "×" Löschen-Button oben rechts
+      const delBtn = document.createElementNS(ns, "text");
+      delBtn.setAttribute("x", x + w - 2); delBtn.setAttribute("y", y + 1);
+      delBtn.setAttribute("text-anchor", "end");
+      delBtn.setAttribute("dominant-baseline", "hanging");
+      delBtn.setAttribute("font-size", "9");
+      delBtn.setAttribute("fill", "#dc3545");
+      delBtn.setAttribute("font-weight", "bold");
+      delBtn.style.cursor = "pointer";
+      delBtn.style.pointerEvents = "all";
+      delBtn.style.display = "none";
+      delBtn.textContent = "×";
+      delBtn.title = `${f.name} ignorieren`;
+      delBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        ignorierteMenge.add(f.name);
+        grp.style.display = "none";
+      });
+
+      grp.appendChild(rect);
+      grp.appendChild(txt);
+      grp.appendChild(delBtn);
+      grp.addEventListener("mouseenter", () => { delBtn.style.display = ""; });
+      grp.addEventListener("mouseleave", () => { delBtn.style.display = "none"; });
+      svg.appendChild(grp);
+
+      if (!acroRects[f.name]) acroRects[f.name] = [];
+      acroRects[f.name].push(rect);
     }
     wrap.append(img, svg);
     const nr = document.createElement("div"); nr.className = "seite-nr"; nr.textContent = `Seite ${s}`;
@@ -384,6 +417,7 @@ document.getElementById("speichern-btn").addEventListener("click", async () => {
   const fd = new FormData();
   fd.append("zuordnungen", JSON.stringify(zuordnungen));
   fd.append("vorlagen", JSON.stringify(vorlagen));
+  fd.append("ignoriert", JSON.stringify([...ignorierteMenge]));
   fd.append("csrfmiddlewaretoken", CSRF);
   const r = await fetch(SAVE_URL, { method:"POST", body:fd });
   const info = document.getElementById("speichern-info");

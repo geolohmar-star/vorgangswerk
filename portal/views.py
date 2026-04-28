@@ -694,7 +694,9 @@ def analyse_felder_json(request, pk):
         )
         _walk_felder(root_fields)
 
-        return JsonResponse({"felder": felder, "seiten": seiten})
+        ignoriert = set((analyse.ergebnis_json or {}).get("ignorierte_acroform_felder", []))
+        felder_gefiltert = [f for f in felder if f["name"] not in ignoriert]
+        return JsonResponse({"felder": felder_gefiltert, "seiten": seiten, "ignoriert": list(ignoriert)})
     except Exception as exc:
         logger.error("Felder-JSON Fehler (Analyse %d): %s", pk, exc)
         return JsonResponse({"fehler": str(exc)}, status=500)

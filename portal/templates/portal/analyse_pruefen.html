@@ -165,18 +165,38 @@ input[type="checkbox"].form-check-input { cursor: pointer; }
   user-select: none;
 }
 .koord-badge-geist:active { cursor: grabbing; background: rgba(52,58,64,.85); }
+.koord-badge-geist::after {
+  content: '';
+  position: absolute;
+  bottom: -5px;
+  left: 0;
+  width: 0; height: 0;
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-top: 5px solid rgba(108,117,125,.65);
+  pointer-events: none;
+}
+/* Ankerpunkt-Indikator: kleines Dreieck unten-links für Textfeld-Badges */
 .koord-badge::after {
   content: '';
   position: absolute;
-  bottom: -4px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 6px; height: 6px;
-  background: inherit;
-  border-radius: 50%;
+  bottom: -5px;
+  left: 0;
+  width: 0; height: 0;
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-top: 5px solid;
+  border-top-color: inherit;
   opacity: .85;
   pointer-events: none;
 }
+/* Option-Badge (violett, Ankreuzfeld): Anker in der Mitte */
+.koord-badge.option-badge {
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  padding: 2px 6px;
+}
+.koord-badge.option-badge::after { display: none; }
 #koord-hinweis {
   background: #cfe2ff;
   border-bottom: 2px solid #0d6efd;
@@ -1015,6 +1035,7 @@ document.getElementById("toggle-alle-pflicht").addEventListener("change", functi
 let koordModus = false;
 let aktivesKoordFeld = null;  // {feld, row}
 const koordBadges = [];       // [{badge, feldId}]
+const geloeschteKoordFelder = new Set();  // Felder deren Badge explizit gelöscht wurde
 
 function alleFelder() {
   const felder = [];
@@ -1114,6 +1135,9 @@ function undo() {
   feld.y_pct        = prev.y_pct;
   feld.seite_nr     = prev.seite_nr;
   feld.optionen_koord = prev.optionen_koord;
+  if ((parseFloat(prev.x_pct) || 0) !== 0 || (parseFloat(prev.y_pct) || 0) !== 0) {
+    geloeschteKoordFelder.delete(feld.id);
+  }
   refreshFeldBadges(feld);
   updateUndoBtn();
 }
@@ -1159,6 +1183,7 @@ function erstelleBadge(feld, wrap, xPct, yPct) {
     ev.stopPropagation();
     pushUndo(feld);
     feld.x_pct = 0; feld.y_pct = 0;
+    geloeschteKoordFelder.add(feld.id);
     badge.remove();
     const idx = koordBadges.findIndex(b => b.feldId === feld.id);
     if (idx >= 0) koordBadges.splice(idx, 1);
@@ -1186,12 +1211,12 @@ function erstelleOptionBadge(feld, optionWert, wrap, xPct, yPct) {
   if (alt) { alt.badge.remove(); koordBadges.splice(koordBadges.indexOf(alt), 1); }
 
   const badge = document.createElement("div");
-  badge.className = "koord-badge";
+  badge.className = "koord-badge option-badge";
   badge.style.background = "#6f42c1";
   badge.textContent = `☑ ${optionWert}`;
   badge.style.left = (xPct * 100) + "%";
   badge.style.top  = (yPct * 100) + "%";
-  badge.title = `${feld.id} → ${optionWert}\nx: ${xPct.toFixed(3)}, y: ${yPct.toFixed(3)}`;
+  badge.title = `${feld.id} → ${optionWert}\n☑ Mitte-Anker (X wird zentriert gezeichnet)\nx: ${xPct.toFixed(3)}, y: ${yPct.toFixed(3)}`;
 
   const closeBtn = document.createElement("span");
   closeBtn.textContent = " ×";
@@ -1369,16 +1394,52 @@ document.getElementById("loop-zeile-input").addEventListener("input", () => {
   if (!pfeilAktivesBadge) return;
   const val = parseFloat(document.getElementById("loop-zeile-input").value) || 0;
   pfeilAktivesBadge.feld.loop_zeile_pct = val;
-  if (loopGeisterAktiv) zeigeLoopGeister(pfeilAktivesBadge.feld, pfeilAktivesBadge.wrap);
+  if (loopGeisterAktiv && loopGeistFeld) {
+    // Geister ohne manuelle Verschiebung neu positionieren
+    const feld  = loopGeistFeld;
+    const delta = val / 100;
+    const yPct  = parseFloat(feld.x_pct) || 0;
+    const yBase = parseFloat(feld.y_pct) || 0;
+    loopGeister.forEach(({ el, n }) => {
+      if (feld.loop_y_offsets && feld.loop_y_offsets[n] != null) return;
+      el.style.top = ((yBase + (n + 1) * delta) * 100) + "%";
+    });
+  }
 });
 
-let loopGeister = [];
+let loopGeister = [];      // [{el, n}]
 let loopGeisterAktiv = false;
+let loopGeistFeld  = null;  // aktuelles Feld für das Geister angezeigt werden
+let loopGeistWrap  = null;
 
 function entferneLoopGeister() {
-  loopGeister.forEach(g => g.remove());
+  loopGeister.forEach(item => item.el.remove());
   loopGeister = [];
   loopGeisterAktiv = false;
+  loopGeistFeld = null;
+  loopGeistWrap = null;
+}
+
+function erstelleGeist(feld, wrap, n) {
+  if (loopGeister.find(item => item.n === n)) return;  // bereits vorhanden
+  const delta = (parseFloat(feld.loop_zeile_pct) || 0) / 100;
+  const xPct  = parseFloat(feld.x_pct) || 0;
+  const yPct  = parseFloat(feld.y_pct) || 0;
+  if (!feld.loop_y_offsets) feld.loop_y_offsets = [];
+  const yN = feld.loop_y_offsets[n] != null
+    ? feld.loop_y_offsets[n]
+    : yPct + (n + 1) * delta;
+  const g = document.createElement("div");
+  g.className = "koord-badge-geist";
+  g.textContent = `${feld.label || feld.id} [${n + 2}]`;
+  g.style.left = (xPct * 100) + "%";
+  g.style.top  = (yN   * 100) + "%";
+  // Doppelklick → nächsten Geist erzeugen
+  g.addEventListener("dblclick", (ev) => { ev.stopPropagation(); erstelleGeist(feld, wrap, n + 1); });
+  makeGeistDraggable(g, feld, n, wrap);
+  wrap.appendChild(g);
+  loopGeister.push({ el: g, n });
+  loopGeisterAktiv = true;
 }
 
 function makeGeistDraggable(g, feld, n, wrap) {
@@ -1416,26 +1477,9 @@ function makeGeistDraggable(g, feld, n, wrap) {
 
 function zeigeLoopGeister(feld, wrap) {
   entferneLoopGeister();
-  const delta = (parseFloat(feld.loop_zeile_pct) || 0) / 100;
-  const xPct  = parseFloat(feld.x_pct) || 0;
-  const yPct  = parseFloat(feld.y_pct) || 0;
-  if (!feld.loop_y_offsets) feld.loop_y_offsets = [];
-  const MAX_GEISTER = 7;
-  for (let n = 0; n < MAX_GEISTER; n++) {
-    const yN = feld.loop_y_offsets[n] != null
-      ? feld.loop_y_offsets[n]
-      : yPct + (n + 1) * delta;
-    if (yN > 1.02 && feld.loop_y_offsets[n] == null) break;
-    const g = document.createElement("div");
-    g.className = "koord-badge-geist";
-    g.textContent = `${feld.label || feld.id} [${n + 2}]`;
-    g.style.left = (xPct * 100) + "%";
-    g.style.top  = (yN   * 100) + "%";
-    makeGeistDraggable(g, feld, n, wrap);
-    wrap.appendChild(g);
-    loopGeister.push(g);
-  }
-  loopGeisterAktiv = true;
+  loopGeistFeld = feld;
+  loopGeistWrap = wrap;
+  erstelleGeist(feld, wrap, 0);  // nur den ersten Geist zeigen
 }
 
 function koordModeEin() {
@@ -1550,10 +1594,11 @@ async function koordSpeichern() {
 
   const payload = alleFelder()
     .filter(f => {
-      const hasMain = (parseFloat(f.x_pct) || 0) !== 0 || (parseFloat(f.y_pct) || 0) !== 0;
-      const hasOpt  = f.optionen_koord && Object.keys(f.optionen_koord).length > 0;
-      const hasAcro = !!(f.acroform_name || f.vorlage);
-      return hasMain || hasOpt || hasAcro;
+      const hasMain    = (parseFloat(f.x_pct) || 0) !== 0 || (parseFloat(f.y_pct) || 0) !== 0;
+      const hasOpt     = f.optionen_koord && Object.keys(f.optionen_koord).length > 0;
+      const hasAcro    = !!(f.acroform_name || f.vorlage);
+      const wurdeGeloescht = geloeschteKoordFelder.has(f.id);
+      return hasMain || hasOpt || hasAcro || wurdeGeloescht;
     })
     .map(f => ({
       id: f.id,
@@ -1581,6 +1626,7 @@ async function koordSpeichern() {
     });
     const data = await resp.json();
     if (data.ok) {
+      geloeschteKoordFelder.clear();
       btn.textContent = "✓ Gespeichert";
       btn.classList.replace("btn-success", "btn-outline-success");
       setTimeout(() => {

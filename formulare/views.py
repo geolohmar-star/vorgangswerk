@@ -1679,6 +1679,8 @@ def pfad_acroform_pruefen(request, pk):
             return JsonResponse({"ok": False, "fehler": "Ungültiges JSON"}, status=400)
 
         vorlagen = _json.loads(request.POST.get("vorlagen", "{}"))
+        ignoriert = _json.loads(request.POST.get("ignoriert", "[]"))
+
         for schritt in pfad.schritte.all():
             mapping = zuordnungen.get(str(schritt.pk), {})
             vmap = vorlagen.get(str(schritt.pk), {})
@@ -1701,6 +1703,14 @@ def pfad_acroform_pruefen(request, pk):
             if geaendert:
                 schritt.felder_json = felder
                 schritt.save(update_fields=["felder_json"])
+
+        # Ignorierte AcroForm-Felder in der Analyse speichern
+        if isinstance(ignoriert, list):
+            import copy as _copy
+            ergebnis = _copy.deepcopy(analyse.ergebnis_json or {})
+            ergebnis["ignorierte_acroform_felder"] = ignoriert
+            analyse.ergebnis_json = ergebnis
+            analyse.save(update_fields=["ergebnis_json"])
 
         return JsonResponse({"ok": True})
 
