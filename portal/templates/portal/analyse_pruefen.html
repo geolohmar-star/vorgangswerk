@@ -190,13 +190,30 @@ input[type="checkbox"].form-check-input { cursor: pointer; }
   opacity: .85;
   pointer-events: none;
 }
-/* Option-Badge (violett, Ankreuzfeld): Anker in der Mitte */
+/* Option-Badge (violett, Ankreuzfeld): Pin-Form – Spitze = Kreuz-Mittelpunkt */
 .koord-badge.option-badge {
-  transform: translate(-50%, -50%);
-  border-radius: 50%;
+  transform: translate(-50%, calc(-100% - 8px));
+  border-radius: 4px;
   padding: 2px 6px;
+  background: #6f42c1 !important;
+  overflow: visible;
 }
-.koord-badge.option-badge::after { display: none; }
+.koord-badge.option-badge.aktiv { background: #198754 !important; }
+.koord-badge.option-badge.aktiv::after { border-top-color: #198754 !important; }
+.koord-badge.option-badge::after {
+  display: block;
+  content: '';
+  position: absolute;
+  bottom: -8px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 0; height: 0;
+  border-top: 8px solid #6f42c1;
+  border-left: 7px solid transparent;
+  border-right: 7px solid transparent;
+  border-bottom: none;
+  pointer-events: none;
+}
 #koord-hinweis {
   background: #cfe2ff;
   border-bottom: 2px solid #0d6efd;
@@ -1242,7 +1259,7 @@ function erstelleOptionBadge(feld, optionWert, wrap, xPct, yPct) {
   const badge = document.createElement("div");
   badge.className = "koord-badge option-badge";
   badge.style.background = "#6f42c1";
-  badge.textContent = `☑ ${optionWert}`;
+  badge.textContent = `✕ ${optionWert}`;
   badge.style.left = (xPct * 100) + "%";
   badge.style.top  = (yPct * 100) + "%";
   badge.title = `${feld.id} → ${optionWert}\n☑ Mitte-Anker (X wird zentriert gezeichnet)\nx: ${xPct.toFixed(3)}, y: ${yPct.toFixed(3)}`;

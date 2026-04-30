@@ -288,6 +288,7 @@ def fuelle_acroform(
     btn_map: dict[str, str] = {}           # AcroForm-Btn-Feld → on-state oder "/Off"
     overflow_eintraege: list[dict] = []    # Daten ohne AcroForm-Slot
     sig_eintraege: dict[int, list[dict]] = {}  # page → [{x_pct, y_pct, bild_b64}]
+    badge_eintraege: dict[int, list[dict]] = {}  # page → [{x_pct, y_pct, custom:True, wert}]
 
     for schritt in schritte:
         loop_bez = getattr(schritt, "loop_bezeichnung", "") or ""
@@ -315,6 +316,19 @@ def fuelle_acroform(
             else:
                 wert_roh = str(gesammelte_daten.get(feld_id, "")).strip()
 
+            # ── Badge-Overlay für Felder mit Koordinaten aber ohne AcroForm ──
+            if not acroform_name and wert_roh and typ not in ("signatur", "checkboxen", "radio", "bool", "einwilligung"):
+                _xb = float(feld.get("x_pct") or 0)
+                _yb = float(feld.get("y_pct") or 0)
+                if _xb != 0 or _yb != 0:
+                    _sb = int(feld.get("seite_nr") or 0)
+                    badge_eintraege.setdefault(_sb, []).append({
+                        "x_pct": _xb, "y_pct": _yb,
+                        "w_pct": 0, "h_pct": 0.03,
+                        "custom": True,
+                        "wert": _format_wert(wert_roh),
+                    })
+
             # ── Signatur: Koordinaten für Bild-Overlay merken ───────────────
             if typ == "signatur":
                 x_sig = float(feld.get("x_pct") or 0)
@@ -333,6 +347,28 @@ def fuelle_acroform(
 
             # ── Checkbox / Radio / Bool: per Optionstexten matchen ─────────
             if typ in ("checkboxen", "radio", "bool", "einwilligung"):
+                optionen_koord = feld.get("optionen_koord") or {}
+
+                # Koordinaten-Overlay wenn optionen_koord gesetzt (kein AcroForm nötig)
+                if optionen_koord and not acroform_name:
+                    if typ in ("bool", "einwilligung"):
+                        is_true = wert_roh.lower() in _TRUTHY
+                        koord = optionen_koord.get("ja" if is_true else "nein") or {}
+                        ox, oy = float(koord.get("x_pct") or 0), float(koord.get("y_pct") or 0)
+                        os_ = int(koord.get("seite_nr") or 0)
+                        if ox != 0 or oy != 0:
+                            badge_eintraege.setdefault(os_, []).append({"x_pct": ox, "y_pct": oy, "wert": "X", "zentriert": True})
+                    else:
+                        norm_wert = _norm(wert_roh)
+                        gewaehlte = {_norm(v.strip()) for v in wert_roh.split(",")} if typ == "checkboxen" else {norm_wert}
+                        for opt_label, koord in optionen_koord.items():
+                            if _norm(opt_label) in gewaehlte:
+                                ox, oy = float(koord.get("x_pct") or 0), float(koord.get("y_pct") or 0)
+                                os_ = int(koord.get("seite_nr") or 0)
+                                if ox != 0 or oy != 0:
+                                    badge_eintraege.setdefault(os_, []).append({"x_pct": ox, "y_pct": oy, "wert": "X", "zentriert": True})
+                    continue
+
                 if typ in ("bool", "einwilligung"):
                     selected_set = {_norm(acroform_name)} if wert_roh.lower() in _TRUTHY else set()
                     search_list = [acroform_name]
@@ -553,6 +589,8 @@ def fuelle_acroform(
 
     for p, entries in sig_eintraege.items():
         text_eintraege.setdefault(p, []).extend(entries)
+    for p, entries in badge_eintraege.items():
+        text_eintraege.setdefault(p, []).extend(entries)
 
     if text_eintraege:
         try:
@@ -579,6 +617,12 @@ def fuelle_acroform(
                 c.setFillColorRGB(0, 0, 0)
                 for e in eintraege:
                     x_pt = e["x_pct"] * pw + 2
+                    if e.get("zentriert"):
+                        # X-Kreuz: exakt auf Pin-Spitze zentrieren (kein Offset)
+                        cx = e["x_pct"] * pw
+                        cy = ph - e["y_pct"] * ph - FONT_SIZE * 0.3
+                        c.drawCentredString(cx, cy, e["wert"])
+                        continue
                     if "bild_b64" in e:
                         import base64 as _b64
                         from reportlab.lib.utils import ImageReader as _IR
