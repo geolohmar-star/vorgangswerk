@@ -270,9 +270,11 @@ input[type="checkbox"].form-check-input { cursor: pointer; }
         <span id="zoom-label" class="small" style="min-width:3rem;text-align:center;">100%</span>
         <button type="button" class="btn btn-outline-secondary btn-sm px-2" id="zoom-in" title="Vergrößern">&#43;</button>
         <button type="button" class="btn btn-outline-secondary btn-sm px-2" id="zoom-reset" title="Zurücksetzen">&#8634;</button>
-        <a href="{% url 'portal:analyse_diagnose_pdf' analyse.pk %}" class="btn btn-outline-secondary btn-sm ms-1" title="PDF mit eingetragenen Feldnamen herunterladen">
-          &#128196; Diagnose
-        </a>
+        <label class="btn btn-outline-secondary btn-sm ms-1 mb-0" title="Modifiziertes Original-PDF hochladen (ersetzt die Vorlage zum Befüllen)" style="cursor:pointer">
+          &#128196; PDF&nbsp;tauschen
+          <input type="file" id="pdf-swap-inp" accept=".pdf" style="display:none">
+        </label>
+        <span id="pdf-swap-status" class="small ms-1" style="display:none"></span>
         <button type="button" class="btn btn-outline-warning btn-sm ms-1" id="koord-toggle" title="Positionen der Overlay-Felder visuell anpassen">
           &#128205; Positionen
         </button>
@@ -368,9 +370,10 @@ input[type="checkbox"].form-check-input { cursor: pointer; }
           Jetzt importieren &rarr;
         </button>
         {% endif %}
-        <a href="{% url 'portal:analyse_diagnose_pdf' analyse.pk %}" class="btn btn-outline-secondary btn-lg" title="PDF mit eingetragenen Feldnamen herunterladen">
-          &#128196; Diagnose-PDF
-        </a>
+        <label class="btn btn-outline-secondary btn-lg mb-0" title="Modifiziertes Original-PDF hochladen (ersetzt die Vorlage zum Befüllen)" style="cursor:pointer">
+          &#128196; PDF&nbsp;tauschen
+          <input type="file" id="pdf-swap-inp-bottom" accept=".pdf" style="display:none">
+        </label>
         <a href="{% url 'portal:analyse_detail' analyse.pk %}" class="btn btn-outline-secondary btn-lg">
           Zurück
         </a>
@@ -392,6 +395,8 @@ const ACROFORM_RECTS = {{ acroform_rects_json|safe }};
 const FELDER_JSON_URL = "{% url 'portal:analyse_felder_json' analyse.pk %}";
 const SEITE_PNG_URL_TMPL = "{% url 'portal:analyse_seite_png' analyse.pk 999 %}".replace("/999.png", "/{n}.png");
 const KOORD_SPEICHERN_URL = "{% url 'portal:analyse_koordinaten_speichern' analyse.pk %}";
+const UPLOAD_PDF_URL = "{% url 'portal:analyse_original_pdf_upload' analyse.pk %}";
+const CSRF_TOKEN = "{{ csrf_token }}";
 const PDF_FONT_INIT = {{ pdf_font_json|safe }};
 
 const TYPEN = [
@@ -809,6 +814,13 @@ function feldZeile(feld) {
   pflichtWrap.append(pflichtCb);
   row.append(pflichtWrap);
 
+  // Permanente Vorlage-Vorschau (immer sichtbar wenn Vorlage gesetzt)
+  const vorlageChip = el("div", {
+    class: "font-monospace",
+    style: "font-size:.65rem; color:#084298; margin-top:2px;" + (feld.vorlage ? "" : " display:none;"),
+  });
+  vorlageChip.textContent = feld.vorlage ? `⊕ ${feld.vorlage}` : "";
+
   // Vorlage-Builder (Nummern eingeben)
   const vorlageRowId = `vr_${feld.id}`;
   const vorlageBtn = el("button", {
@@ -838,18 +850,43 @@ function feldZeile(feld) {
     placeholder: "Nummern eingeben, z.B.  3 4  oder  3, 4",
     style: "font-family:monospace;",
   });
+  // Nummern vorbelegen wenn Vorlage bereits gesetzt
+  if (feld.vorlage) {
+    nrInp.value = [...feld.vorlage.matchAll(/\{(\w+)\}/g)]
+      .map(m => _feldNrMap[m[1]]).filter(Boolean).join(" ");
+  }
 
   // Vorschau
   const vorschau = el("div", {
     class: "small mt-1 p-1 rounded font-monospace",
     style: "background:#f0f4ff; min-height:1.4rem; border:1px solid #b8caff; color:#084298;",
   });
+  vorschau.textContent = feld.vorlage || "–";
 
   function vorlageAktualisieren() {
     feld.vorlage = vorlageAusNummern(nrInp.value);
     vorschau.textContent = feld.vorlage || "–";
     vorlageBtn.classList.toggle("btn-warning", !!feld.vorlage);
     vorlageBtn.classList.toggle("btn-outline-secondary", !feld.vorlage);
+    // Chip aktualisieren
+    vorlageChip.textContent = feld.vorlage ? `⊕ ${feld.vorlage}` : "";
+    vorlageChip.style.display = feld.vorlage ? "" : "none";
+    // Felder die in dieser Vorlage vorkommen → AcroForm-Zuordnung leeren
+    if (feld.vorlage) {
+      const verwendeteIds = new Set([...feld.vorlage.matchAll(/\{(\w+)\}/g)].map(m => m[1]));
+      document.querySelectorAll(".acro-input").forEach(inp => {
+        const wrapperEl = inp.closest("[data-feld-id]");
+        if (wrapperEl && verwendeteIds.has(wrapperEl.dataset.feldId)) {
+          inp.value = "";
+          wrapperEl.setAttribute("data-acroform", "");
+          // state-Objekt leeren
+          for (const s of (state.schritte || [])) {
+            const f = (s.felder_json || []).find(f => f.id === wrapperEl.dataset.feldId);
+            if (f) { f.acroform_name = ""; break; }
+          }
+        }
+      });
+    }
   }
   nrInp.addEventListener("input", vorlageAktualisieren);
 
@@ -871,17 +908,9 @@ function feldZeile(feld) {
     trennerWrap.append(btn);
   }
 
-  // Beim Öffnen aktuelle Nummern rekonstruieren
   vorlageBtn.addEventListener("click", () => {
     const offen = vorlageRow.style.display !== "none";
     vorlageRow.style.display = offen ? "none" : "";
-    if (!offen && feld.vorlage) {
-      // Vorlage → Nummern zurückrechnen für Anzeige
-      const nrs = [...feld.vorlage.matchAll(/\{(\w+)\}/g)]
-        .map(m => _feldNrMap[m[1]]).filter(Boolean).join(" ");
-      nrInp.value = nrs;
-      vorschau.textContent = feld.vorlage;
-    }
   });
   row.append(vorlageBtn);
 
@@ -892,7 +921,7 @@ function feldZeile(feld) {
     el("div", { class: "small text-muted mt-1" }, "Ergebnis:"),
     vorschau,
   );
-  wrapper.append(vorlageRow);
+  wrapper.append(vorlageChip, vorlageRow);
 
   // Pin-Button (nur im Koordinaten-Modus sichtbar)
   const pinBtn = el("button", {
@@ -1688,6 +1717,41 @@ ladePdfViewer();
   document.getElementById("zoom-reset").addEventListener("click", () => {
     idx = 2; applyZoom();
   });
+})();
+
+// ---- PDF tauschen ----
+(function() {
+  function setupSwap(inpId, statusId) {
+    const inp = document.getElementById(inpId);
+    if (!inp) return;
+    const status = statusId ? document.getElementById(statusId) : null;
+    inp.addEventListener("change", async () => {
+      const file = inp.files[0];
+      if (!file) return;
+      if (status) { status.textContent = "⏳ Hochladen…"; status.style.display = ""; status.style.color = "#6c757d"; }
+      const fd = new FormData();
+      fd.append("pdf_original", file);
+      fd.append("csrfmiddlewaretoken", CSRF_TOKEN);
+      try {
+        const r = await fetch(UPLOAD_PDF_URL, {
+          method: "POST",
+          headers: { "X-Requested-With": "XMLHttpRequest" },
+          body: fd,
+        });
+        const d = await r.json();
+        if (d.ok) {
+          if (status) { status.textContent = "✓ Gespeichert"; status.style.color = "#198754"; setTimeout(() => { status.style.display = "none"; }, 3000); }
+        } else {
+          if (status) { status.textContent = "✗ " + (d.fehler || "Fehler"); status.style.color = "#dc3545"; }
+        }
+      } catch {
+        if (status) { status.textContent = "✗ Netzwerkfehler"; status.style.color = "#dc3545"; }
+      }
+      inp.value = "";
+    });
+  }
+  setupSwap("pdf-swap-inp", "pdf-swap-status");
+  setupSwap("pdf-swap-inp-bottom", null);
 })();
 </script>
 {% endblock %}

@@ -498,11 +498,16 @@ def analyse_original_pdf_upload(request, pk):
 
     pdf_bytes = datei.read()
     if not pdf_bytes.startswith(b"%PDF"):
+        if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+            return JsonResponse({"ok": False, "fehler": "Die Datei ist kein gültiges PDF."}, status=400)
         messages.error(request, "Die Datei ist kein gültiges PDF.")
         return redirect(reverse("portal:analyse_detail", args=[pk]))
 
     analyse.pdf_original = pdf_bytes
     analyse.save(update_fields=["pdf_original"])
+
+    if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+        return JsonResponse({"ok": True})
     messages.success(request, "Original-PDF gespeichert. Es wird beim Befüllen verwendet.")
     return redirect(reverse("portal:analyse_detail", args=[pk]))
 

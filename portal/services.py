@@ -383,7 +383,7 @@ Erstelle eine JSON-Pfad-Definition mit exakt dieser Struktur:
 - radio: Einfachauswahl (Pflicht: "optionen": ["Option A", "Option B"])
 - checkboxen: Mehrfachauswahl (Pflicht: "optionen": ["Option A", "Option B"])
 - bool: Einzelne Checkbox (ja/nein)
-- signatur: Unterschriftsfeld
+- signatur: Unterschriftsfeld. Erkenne Unterschriftsbereiche visuell: Linien oder Kästen mit Labels wie „Unterschrift", „Datum, Unterschrift", „Ort, Datum, Unterschrift", „Stempel und Unterschrift", „Rechtsverbindliche Unterschrift" u.ä. – auch wenn kein AcroForm-[Sig]-Feld existiert. Setze x_pct/y_pct auf die Mitte des Unterschriftsbereichs. Wenn ein AcroForm-[Sig]-Feld vorhanden ist, trage dessen Namen als acroform_name ein.
 - einwilligung: Zustimmungstext (Pflicht: "text": "Ich stimme zu...")
 - textblock: Informationstext (Pflicht: "text": "Hinweistext...")
 - abschnitt: Abschnittsüberschrift (Pflicht: "text": "Überschrift")
@@ -416,7 +416,7 @@ Falls das PDF ein Test, eine Prüfung oder eine Einweisung mit Wissensfragen ist
 - Markiere echte Pflichtfelder mit pflicht:true
 - FIM-IDs: F60000003=Vorname, F60000004=Nachname, F60000022=Straße, F60000024=PLZ, F60000025=Ort, F60000030=E-Mail, F60000031=Telefon, F60000060=Datum
 - Enthält ein Feld fim_id F60000022 (Straße) aber der Label lautet "Straße, Hausnummer" oder ähnlich → Variante C anwenden und aufteilen
-- Der letzte Schritt (ist_ende:true) enthält ein "zusammenfassung"-Feld und optional "signatur"
+- Der letzte Schritt (ist_ende:true) enthält ein "zusammenfassung"-Feld und optional "signatur". Hat das Formular einen Unterschriftsbereich, füge dort immer ein signatur-Feld ein – auch wenn keine [Sig]-AcroForm-Feld existiert.
 - Ohne visuelle Gruppen: 3-8 Schritte nach Themen, pos_y +150 pro Schritt
 
 Antworte AUSSCHLIESSLICH mit dem JSON-Objekt. Kein Text davor oder danach."""

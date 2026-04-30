@@ -1840,6 +1840,34 @@ def pfad_acroform_pruefen(request, pk):
         vorlagen = _json.loads(request.POST.get("vorlagen", "{}"))
         ignoriert = _json.loads(request.POST.get("ignoriert", "[]"))
 
+        # AcroForm-Feldtypen aus dem PDF lesen (einmalig)
+        _btn_felder: set = set()
+        try:
+            from pypdf import PdfReader as _PDFReader
+            import io as _io
+            _pdf_bytes = bytes(analyse.pdf_original or analyse.pdf_inhalt or b"")
+            if _pdf_bytes:
+                _rdr = _PDFReader(_io.BytesIO(_pdf_bytes))
+                for _page in _rdr.pages:
+                    for _ref in (_page.get("/Annots") or []):
+                        try:
+                            _obj = _ref.get_object()
+                            _ft = _obj.get("/FT")
+                            if not _ft and _obj.get("/Parent"):
+                                _ft = _obj.get("/Parent").get_object().get("/FT")
+                            if str(_ft) == "/Btn":
+                                _t = _obj.get("/T")
+                                if not _t and _obj.get("/Parent"):
+                                    _t = _obj.get("/Parent").get_object().get("/T")
+                                if _t:
+                                    _btn_felder.add(str(_t))
+                        except Exception:
+                            pass
+        except Exception:
+            pass
+
+        _TEXT_TYPEN = {"text", "datum", "zahl", "email", "tel", "textarea", "systemfeld"}
+
         for schritt in pfad.schritte.all():
             mapping = zuordnungen.get(str(schritt.pk), {})
             vmap = vorlagen.get(str(schritt.pk), {})
@@ -1850,7 +1878,12 @@ def pfad_acroform_pruefen(request, pk):
             for feld in felder:
                 fid = feld.get("id", "")
                 if fid in mapping:
-                    feld["acroform_name"] = mapping[fid]
+                    neuer_name = mapping[fid]
+                    # Typ-Mismatch: Textfeld bekommt /Btn-Feldnamen → leeren
+                    if neuer_name and feld.get("typ", "text") in _TEXT_TYPEN and neuer_name in _btn_felder:
+                        mapping[fid] = ""
+                        neuer_name = ""
+                    feld["acroform_name"] = neuer_name
                     geaendert = True
                 if fid in vmap:
                     v = vmap[fid]
@@ -1908,7 +1941,7 @@ def pfad_acroform_pruefen(request, pk):
         "schritte_json": _json.dumps(schritte_daten, ensure_ascii=False),
         "felder_json_url": f"/portal/analyse/{analyse.pk}/felder.json",
         "seite_png_url_tmpl": f"/portal/analyse/{analyse.pk}/seite/{{n}}.png",
-        "diagnose_pdf_url": f"/portal/analyse/{analyse.pk}/diagnose-pdf/",
+        "original_pdf_upload_url": f"/portal/analyse/{analyse.pk}/original-pdf-upload/",
         "baseline_offset": _baseline_offset,
     })
 

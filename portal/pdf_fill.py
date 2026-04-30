@@ -332,8 +332,8 @@ def fuelle_acroform(
                 continue
 
             # ── Checkbox / Radio / Bool: per Optionstexten matchen ─────────
-            if typ in ("checkboxen", "radio", "bool"):
-                if typ == "bool":
+            if typ in ("checkboxen", "radio", "bool", "einwilligung"):
+                if typ in ("bool", "einwilligung"):
                     selected_set = {_norm(acroform_name)} if wert_roh.lower() in _TRUTHY else set()
                     search_list = [acroform_name]
                 elif typ == "radio":

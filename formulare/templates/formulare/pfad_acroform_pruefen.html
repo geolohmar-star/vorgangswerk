@@ -73,7 +73,11 @@
         <span id="zoom-label" class="small" style="min-width:3rem;text-align:center;">100%</span>
         <button type="button" class="btn btn-outline-secondary btn-sm px-2" id="zoom-in">&#43;</button>
         <button type="button" class="btn btn-outline-secondary btn-sm px-2" id="zoom-reset">&#8634;</button>
-        <a href="{{ diagnose_pdf_url }}" target="_blank" class="btn btn-outline-secondary btn-sm ms-1">&#128196; Diagnose</a>
+        <label class="btn btn-outline-secondary btn-sm ms-1 mb-0" title="Modifiziertes Original-PDF hochladen (ersetzt die Vorlage zum Befüllen)" style="cursor:pointer">
+          &#128196; PDF&nbsp;tauschen
+          <input type="file" id="pdf-swap-inp" accept=".pdf" style="display:none">
+        </label>
+        <span id="pdf-swap-status" class="small ms-1" style="display:none"></span>
       </div>
     </div>
     <div id="link-hinweis">&#8594; Klick auf PDF-Feld um es zuzuweisen</div>
@@ -110,11 +114,12 @@
 
 {% block extra_js %}
 <script>
-const SCHRITTE   = {{ schritte_json|safe }};
-const FELDER_URL = "{{ felder_json_url }}";
-const SEITE_TMPL = "{{ seite_png_url_tmpl }}";
-const SAVE_URL   = "{% url 'formulare:pfad_acroform_pruefen' pfad.pk %}";
-const CSRF       = "{{ csrf_token }}";
+const SCHRITTE        = {{ schritte_json|safe }};
+const FELDER_URL      = "{{ felder_json_url }}";
+const SEITE_TMPL      = "{{ seite_png_url_tmpl }}";
+const SAVE_URL        = "{% url 'formulare:pfad_acroform_pruefen' pfad.pk %}";
+const UPLOAD_PDF_URL  = "{{ original_pdf_upload_url }}";
+const CSRF            = "{{ csrf_token }}";
 
 let pdfFelder = [], pdfSeiten = [], sortiert = [];
 const acroRects = {};
@@ -454,6 +459,16 @@ document.getElementById("speichern-btn").addEventListener("click", async () => {
     if (!vorlagen[s]) vorlagen[s] = {};
     vorlagen[s][f] = inp.value.trim();
   });
+  // Felder die in einer Vorlage eines anderen Felds vorkommen ({feld_id}) brauchen
+  // keine eigene AcroForm-Zuordnung – sie sind bereits durch die Vorlage abgedeckt.
+  const inVorlage = new Set();
+  Object.values(vorlagen).forEach(sv => Object.values(sv).forEach(v => {
+    if (v) for (const m of v.matchAll(/\{(\w+)\}/g)) inVorlage.add(m[1]);
+  }));
+  Object.values(zuordnungen).forEach(sv =>
+    Object.keys(sv).forEach(fid => { if (inVorlage.has(fid)) sv[fid] = ""; })
+  );
+
   const fd = new FormData();
   fd.append("zuordnungen", JSON.stringify(zuordnungen));
   fd.append("vorlagen", JSON.stringify(vorlagen));
@@ -476,6 +491,43 @@ document.getElementById("speichern-btn").addEventListener("click", async () => {
   document.getElementById("zoom-in").onclick=()=>{if(idx<STUFEN.length-1){idx++;apply();}};
   document.getElementById("zoom-out").onclick=()=>{if(idx>0){idx--;apply();}};
   document.getElementById("zoom-reset").onclick=()=>{idx=2;apply();};
+})();
+
+// ---- PDF tauschen ----
+(function() {
+  const inp = document.getElementById("pdf-swap-inp");
+  const status = document.getElementById("pdf-swap-status");
+  if (!inp) return;
+  inp.addEventListener("change", async () => {
+    const file = inp.files[0];
+    if (!file) return;
+    status.textContent = "⏳ Hochladen…";
+    status.style.display = "";
+    status.style.color = "#6c757d";
+    const fd = new FormData();
+    fd.append("pdf_original", file);
+    fd.append("csrfmiddlewaretoken", CSRF);
+    try {
+      const r = await fetch(UPLOAD_PDF_URL, {
+        method: "POST",
+        headers: { "X-Requested-With": "XMLHttpRequest" },
+        body: fd,
+      });
+      const d = await r.json();
+      if (d.ok) {
+        status.textContent = "✓ Gespeichert";
+        status.style.color = "#198754";
+        setTimeout(() => { status.style.display = "none"; }, 3000);
+      } else {
+        status.textContent = "✗ " + (d.fehler || "Fehler");
+        status.style.color = "#dc3545";
+      }
+    } catch (e) {
+      status.textContent = "✗ Netzwerkfehler";
+      status.style.color = "#dc3545";
+    }
+    inp.value = "";
+  });
 })();
 
 buildEditor();
