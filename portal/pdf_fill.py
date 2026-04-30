@@ -131,6 +131,48 @@ def _checkbox_on_states(pdf_bytes: bytes) -> dict[str, str]:
     return result
 
 
+def _radio_group_states(pdf_bytes: bytes) -> dict[str, list[str]]:
+    """Gibt {feldname: [state0, state1, ...]} für Radio-Gruppen zurück.
+
+    Für Radio-Buttons teilen sich alle Optionen einen Feldnamen; jede Annotation
+    hat einen eigenen Appearance-State (/0, /1, /2 oder /Auswahl1, /Auswahl2 …).
+    Die Reihenfolge entspricht der Seitenreihenfolge der Annotationen.
+    """
+    from pypdf import PdfReader
+    reader = PdfReader(io.BytesIO(pdf_bytes))
+    result: dict[str, list[str]] = {}
+    for page in reader.pages:
+        for ref in (page.get("/Annots") or []):
+            try:
+                obj = ref.get_object()
+                ft = obj.get("/FT")
+                if ft != "/Btn":
+                    parent = obj.get("/Parent")
+                    if parent:
+                        ft = parent.get_object().get("/FT")
+                if ft != "/Btn":
+                    continue
+                name = str(obj.get("/T", ""))
+                if not name:
+                    parent = obj.get("/Parent")
+                    if parent:
+                        name = str(parent.get_object().get("/T", ""))
+                if not name:
+                    continue
+                ap = obj.get("/AP", {})
+                n = ap.get("/N")
+                if not n:
+                    continue
+                n_obj = n.get_object()
+                for key in n_obj.keys():
+                    if str(key) != "/Off":
+                        result.setdefault(name, []).append(str(key))
+                        break
+            except Exception:
+                pass
+    return result
+
+
 def _flatten_pdf(pdf_bytes: bytes, dpi: int = 150) -> bytes:
     """Rendert jede Seite als Bild → neues PDF ohne editierbare Felder."""
     try:
@@ -233,6 +275,7 @@ def fuelle_acroform(
 
     # Checkbox-On-States vorab ermitteln (einmalig)
     on_states = _checkbox_on_states(pdf_bytes)
+    radio_states = _radio_group_states(pdf_bytes)  # alle States je Radio-Gruppe
 
     # Normalisierter Lookup: bereinigter Name → echter AcroForm-Feldname
     # (AcroForm-Namen sind Optionstexte ohne Sonderzeichen)
@@ -293,8 +336,19 @@ def fuelle_acroform(
                 if typ == "bool":
                     selected_set = {_norm(acroform_name)} if wert_roh.lower() in _TRUTHY else set()
                     search_list = [acroform_name]
+                elif typ == "radio":
+                    # Radio-Gruppe: gewählten Index → Appearance-State des PDF
+                    if acroform_name and optionen:
+                        norm_wert = _norm(wert_roh.strip())
+                        for idx, opt in enumerate(optionen):
+                            if _norm(opt) == norm_wert:
+                                states = radio_states.get(acroform_name, [])
+                                if idx < len(states):
+                                    btn_map[acroform_name] = states[idx]
+                                break
+                    continue
                 else:
-                    # Wert ist kommagetrennte Liste gewählter Optionen
+                    # checkboxen: mehrere PDF-Felder, je ein Feldname pro Option
                     selected_set = {_norm(v.strip()) for v in wert_roh.split(",") if v.strip()}
                     search_list = optionen or [acroform_name]
 
@@ -384,21 +438,69 @@ def fuelle_acroform(
     # Tx-Feld-Positionen vorab aus AcroForm lesen (für reportlab-Overlay)
     tx_rects = _extract_text_field_rects(pdf_bytes)
 
-    # Nur Checkbox-/Radio-Felder per AcroForm setzen (Text via reportlab, s.u.)
-    checkbox_map = {k: v for k, v in final_map.items() if k in on_states}
+    # Checkbox-/Radio-Felder per AcroForm setzen
+    from pypdf.generic import NameObject as _NO, BooleanObject as _BO
+    radio_btn_names = set()
+
+    # Radio-Gruppen: /AS auf Widget-Annotationen + /V auf Parent-Feld setzen
+    radio_entries = {k: v for k, v in btn_map.items() if k in radio_states and len(radio_states[k]) > 1}
     reader = PdfReader(io.BytesIO(pdf_bytes))
+    if radio_entries:
+        # /V am AcroForm-Root-Feld setzen
+        try:
+            acroform = reader.trailer["/Root"].get_object().get("/AcroForm", {}).get_object()
+            for ref in (acroform.get("/Fields") or []):
+                f = ref.get_object()
+                fname = str(f.get("/T", ""))
+                if fname in radio_entries:
+                    f[_NO("/V")] = _NO(radio_entries[fname])
+        except Exception as exc:
+            logger.warning("fuelle_acroform: Radio /V Root-Fehler – %s", exc)
+
+        # /AS auf jeder Widget-Annotation setzen
+        for page in reader.pages:
+            for ref in (page.get("/Annots") or []):
+                try:
+                    obj = ref.get_object()
+                    t = obj.get("/T")
+                    if not t and obj.get("/Parent"):
+                        t = obj.get("/Parent").get_object().get("/T")
+                    field_name = str(t) if t else ""
+                    if field_name not in radio_entries:
+                        continue
+                    selected_state = radio_entries[field_name]
+                    ap = obj.get("/AP", {})
+                    n_obj_ref = ap.get("/N")
+                    if not n_obj_ref:
+                        continue
+                    n_obj = n_obj_ref.get_object()
+                    annotation_on_state = next(
+                        (str(k) for k in n_obj.keys() if str(k) != "/Off"), None
+                    )
+                    if annotation_on_state is None:
+                        continue
+                    new_as = annotation_on_state if annotation_on_state == selected_state else "/Off"
+                    obj[_NO("/AS")] = _NO(new_as)
+                    radio_btn_names.add(field_name)
+                except Exception as exc:
+                    logger.warning("fuelle_acroform: Radio-Annotation-Fehler – %s", exc)
+
     writer = PdfWriter()
     writer.append(reader)
     if btn_map:
-        for page in writer.pages:
-            try:
-                writer.update_page_form_field_values(page, btn_map, auto_regenerate=False)
-            except Exception as exc:
-                logger.warning("fuelle_acroform: Checkbox-Fehler – %s", exc)
-        from pypdf.generic import BooleanObject, NameObject
+        # Checkboxen (non-radio) per pypdf update
+        checkbox_only = {k: v for k, v in btn_map.items() if k not in radio_entries}
+        if checkbox_only:
+            for page in writer.pages:
+                try:
+                    writer.update_page_form_field_values(page, checkbox_only, auto_regenerate=False)
+                except Exception as exc:
+                    logger.warning("fuelle_acroform: Checkbox-Fehler – %s", exc)
+
         if "/AcroForm" in writer._root_object:
-            writer._root_object["/AcroForm"][NameObject("/NeedAppearances")] = BooleanObject(True)
-        logger.info("fuelle_acroform: %d Btn-Felder gesetzt", len(btn_map))
+            writer._root_object["/AcroForm"][_NO("/NeedAppearances")] = _BO(True)
+        logger.info("fuelle_acroform: %d Btn-Felder gesetzt (%d Radio-Gruppen direkt)",
+                    len(btn_map), len(radio_btn_names))
 
     buf = io.BytesIO()
     writer.write(buf)
