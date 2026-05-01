@@ -290,6 +290,13 @@ def fuelle_acroform(
     sig_eintraege: dict[int, list[dict]] = {}  # page → [{x_pct, y_pct, bild_b64}]
     badge_eintraege: dict[int, list[dict]] = {}  # page → [{x_pct, y_pct, custom:True, wert}]
 
+    # Felder die in einer Vorlage referenziert werden nicht separat als Badge zeichnen
+    felder_in_vorlage: set = set()
+    for _s in schritte:
+        for _f in (_s.felder_json or []):
+            for _m in re.finditer(r'\{(\w+)\}', _f.get("vorlage", "")):
+                felder_in_vorlage.add(_m.group(1))
+
     for schritt in schritte:
         loop_bez = getattr(schritt, "loop_bezeichnung", "") or ""
 
@@ -314,10 +321,22 @@ def fuelle_acroform(
                 }
                 wert_roh = _sys_map.get(feld.get("systemwert", ""), str(gesammelte_daten.get(feld_id, ""))).strip()
             else:
-                wert_roh = str(gesammelte_daten.get(feld_id, "")).strip()
+                vorlage = feld.get("vorlage", "").strip()
+                if vorlage:
+                    wert_roh = re.sub(
+                        r"\{(\w+)\}",
+                        lambda m: str(gesammelte_daten.get(m.group(1), "")).strip(),
+                        vorlage,
+                    ).strip()
+                    # Vorlage-Wert direkt in field_map eintragen – werte-Schleife überspringen
+                    if wert_roh and acroform_name and "," not in acroform_name and not acroform_name.startswith("loop:"):
+                        field_map.setdefault(acroform_name, []).append(wert_roh)
+                        continue
+                else:
+                    wert_roh = str(gesammelte_daten.get(feld_id, "")).strip()
 
             # ── Badge-Overlay für Felder mit Koordinaten aber ohne AcroForm ──
-            if not acroform_name and wert_roh and typ not in ("signatur", "checkboxen", "radio", "bool", "einwilligung"):
+            if not acroform_name and wert_roh and feld_id not in felder_in_vorlage and typ not in ("signatur", "checkboxen", "radio", "bool", "einwilligung"):
                 _xb = float(feld.get("x_pct") or 0)
                 _yb = float(feld.get("y_pct") or 0)
                 if _xb != 0 or _yb != 0:
