@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+{% load formulare_extras %}
+{% block title %}Sachbearbeiter-Nacherfassung – {{ sitzung.vorgangsnummer }}{% endblock %}
+
+{% block content %}
+<div class="container py-4" style="max-width:720px">
+  <h2 class="mb-1">Sachbearbeiter-Nacherfassung</h2>
+  <p class="text-muted mb-4">
+    Vorgang: <strong>{{ sitzung.vorgangsnummer }}</strong> &mdash;
+    {{ sitzung.pfad.name }} &mdash;
+    eingereicht {{ sitzung.erstellt_am|date:"d.m.Y" }}
+  </p>
+
+  {% if messages %}
+    {% for m in messages %}
+      <div class="alert alert-success">{{ m }}</div>
+    {% endfor %}
+  {% endif %}
+
+  {% if not sb_felder %}
+    <div class="alert alert-info">
+      Dieses Formular enthält keine Sachbearbeiter-Felder.
+    </div>
+  {% else %}
+  <form method="post">
+    {% csrf_token %}
+    <input type="hidden" name="next" value="{{ request.GET.next }}">
+    <input type="hidden" name="task_pk" value="{{ request.GET.task_pk }}">
+    <div class="card">
+      <div class="card-body">
+        {% for feld in sb_felder %}
+        <div class="mb-3">
+          <label class="form-label fw-semibold">
+            {{ feld.label }}
+            {% if feld.pflicht %}<span class="text-danger">*</span>{% endif %}
+          </label>
+
+          {% if feld.typ == "radio" or feld.typ == "auswahl" %}
+            {% if feld.typ == "radio" %}
+              {% for opt in feld.optionen %}
+              <div class="form-check">
+                <input class="form-check-input" type="radio"
+                       name="{{ feld.id }}" value="{{ opt }}" id="{{ feld.id }}_{{ forloop.counter }}"
+                       {% if vorwerte|get_item:feld.id == opt %}checked{% endif %}>
+                <label class="form-check-label" for="{{ feld.id }}_{{ forloop.counter }}">{{ opt }}</label>
+              </div>
+              {% endfor %}
+            {% else %}
+              <select class="form-select" name="{{ feld.id }}">
+                <option value="">– bitte wählen –</option>
+                {% for opt in feld.optionen %}
+                <option value="{{ opt }}" {% if vorwerte|get_item:feld.id == opt %}selected{% endif %}>{{ opt }}</option>
+                {% endfor %}
+              </select>
+            {% endif %}
+
+          {% elif feld.typ == "bool" or feld.typ == "einwilligung" %}
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" name="{{ feld.id }}" value="ja"
+                     id="{{ feld.id }}"
+                     {% if vorwerte|get_item:feld.id == "ja" %}checked{% endif %}>
+              <label class="form-check-label" for="{{ feld.id }}">Ja</label>
+            </div>
+
+          {% elif feld.typ == "datum" %}
+            <input type="date" class="form-control" name="{{ feld.id }}"
+                   value="{{ vorwerte|get_item:feld.id }}">
+
+          {% elif feld.typ == "zahl" %}
+            <input type="number" class="form-control" name="{{ feld.id }}"
+                   value="{{ vorwerte|get_item:feld.id }}" step="any">
+
+          {% elif feld.typ == "mehrzeil" or feld.typ == "textarea" %}
+            <textarea class="form-control" name="{{ feld.id }}" rows="3">{{ vorwerte|get_item:feld.id }}</textarea>
+
+          {% else %}
+            <input type="text" class="form-control" name="{{ feld.id }}"
+                   value="{{ vorwerte|get_item:feld.id }}">
+          {% endif %}
+
+          {% if feld.hilfetext %}
+          <div class="form-text text-muted">{{ feld.hilfetext }}</div>
+          {% endif %}
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <div class="d-flex gap-2 mt-3">
+      <button type="submit" class="btn btn-primary">Speichern</button>
+      <a href="{% url 'formulare:pfad_abgeschlossen' sitzung.pk %}" class="btn btn-outline-secondary">Zurück</a>
+    </div>
+  </form>
+  {% endif %}
+</div>
+{% endblock %}

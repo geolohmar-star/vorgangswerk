@@ -47,4 +47,5 @@ urlpatterns = [
     path("quiz/", include(("quiz.urls", "quiz"))),
     path("datenschutz/", include(("datenschutz.urls", "datenschutz"))),
     path("bundid/",      include(("bundid.urls", "bundid"))),
+    path("datev/",       include(("datev.urls", "datev"))),
 ]

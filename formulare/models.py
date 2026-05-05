@@ -597,3 +597,31 @@ class WebhookZustellung(models.Model):
     def __str__(self):
         status = "OK" if self.zugestellt_am else f"Fehler ({self.fehler[:40]})"
         return f"{self.ereignis} → {self.konfiguration.url[:40]} [{status}]"
+
+
+class UnterzeichnungsToken(models.Model):
+    """Einmalige Einladung zur Gegenzeichnung eines Antrags (zeitlich begrenzt)."""
+
+    token = models.CharField(max_length=64, unique=True, db_index=True)
+    sitzung = models.ForeignKey(
+        AntrSitzung, on_delete=models.CASCADE, related_name="unterzeichnungs_token"
+    )
+    feld_id = models.CharField(max_length=100, verbose_name="Feld-ID (signatur)")
+    empfaenger_email = models.EmailField(verbose_name="E-Mail des Unterzeichners")
+    erstellt_am = models.DateTimeField(auto_now_add=True)
+    abgelaufen_am = models.DateTimeField(verbose_name="Gültig bis")
+    verwendet = models.BooleanField(default=False, verbose_name="Bereits verwendet")
+    unterzeichnet_am = models.DateTimeField(null=True, blank=True, verbose_name="Unterzeichnet am")
+    unterzeichnet_ip = models.GenericIPAddressField(null=True, blank=True, verbose_name="IP bei Unterzeichnung")
+
+    class Meta:
+        ordering = ["-erstellt_am"]
+        verbose_name = "Unterzeichnungs-Token"
+        verbose_name_plural = "Unterzeichnungs-Token"
+
+    def __str__(self):
+        status = "verwendet" if self.verwendet else "offen"
+        return f"{self.sitzung.vorgangsnummer} → {self.empfaenger_email} [{status}]"
+
+    def ist_gueltig(self):
+        return not self.verwendet and timezone.now() < self.abgelaufen_am

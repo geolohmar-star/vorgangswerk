@@ -75,6 +75,9 @@
                 <div class="row g-3">
 
                 {% for feld in felder_render %}
+                {% if feld.nur_sachbearbeiter %}
+                {# Sachbearbeiter-Feld: für Antragsteller nicht sichtbar #}
+                {% else %}
                 {% if feld.zeige_wenn %}<div class="zeige-wenn-wrapper" data-zeige-wenn="{{ feld.zeige_wenn }}" style="display:none;width:100%;">{% endif %}
                 {% if feld.versteckt %}
                 {% if feld.typ == "berechnung" %}
@@ -547,6 +550,7 @@
                 {% endwith %}
                 {% endif %}
                 {% if feld.zeige_wenn %}</div>{% endif %}
+                {% endif %}{# end nur_sachbearbeiter #}
                 {% endfor %}
 
                 </div>
@@ -556,6 +560,12 @@
                     <button type="submit" class="btn btn-success">Antrag einreichen</button>
                     {% else %}
                     <button type="submit" class="btn btn-primary">Weiter &#8594;</button>
+                    {% endif %}
+                    {% if sitzung.besuchte_schritte|length > 1 %}
+                    <button type="submit" name="_zurueck" value="1"
+                            class="btn btn-outline-secondary" formnovalidate>
+                        &#8592; Zurück
+                    </button>
                     {% endif %}
                 </div>
             </form>

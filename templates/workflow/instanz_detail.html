@@ -14,6 +14,22 @@
     </ol>
   </nav>
 
+  {% with offene=tasks|dictsort:"pk" %}
+  {% for task in tasks %}
+  {% if task.status == "offen" or task.status == "in_bearbeitung" %}
+  <div class="alert alert-info d-flex align-items-center justify-content-between mb-3">
+    <div>
+      <strong>Offener Task:</strong> {{ task.step.titel }}
+      <span class="badge bg-info text-dark ms-2">{{ task.get_status_display }}</span>
+    </div>
+    <a href="{% url 'workflow:task_detail' task.pk %}" class="btn btn-primary btn-sm">
+      &#9654; Task öffnen
+    </a>
+  </div>
+  {% endif %}
+  {% endfor %}
+  {% endwith %}
+
   <div class="row g-4">
 
     {# Status-Karte #}
@@ -79,7 +95,13 @@
               <tbody>
                 {% for task in tasks %}
                 <tr>
-                  <td>{{ task.step.titel }}</td>
+                  <td>
+                    {% if task.status == "offen" or task.status == "in_bearbeitung" %}
+                    <a href="{% url 'workflow:task_detail' task.pk %}">{{ task.step.titel }}</a>
+                    {% else %}
+                    {{ task.step.titel }}
+                    {% endif %}
+                  </td>
                   <td>
                     <span class="badge bg-{% if task.status == 'erledigt' %}success{% elif task.status == 'in_bearbeitung' %}info{% elif task.status == 'eskaliert' %}danger{% else %}secondary{% endif %}">
                       {{ task.get_status_display }}

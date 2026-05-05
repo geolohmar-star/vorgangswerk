@@ -34,6 +34,7 @@ urlpatterns = [
     path("sitzung/<int:sitzung_pk>/abgeschlossen/", views.pfad_abgeschlossen, name="pfad_abgeschlossen"),
     path("meine/", views.meine_antraege, name="meine_antraege"),
     path("sitzung/<int:pk>/loeschen/", views.sitzung_loeschen, name="sitzung_loeschen"),
+    path("sitzung/<int:pk>/nacherfassen/", views.sachbearbeiter_nacherfassung, name="sachbearbeiter_nacherfassung"),
     path("sitzung/<int:pk>/pdf/", views.sitzung_pdf, name="sitzung_pdf"),
     path("sitzung/<int:pk>/original-pdf/", views.sitzung_original_pdf, name="sitzung_original_pdf"),
     path("sitzung/<int:pk>/gesamtakte/", views.sitzung_gesamtakte_zip, name="sitzung_gesamtakte"),
@@ -64,4 +65,5 @@ public_urlpatterns = [
     path("s/<int:sitzung_pk>/", views.antrag_oeffentlich_schritt, name="antrag_oeffentlich_schritt"),
     path("s/<int:sitzung_pk>/abgeschlossen/", views.antrag_oeffentlich_abgeschlossen, name="antrag_oeffentlich_abgeschlossen"),
     path("fehler/", views.antrag_oeffentlich_fehler, name="antrag_oeffentlich_fehler"),
+    path("unterzeichnen/<str:token_str>/", views.unterzeichnen, name="unterzeichnen"),
 ]

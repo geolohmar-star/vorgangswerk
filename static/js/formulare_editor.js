@@ -1270,7 +1270,8 @@
             html += esc(feld.label || "");
             if (feld.pflicht)        html += ' <span class="text-danger small">*</span>';
             if (feld.pdf_ausblenden) html += ' <span class="text-muted small" title="Nicht in PDF">&#128683;</span>';
-            if (feld.versteckt)      html += ' <span class="text-muted small" title="Versteckt">&#128065;&#xFE0E;</span>';
+            if (feld.versteckt)           html += ' <span class="text-muted small" title="Versteckt">&#128065;&#xFE0E;</span>';
+            if (feld.nur_sachbearbeiter)  html += ' <span class="badge bg-warning text-dark small" title="Nur Sachbearbeiter">&#128084;</span>';
             if (feld.zeige_wenn) html += ' <span class="badge bg-info text-dark small" title="Bedingt anzeigen">&#8627; wenn ' + esc(feld.zeige_wenn) + '</span>';
             html += '</span>';
             html += '<span class="d-flex gap-1">';
@@ -1488,8 +1489,9 @@
         document.getElementById("feld-hilfetext").value = feld ? (feld.hilfetext || "") : "";
         document.getElementById("feld-regex").value = feld ? (feld.validierung_regex || "") : "";
         document.getElementById("feld-pflicht").checked        = feld ? !!feld.pflicht        : false;
-        document.getElementById("feld-pdf-ausblenden").checked = feld ? !!feld.pdf_ausblenden : false;
-        document.getElementById("feld-versteckt").checked      = feld ? !!feld.versteckt      : false;
+        document.getElementById("feld-pdf-ausblenden").checked  = feld ? !!feld.pdf_ausblenden  : false;
+        document.getElementById("feld-versteckt").checked       = feld ? !!feld.versteckt       : false;
+        document.getElementById("feld-sachbearbeiter").checked  = feld ? !!feld.nur_sachbearbeiter : false;
         document.getElementById("feld-vorausgefuellt").value   = feld ? (feld.vorausgefuellt || "") : "";
         var elAFQuelle = document.getElementById("autofill-quelle");
         if (elAFQuelle) elAFQuelle.value = feld ? (feld.quelle || "") : "";
@@ -1962,9 +1964,10 @@
         var feld = {
             typ: typ,
             label: label,
-            pflicht:        document.getElementById("feld-pflicht").checked,
-            pdf_ausblenden: document.getElementById("feld-pdf-ausblenden").checked,
-            versteckt:      document.getElementById("feld-versteckt").checked,
+            pflicht:             document.getElementById("feld-pflicht").checked,
+            pdf_ausblenden:      document.getElementById("feld-pdf-ausblenden").checked,
+            versteckt:           document.getElementById("feld-versteckt").checked,
+            nur_sachbearbeiter:  document.getElementById("feld-sachbearbeiter").checked,
         };
         var vorausgefuellt = document.getElementById("feld-vorausgefuellt").value.trim();
         if (vorausgefuellt) feld.vorausgefuellt = vorausgefuellt;

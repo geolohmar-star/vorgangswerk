@@ -172,6 +172,75 @@ def task_detail(request, pk):
     except Exception:
         pass
 
+    # Sachbearbeiter-Felder erkennen
+    hat_sb_felder = False
+    hat_original_pdf = False
+    try:
+        if sitzung:
+            for schritt in sitzung.pfad.schritte.all():
+                if any(f.get("nur_sachbearbeiter") for f in (schritt.felder_json or [])):
+                    hat_sb_felder = True
+                    break
+    except Exception:
+        pass
+    try:
+        if sitzung:
+            from portal.models import FormularAnalyse
+            hat_original_pdf = FormularAnalyse.objects.filter(
+                importierter_pfad_pk=sitzung.pfad.pk
+            ).exists()
+    except Exception:
+        pass
+
+    # DATEV-Token prüfen
+    hat_datev_token = False
+    try:
+        from datev.models import DatevToken
+        hat_datev_token = DatevToken.objects.filter(user=request.user).exists()
+    except Exception:
+        pass
+
+    # Signatur-Anfragen: signatur-Felder mit weiterleitung_an + Token-Status
+    # Direkt-Signaturen: signatur-Felder ohne weiterleitung_an (vor Ort)
+    signatur_anfragen = []
+    direkte_signaturen = []
+    try:
+        if sitzung:
+            from formulare.models import UnterzeichnungsToken
+            daten = sitzung.gesammelte_daten or {}
+            for schritt in sitzung.pfad.schritte.all():
+                for feld in (schritt.felder_json or []):
+                    if feld.get("typ") != "signatur":
+                        continue
+                    feld_id = feld.get("id", "")
+                    email_feld_id = (feld.get("weiterleitung_an") or "").strip()
+                    if email_feld_id:
+                        empfaenger = str(daten.get(email_feld_id, "")).strip()
+                        if not empfaenger or "@" not in empfaenger:
+                            continue
+                        token_obj = (
+                            UnterzeichnungsToken.objects
+                            .filter(sitzung=sitzung, feld_id=feld_id)
+                            .order_by("-erstellt_am")
+                            .first()
+                        )
+                        signatur_anfragen.append({
+                            "feld_id": feld_id,
+                            "label": feld.get("label") or feld_id,
+                            "empfaenger": empfaenger,
+                            "token": token_obj,
+                            "unterschrieben": token_obj.verwendet if token_obj else False,
+                        })
+                    else:
+                        vorhandene_sig = daten.get(feld_id, "")
+                        direkte_signaturen.append({
+                            "feld_id": feld_id,
+                            "label": feld.get("label") or feld_id,
+                            "unterschrieben": bool(vorhandene_sig),
+                        })
+    except Exception:
+        pass
+
     kontext = {
         "task": task,
         "content_object": content_object,
@@ -184,8 +253,154 @@ def task_detail(request, pk):
         "briefe": briefe,
         "dateien": dateien,
         "verteiler": verteiler,
+        "hat_sb_felder": hat_sb_felder,
+        "hat_original_pdf": hat_original_pdf,
+        "hat_datev_token": hat_datev_token,
+        "signatur_anfragen": signatur_anfragen,
+        "direkte_signaturen": direkte_signaturen,
+        "datev_steuerberater_email": getattr(__import__("django.conf", fromlist=["settings"]).settings, "DATEV_STEUERBERATER_EMAIL", ""),
     }
     return render(request, "workflow/task_detail.html", kontext)
+
+
+@login_required
+@require_POST
+def signaturanfrage_senden(request, task_pk):
+    """Sendet oder erneuert eine Signaturanfrage-E-Mail für ein signatur-Feld."""
+    import datetime
+    import secrets
+
+    from django.conf import settings
+    from django.core.mail import EmailMessage
+    from django.utils import timezone
+
+    task = get_object_or_404(WorkflowTask, pk=task_pk)
+    if not task.kann_bearbeiten(request.user) and not request.user.is_staff:
+        messages.error(request, "Kein Zugriff.")
+        return redirect("workflow:task_detail", pk=task_pk)
+
+    feld_id = request.POST.get("feld_id", "").strip()
+    if not feld_id:
+        messages.error(request, "Kein Feld angegeben.")
+        return redirect("workflow:task_detail", pk=task_pk)
+
+    content_object = task.instance.content_object
+    try:
+        from formulare.models import AntrSitzung, UnterzeichnungsToken
+        if not isinstance(content_object, AntrSitzung):
+            raise ValueError("Kein Antrag verknüpft")
+        sitzung = content_object
+        daten = sitzung.gesammelte_daten or {}
+
+        # Empfänger-E-Mail aus dem signatur-Feld bestimmen
+        empfaenger = None
+        for schritt in sitzung.pfad.schritte.all():
+            for feld in (schritt.felder_json or []):
+                if feld.get("id") == feld_id and feld.get("typ") == "signatur":
+                    email_feld_id = (feld.get("weiterleitung_an") or "").strip()
+                    empfaenger = str(daten.get(email_feld_id, "")).strip() if email_feld_id else ""
+                    break
+            if empfaenger is not None:
+                break
+
+        if not empfaenger or "@" not in empfaenger:
+            messages.error(request, "Keine gültige E-Mail-Adresse für dieses Signatur-Feld gefunden.")
+            return redirect("workflow:task_detail", pk=task_pk)
+
+        # Alten offenen Token ungültig machen; neuen Token anlegen
+        UnterzeichnungsToken.objects.filter(
+            sitzung=sitzung, feld_id=feld_id, verwendet=False
+        ).update(abgelaufen_am=timezone.now())
+
+        token_obj = UnterzeichnungsToken.objects.create(
+            token=secrets.token_hex(32),
+            sitzung=sitzung,
+            feld_id=feld_id,
+            empfaenger_email=empfaenger,
+            abgelaufen_am=timezone.now() + datetime.timedelta(days=30),
+        )
+
+        base_url = getattr(settings, "VORGANGSWERK_BASE_URL", "").rstrip("/")
+        link = f"{base_url}/antrag/u/{token_obj.token}/"
+        vgnr = sitzung.vorgangsnummer or f"ANT-{sitzung.pk:05d}"
+        betreff = f"Bitte unterzeichnen: {sitzung.pfad.name} – {vgnr}"
+        text = (
+            f"Guten Tag,\n\n"
+            f"Sie wurden gebeten, den folgenden Antrag gegenzuzeichnen:\n\n"
+            f"  Formular:        {sitzung.pfad.name}\n"
+            f"  Vorgangsnummer:  {vgnr}\n\n"
+            f"Bitte öffnen Sie den folgenden Link, lesen Sie den Antrag durch\n"
+            f"und leisten Sie Ihre Unterschrift:\n\n"
+            f"  {link}\n\n"
+            f"Der Link ist 30 Tage gültig.\n\n"
+            f"Mit freundlichen Grüßen\nIhr Vorgangswerk-Team"
+        )
+        EmailMessage(subject=betreff, body=text, to=[empfaenger]).send(fail_silently=False)
+        messages.success(request, f"Signaturanfrage wurde an {empfaenger} gesendet.")
+    except Exception as exc:
+        logger.error("Signaturanfrage fehlgeschlagen (task %s): %s", task_pk, exc)
+        messages.error(request, f"Fehler beim Senden der Signaturanfrage: {exc}")
+
+    return redirect("workflow:task_detail", pk=task_pk)
+
+
+@login_required
+@require_POST
+def direkt_signatur_speichern(request, task_pk):
+    """Speichert eine Direkt-Unterschrift (canvas) für ein signatur-Feld ohne weiterleitung_an."""
+    task = get_object_or_404(WorkflowTask, pk=task_pk)
+    if not task.kann_bearbeiten(request.user) and not request.user.is_staff:
+        return JsonResponse({"ok": False, "fehler": "Kein Zugriff"}, status=403)
+
+    feld_id = request.POST.get("feld_id", "").strip()
+    signatur_data = request.POST.get("signatur_data", "").strip()
+
+    if not feld_id or not signatur_data or not signatur_data.startswith("data:image"):
+        return JsonResponse({"ok": False, "fehler": "Ungültige Eingabe"}, status=400)
+
+    try:
+        from formulare.models import AntrSitzung
+        content_object = task.instance.content_object
+        if not isinstance(content_object, AntrSitzung):
+            return JsonResponse({"ok": False, "fehler": "Kein Antrag verknüpft"}, status=400)
+        sitzung = content_object
+
+        # Feld verifizieren: muss signatur-Typ ohne weiterleitung_an sein
+        feld_ok = False
+        for schritt in sitzung.pfad.schritte.all():
+            for feld in (schritt.felder_json or []):
+                if feld.get("id") == feld_id and feld.get("typ") == "signatur":
+                    if not (feld.get("weiterleitung_an") or "").strip():
+                        feld_ok = True
+                    break
+            if feld_ok:
+                break
+        if not feld_ok:
+            return JsonResponse({"ok": False, "fehler": "Feld nicht gefunden oder nicht erlaubt"}, status=400)
+
+        from django.utils import timezone as _tz
+        jetzt = _tz.now()
+        daten = dict(sitzung.gesammelte_daten or {})
+        daten[feld_id] = signatur_data
+        daten[f"__sig_audit__{feld_id}"] = (
+            f"Unterzeichnet am {jetzt.strftime('%d.%m.%Y um %H:%M')} Uhr"
+            f" · Benutzer: {request.user.get_full_name() or request.user.username}"
+        )
+        sitzung.gesammelte_daten = daten
+        sitzung.save(update_fields=["gesammelte_daten"])
+        from core.models import audit
+        audit(
+            request,
+            aktion="geaendert",
+            app="formulare",
+            objekt_typ="AntrSitzung",
+            objekt_id=sitzung.pk,
+            beschreibung=f"Direkt-Signatur '{feld_id}' von {request.user.username} in Task {task_pk}",
+        )
+        return JsonResponse({"ok": True})
+    except Exception as exc:
+        logger.error("Direkt-Signatur fehlgeschlagen (task %s): %s", task_pk, exc)
+        return JsonResponse({"ok": False, "fehler": str(exc)}, status=500)
 
 
 @login_required

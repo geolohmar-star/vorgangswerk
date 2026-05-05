@@ -8,7 +8,9 @@
   display: flex;
   gap: 0;
   height: calc(100vh - 80px);
-  overflow: hidden;
+  overflow-x: auto;
+  overflow-y: hidden;
+  min-width: 700px;
 }
 .pdf-panel {
   width: 42%;
@@ -21,6 +23,7 @@
 }
 .editor-panel {
   flex: 1;
+  min-width: 340px;
   overflow-y: auto;
   padding: 1rem 1.25rem;
 }
@@ -77,9 +80,9 @@
 .schritt-header { background: #f8f9fa; border-radius: 8px 8px 0 0; padding: .6rem 1rem; display: flex; align-items: center; gap: .5rem; cursor: pointer; user-select: none; }
 .schritt-header:hover { background: #e9ecef; }
 .schritt-body { padding: .75rem; }
-.feld-row { display: grid; grid-template-columns: 1fr 1.6fr 1fr 4.5rem auto auto auto; gap: .4rem; align-items: start; padding: .35rem 0; border-bottom: 1px solid #f0f0f0; }
+.feld-row { display: grid; grid-template-columns: 1fr 1.6fr 1fr 4.5rem auto auto auto auto; gap: .4rem; align-items: start; padding: .35rem 0; border-bottom: 1px solid #f0f0f0; }
 .feld-row:last-child { border-bottom: none; }
-.feld-row-header { display: grid; grid-template-columns: 1fr 1.6fr 1fr 4.5rem auto auto auto; gap: .4rem; padding: .25rem 0; font-size: .7rem; font-weight: 600; text-transform: uppercase; color: #6c757d; border-bottom: 2px solid #dee2e6; margin-bottom: .25rem; }
+.feld-row-header { display: grid; grid-template-columns: 1fr 1.6fr 1fr 4.5rem auto auto auto auto; gap: .4rem; padding: .25rem 0; font-size: .7rem; font-weight: 600; text-transform: uppercase; color: #6c757d; border-bottom: 2px solid #dee2e6; margin-bottom: .25rem; }
 .acro-input { font-family: monospace; font-size: .72rem; background: #f0f4ff; border-color: #b8caff; color: #084298; }
 .acro-input:focus { background: #fff; border-color: #0d6efd; }
 .feld-row.feld-highlight { background: #fff9e6; border-radius: 4px; }
@@ -191,6 +194,15 @@ input[type="checkbox"].form-check-input { cursor: pointer; }
   pointer-events: none;
 }
 /* Option-Badge (violett, Ankreuzfeld): Pin-Form – Spitze = Kreuz-Mittelpunkt */
+.koord-badge.sachbearbeiter-badge {
+  background: #dc3545 !important;
+  color: #fff !important;
+}
+.koord-badge.sachbearbeiter-badge::after {
+  border-top-color: #dc3545 !important;
+}
+.koord-badge.sachbearbeiter-badge.aktiv { background: #198754 !important; }
+.koord-badge.sachbearbeiter-badge.aktiv::after { border-top-color: #198754 !important; }
 .koord-badge.option-badge {
   transform: translate(-50%, calc(-100% - 8px));
   border-radius: 4px;
@@ -957,6 +969,19 @@ function feldZeile(feld) {
   ausblendenWrap.append(ausblendenCb);
   row.append(ausblendenWrap);
 
+  // Spalte 6: nur_sachbearbeiter
+  const sbWrap = el("div", { class: "pflicht-toggle" });
+  const sbCb = el("input", { type: "checkbox", class: "form-check-input", id: `sb_${feld.id}`, title: "Nur Sachbearbeiter" });
+  sbCb.checked = !!feld.nur_sachbearbeiter;
+  sbCb.addEventListener("change", () => {
+    feld.nur_sachbearbeiter = sbCb.checked;
+    // Badge-Farbe aktualisieren
+    const badge = koordBadges.find(b => b.feldId === feld.id);
+    if (badge) badge.badge.classList.toggle("sachbearbeiter-badge", sbCb.checked);
+  });
+  sbWrap.append(sbCb);
+  row.append(sbWrap);
+
   wrapper.append(row);
 
   // Hover: Feld im PDF hervorheben (dynamisch, funktioniert auch nach Zuweisung)
@@ -1030,6 +1055,7 @@ function schrittKarte(schritt, idx) {
       el("span", { title: "AcroForm-Feldname im Original-PDF (editierbar)" }, "AcroForm"),
       el("span", { title: "Pflichtfeld" }, "Pflicht"),
       el("span", { title: "In PDF ausblenden" }, "PDF"),
+      el("span", { title: "Nur Sachbearbeiter (Antragsteller sieht Feld nicht)", style: "color:#dc3545;" }, "SB"),
       el("span", {}),
     );
     body.append(hdr);
@@ -1215,7 +1241,7 @@ function erstelleBadge(feld, wrap, xPct, yPct) {
   if (alt) { alt.badge.remove(); koordBadges.splice(koordBadges.indexOf(alt), 1); }
 
   const badge = document.createElement("div");
-  badge.className = "koord-badge";
+  badge.className = "koord-badge" + (feld.nur_sachbearbeiter ? " sachbearbeiter-badge" : "");
   badge.textContent = feld.label || feld.id;
   badge.style.left = (xPct * 100) + "%";
   badge.style.top  = (yPct * 100) + "%";
@@ -1644,7 +1670,8 @@ async function koordSpeichern() {
       const hasOpt     = f.optionen_koord && Object.keys(f.optionen_koord).length > 0;
       const hasAcro    = !!(f.acroform_name || f.vorlage);
       const wurdeGeloescht = geloeschteKoordFelder.has(f.id);
-      return hasMain || hasOpt || hasAcro || wurdeGeloescht;
+      const hasFlags   = !!(f.nur_sachbearbeiter || f.pflicht || f.pdf_ausblenden);
+      return hasMain || hasOpt || hasAcro || wurdeGeloescht || hasFlags;
     })
     .map(f => ({
       id: f.id,
@@ -1658,6 +1685,9 @@ async function koordSpeichern() {
       label: f.label || "",
       loop_zeile_pct: parseFloat(f.loop_zeile_pct) || 0,
       loop_y_offsets: f.loop_y_offsets || [],
+      nur_sachbearbeiter: !!f.nur_sachbearbeiter,
+      pflicht: !!f.pflicht,
+      pdf_ausblenden: !!f.pdf_ausblenden,
     }));
   const pdfFont = {
     size: parseFloat(document.getElementById("pdf-font-size").value) || 9,

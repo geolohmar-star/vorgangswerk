@@ -414,6 +414,21 @@ html, body { overflow: hidden; height: 100%; }
                     <small class="text-muted">HTML-<code>accept</code>-Attribut – z.B. <code>.pdf</code>, <code>image/*</code>, <code>.pdf,.jpg</code></small>
                 </div>
 
+                <!-- Gegenzeichnung per E-Mail (nur signatur) -->
+                <div class="mb-3" id="weiterleitung-an-row" style="display:none;">
+                    <label class="form-label fw-semibold">Gegenzeichnung – E-Mail-Feld-ID</label>
+                    <input type="text" class="form-control font-monospace" id="feld-weiterleitung-an"
+                           placeholder="z.B. leihnehmer_email">
+                    <div class="alert alert-info py-2 px-3 mt-2 mb-0 small">
+                        <strong>Wie funktioniert das?</strong> Tragen Sie hier die <em>Feld-ID</em> eines
+                        <strong>E-Mail-Feldes</strong> aus diesem Formular ein. Sobald der Antrag abgeschickt
+                        wird, erhält die dort eingetragene Adresse automatisch einen personalisierten Link.
+                        Der Empfänger sieht das ausgefüllte Originaldokument, kann digital unterschreiben
+                        und bekommt danach eine Kopie mit beiden Unterschriften per E-Mail zugeschickt.
+                        <br>Leer lassen = keine automatische Weiterleitung.
+                    </div>
+                </div>
+
                 <!-- Online-Zahlung Konfiguration -->
                 <div id="zahlung-row" style="display:none;">
                     <div class="alert alert-warning p-2 mb-3" style="font-size:0.82rem;">
@@ -757,6 +772,10 @@ html, body { overflow: hidden; height: 100%; }
                 <div class="form-check mt-1" id="versteckt-row">
                     <input class="form-check-input" type="checkbox" id="feld-versteckt">
                     <label class="form-check-label" for="feld-versteckt">Feld verstecken (Wert wird trotzdem gespeichert)</label>
+                </div>
+                <div class="form-check mt-1" id="sachbearbeiter-row">
+                    <input class="form-check-input" type="checkbox" id="feld-sachbearbeiter">
+                    <label class="form-check-label" for="feld-sachbearbeiter">Nur Sachbearbeiter (Antragsteller sieht dieses Feld nicht)</label>
                 </div>
 
                 <div class="mt-3 pt-2 border-top" id="zeige-wenn-row">

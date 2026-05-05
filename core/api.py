@@ -821,3 +821,69 @@ def pfad_capabilities(request, pk: int):
             },
         ],
     }
+
+
+@api.get(
+    "/fitconnect/schema/antrag/",
+    response={200: dict},
+    summary="JSON-Schema für FIT-Connect Antragsdaten",
+    tags=["FIT-Connect"],
+    auth=None,
+)
+def fitconnect_schema(request):
+    """Öffentlich zugängliches JSON-Schema für FIT-Connect Fachdatenschema."""
+    return 200, {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "$id": "https://vorgangswerk.georg-klein.com/api/fitconnect/schema/antrag/",
+        "title": "Vorgangswerk Antrag",
+        "description": "Antragsdaten aus Vorgangswerk-Formularen",
+        "type": "object",
+        "properties": {
+            "antragsteller": {
+                "type": "object",
+                "properties": {
+                    "vorname":  {"type": "string"},
+                    "nachname": {"type": "string"},
+                    "email":    {"type": "string", "format": "email"},
+                    "telefon":  {"type": "string"},
+                },
+            },
+            "antragsdaten": {
+                "type": "object",
+                "description": "Formularfelder als Schlüssel-Wert-Paare",
+            },
+            "vorgangsnummer": {"type": "string"},
+            "pfad_kuerzel":   {"type": "string"},
+        },
+    }
+
+
+@api.post(
+    "/fitconnect/callback/",
+    response={200: dict, 401: dict},
+    summary="FIT-Connect Callback-Benachrichtigung",
+    tags=["FIT-Connect"],
+    auth=None,
+)
+def fitconnect_callback(request):
+    """
+    Empfängt Callback-Benachrichtigungen von FIT-Connect (neue Einreichung verfügbar).
+    Verifiziert das HMAC-SHA256-Secret und löst das Polling aus.
+    """
+    import hashlib
+    import hmac
+    import logging
+    logger = logging.getLogger(__name__)
+
+    secret = getattr(settings, "FITCONNECT_CALLBACK_SECRET", "")
+    if secret:
+        sig_header = request.headers.get("X-Hub-Signature-256", "")
+        body = request.body
+        expected = "sha256=" + hmac.new(secret.encode(), body, hashlib.sha256).hexdigest()  # type: ignore
+
+        if not hmac.compare_digest(sig_header, expected):
+            logger.warning("FIT-Connect Callback: ungültige Signatur")
+            return 401, {"fehler": "Ungültige Signatur"}
+
+    logger.info("FIT-Connect Callback empfangen – neue Einreichung verfügbar")
+    return 200, {"status": "ok"}

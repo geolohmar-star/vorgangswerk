@@ -142,6 +142,28 @@
             &#128196; Original-PDF ausgefüllt
         </a>
         {% endif %}
+        <a href="{% url 'formulare:sachbearbeiter_nacherfassung' sitzung.pk %}" class="btn btn-outline-secondary">
+            Sachbearbeiter-Nacherfassung
+        </a>
+        {% if hat_datev_token %}
+        <a href="{% url 'datev:lodas_download' sitzung.pk %}" class="btn btn-outline-primary">
+            DATEV LODAS herunterladen
+        </a>
+        <form method="post" action="{% url 'datev:lodas_hochladen' sitzung.pk %}" class="d-inline">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-outline-primary"
+                    onclick="return confirm('LODAS-Datei jetzt an DATEV übermitteln?')">
+                DATEV LODAS hochladen
+            </button>
+        </form>
+        <form method="post" action="{% url 'datev:uebertragen' sitzung.pk %}" class="d-inline">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-outline-primary"
+                    onclick="return confirm('Daten direkt via HR:Exchange nach DATEV übertragen?')">
+                DATEV HR:Exchange
+            </button>
+        </form>
+        {% endif %}
     </div>
 </div>
 {% endblock %}

@@ -87,7 +87,9 @@
                 <div class="row g-3">
 
                 {% for feld in felder_render %}
-                {% if feld.versteckt %}
+                {% if feld.nur_sachbearbeiter %}
+                {# Sachbearbeiter-Feld: für Antragsteller komplett unsichtbar, kein hidden-Input #}
+                {% elif feld.versteckt %}
                 {% if feld.typ == "berechnung" %}
                 <input type="hidden" name="{{ feld.id }}" id="berechnung-hidden-{{ feld.id }}"
                        data-berechnung-id="{{ feld.id }}" data-formel="{{ feld.formel }}"

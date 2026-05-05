@@ -53,6 +53,7 @@ INSTALLED_APPS = [
     "quiz",
     "datenschutz",
     "bundid",
+    "datev",
 ]
 
 # ---------------------------------------------------------------------------
@@ -268,6 +269,32 @@ FITCONNECT_SUBMISSION_URL = config(
     "FITCONNECT_SUBMISSION_URL",
     default="https://submission-api-testing.fit-connect.fitko.dev",
 )
+
+# ---------------------------------------------------------------------------
+# DATEV OAuth2
+# ---------------------------------------------------------------------------
+DATEV_CLIENT_ID        = config("DATEV_CLIENT_ID",        default="")
+DATEV_CLIENT_SECRET    = config("DATEV_CLIENT_SECRET",    default="")
+DATEV_REDIRECT_URI     = config("DATEV_REDIRECT_URI",     default="https://vorgangswerk.georg-klein.com/datev/callback/")
+DATEV_BERATERNUMMER    = config("DATEV_BERATERNUMMER",    default="")
+DATEV_MANDANTENNUMMER  = config("DATEV_MANDANTENNUMMER",  default="")
+DATEV_STEUERBERATER_EMAIL = config("DATEV_STEUERBERATER_EMAIL", default="")
+
+FITCONNECT_DESTINATION_ID      = config("FITCONNECT_DESTINATION_ID",      default="")
+FITCONNECT_CALLBACK_SECRET     = config("FITCONNECT_CALLBACK_SECRET",     default="")
+FITCONNECT_CLIENT_ID           = config("FITCONNECT_CLIENT_ID",           default="")
+FITCONNECT_CLIENT_SECRET       = config("FITCONNECT_CLIENT_SECRET",       default="")
+
+# JWK-Schlüssel aus Datei lesen (kein JSON in .env)
+def _jwk_aus_datei(pfad: str) -> str:
+    import json as _json, os as _os
+    if _os.path.exists(pfad):
+        with open(pfad) as _f:
+            return _json.dumps(_json.load(_f))
+    return ""
+
+FITCONNECT_ENC_JWK = _jwk_aus_datei("/app/fitconnect_enc.jwk")
+FITCONNECT_SIG_JWK = _jwk_aus_datei("/app/fitconnect_sig.jwk")
 
 # ---------------------------------------------------------------------------
 # Datensicherung (BSI CON.3)

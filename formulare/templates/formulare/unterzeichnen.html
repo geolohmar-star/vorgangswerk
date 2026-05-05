@@ -1,0 +1,131 @@
+{% extends "formulare/base_public.html" %}
+{% load static %}
+
+{% block title %}Gegenzeichnung – {{ sitzung.pfad.name }}{% endblock %}
+
+{% block extra_css %}
+<style>
+  .pdf-seite { max-width: 100%; border: 1px solid #dee2e6; border-radius: 4px; margin-bottom: 0.5rem; box-shadow: 0 1px 4px rgba(0,0,0,.08); }
+  #sig-canvas { border: 2px dashed #ced4da; border-radius: 4px; background: #fff; touch-action: none; cursor: crosshair; }
+  #sig-canvas.hat-inhalt { border-color: #198754; }
+  .sig-wrap { position: relative; }
+  #sig-loeschen { position: absolute; top: 6px; right: 6px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container" style="max-width:760px;">
+
+  <div class="card mb-3">
+    <div class="card-body">
+      <h5 class="card-title mb-1">{{ sitzung.pfad.name }}</h5>
+      <p class="text-muted mb-0" style="font-size:.9rem;">
+        Vorgangsnummer: <strong>{{ sitzung.vorgangsnummer }}</strong> &nbsp;·&nbsp;
+        Eingereicht am: {{ sitzung.abgeschlossen_am|date:"d.m.Y" }}
+      </p>
+    </div>
+  </div>
+
+  {% if seiten_bilder %}
+  <h6 class="mb-2">Antrag (bitte vollständig lesen)</h6>
+  {% for b64 in seiten_bilder %}
+    <img src="data:image/png;base64,{{ b64 }}" class="pdf-seite d-block w-100 mb-2" alt="Seite {{ forloop.counter }}">
+  {% endfor %}
+  {% else %}
+  <div class="alert alert-warning">Das Dokument konnte nicht als Vorschau gerendert werden. Bitte wenden Sie sich an den Absender.</div>
+  {% endif %}
+
+  {% if fehler %}
+  <div class="alert alert-danger mt-3">{{ fehler }}</div>
+  {% endif %}
+
+  <div class="card mt-4">
+    <div class="card-body">
+      <h6>Ihre Unterschrift</h6>
+      <p class="text-muted" style="font-size:.85rem;">Bitte im Feld unten unterschreiben.</p>
+
+      <div class="sig-wrap mb-2">
+        <canvas id="sig-canvas" width="680" height="180"></canvas>
+        <button type="button" id="sig-loeschen" class="btn btn-sm btn-outline-secondary">Löschen</button>
+      </div>
+
+      <form method="post" id="unterzeichnen-form">
+        {% csrf_token %}
+        <input type="hidden" name="signatur_data" id="signatur_data">
+        <button type="submit" class="btn btn-success w-100" id="submit-btn" disabled>
+          Unterschrift bestätigen und absenden
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <p class="text-muted mt-3" style="font-size:.8rem;">
+    Nach dem Absenden erhalten Sie eine Kopie des unterzeichneten Dokuments per E-Mail.
+  </p>
+
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+  const canvas = document.getElementById("sig-canvas");
+  const ctx = canvas.getContext("2d");
+  const input = document.getElementById("signatur_data");
+  const btn = document.getElementById("submit-btn");
+  let zeichnen = false;
+  let hatInhalt = false;
+
+  function resize() {
+    const w = canvas.parentElement.clientWidth;
+    if (w < 10) return;
+    const data = canvas.toDataURL();
+    canvas.width = w;
+    canvas.height = Math.round(w * 0.26);
+    const img = new Image();
+    img.onload = () => ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+    img.src = data;
+    ctx.strokeStyle = "#000";
+    ctx.lineWidth = 2;
+    ctx.lineCap = "round";
+  }
+  resize();
+  new ResizeObserver(resize).observe(canvas.parentElement);
+
+  function pos(e) {
+    const r = canvas.getBoundingClientRect();
+    const src = e.touches ? e.touches[0] : e;
+    return { x: src.clientX - r.left, y: src.clientY - r.top };
+  }
+
+  canvas.addEventListener("mousedown",  e => { zeichnen = true; ctx.beginPath(); const p = pos(e); ctx.moveTo(p.x, p.y); });
+  canvas.addEventListener("mousemove",  e => { if (!zeichnen) return; const p = pos(e); ctx.lineTo(p.x, p.y); ctx.stroke(); aktualisiere(); });
+  canvas.addEventListener("mouseup",    () => { zeichnen = false; });
+  canvas.addEventListener("touchstart", e => { e.preventDefault(); zeichnen = true; ctx.beginPath(); const p = pos(e); ctx.moveTo(p.x, p.y); }, { passive: false });
+  canvas.addEventListener("touchmove",  e => { e.preventDefault(); if (!zeichnen) return; const p = pos(e); ctx.lineTo(p.x, p.y); ctx.stroke(); aktualisiere(); }, { passive: false });
+  canvas.addEventListener("touchend",   () => { zeichnen = false; });
+
+  function aktualisiere() {
+    hatInhalt = true;
+    canvas.classList.add("hat-inhalt");
+    input.value = canvas.toDataURL("image/png");
+    btn.disabled = false;
+  }
+
+  document.getElementById("sig-loeschen").addEventListener("click", () => {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    hatInhalt = false;
+    canvas.classList.remove("hat-inhalt");
+    input.value = "";
+    btn.disabled = true;
+  });
+
+  document.getElementById("unterzeichnen-form").addEventListener("submit", e => {
+    if (!hatInhalt) { e.preventDefault(); return; }
+    input.value = canvas.toDataURL("image/png");
+    btn.disabled = true;
+    btn.textContent = "Wird gesendet …";
+  });
+})();
+</script>
+{% endblock %}

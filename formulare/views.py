@@ -2842,6 +2842,15 @@ def pfad_abgeschlossen(request, sitzung_pk):
     except Exception:
         pass
 
+    hat_datev_token = False
+    try:
+        from datev.models import DatevToken
+        hat_datev_token = DatevToken.objects.filter(
+            user=request.user
+        ).exists()
+    except Exception:
+        pass
+
     return render(request, "formulare/pfad_abgeschlossen.html", {
         "sitzung":          sitzung,
         "zusammenfassung":  _baue_zusammenfassung(sitzung),
@@ -2849,6 +2858,7 @@ def pfad_abgeschlossen(request, sitzung_pk):
         "quiz_ergebnis":    quiz_ergebnis,
         "quiz_auswertung":  quiz_auswertung,
         "hat_original_pdf": hat_original_pdf,
+        "hat_datev_token":  hat_datev_token,
     })
 
 
@@ -2861,6 +2871,43 @@ def meine_antraege(request):
     """Alle eigenen Sitzungen des Nutzers."""
     sitzungen = AntrSitzung.objects.filter(user=request.user).select_related("pfad")
     return render(request, "formulare/meine_antraege.html", {"sitzungen": sitzungen})
+
+
+@login_required
+def sachbearbeiter_nacherfassung(request, pk):
+    """Sachbearbeiter füllt nur-Sachbearbeiter-Felder einer Sitzung nach."""
+    sitzung = get_object_or_404(AntrSitzung, pk=pk)
+
+    # Alle nur_sachbearbeiter-Felder aus allen Schritten sammeln
+    sb_felder = []
+    for schritt in sitzung.pfad.schritte.all():
+        for feld in (schritt.felder_json or []):
+            if feld.get("nur_sachbearbeiter"):
+                sb_felder.append(feld)
+
+    next_url = request.GET.get("next") or request.POST.get("next")
+    task_pk = request.GET.get("task_pk") or request.POST.get("task_pk")
+
+    if request.method == "POST":
+        daten = {}
+        for feld in sb_felder:
+            wert = request.POST.get(feld["id"], "").strip()
+            if wert:
+                daten[feld["id"]] = wert
+        sitzung.gesammelte_daten.update(daten)
+        sitzung.save(update_fields=["gesammelte_daten"])
+        from django.contrib import messages
+        messages.success(request, "Sachbearbeiter-Angaben gespeichert.")
+        if next_url == "task" and task_pk:
+            return redirect("workflow:task_detail", pk=task_pk)
+        return redirect("formulare:sachbearbeiter_nacherfassung", pk=pk)
+
+    vorwerte = sitzung.gesammelte_daten
+    return render(request, "formulare/sachbearbeiter_nacherfassung.html", {
+        "sitzung": sitzung,
+        "sb_felder": sb_felder,
+        "vorwerte": vorwerte,
+    })
 
 
 @login_required
@@ -2911,7 +2958,7 @@ def sitzung_original_pdf(request, pk):
     """Liefert das Original-PDF ausgefüllt mit den Sitzungsdaten (AcroForm-Filling)."""
     sitzung = get_object_or_404(AntrSitzung, pk=pk)
 
-    if not (request.user == sitzung.user or request.user.is_staff):
+    if not (request.user == sitzung.user or request.user.is_staff or (sitzung.user is None and request.user.is_authenticated)):
         from django.http import HttpResponseForbidden
         return HttpResponseForbidden()
 
@@ -3259,7 +3306,7 @@ def antrag_oeffentlich_starten(request, kuerzel):
     """POST: Neue anonyme Sitzung anlegen."""
     pfad = get_object_or_404(AntrPfad, kuerzel__iexact=kuerzel, aktiv=True, oeffentlich=True)
     if request.method != "POST":
-        return redirect("formulare:antrag_oeffentlich", kuerzel=kuerzel)
+        return redirect("formulare_pub:antrag_oeffentlich", kuerzel=kuerzel)
 
     # Rate limiting: max. 10 Starts pro IP und Pfad innerhalb von 10 Minuten
     ip = (
@@ -3277,7 +3324,7 @@ def antrag_oeffentlich_starten(request, kuerzel):
     cache.set(rate_key, zaehler + 1, timeout=600)
     start = pfad.start_schritt()
     if not start:
-        return redirect("formulare:antrag_oeffentlich_fehler")
+        return redirect("formulare_pub:antrag_oeffentlich_fehler")
     email_anonym = request.POST.get("email_anonym", "").strip() or None
     sitzung = AntrSitzung.objects.create(
         pfad=pfad,
@@ -3290,20 +3337,22 @@ def antrag_oeffentlich_starten(request, kuerzel):
     anon_sitzungen = request.session.get("anon_sitzungen", [])
     anon_sitzungen.append(sitzung.pk)
     request.session["anon_sitzungen"] = anon_sitzungen
-    return redirect("formulare:antrag_oeffentlich_schritt", sitzung_pk=sitzung.pk)
+    return redirect("formulare_pub:antrag_oeffentlich_schritt", sitzung_pk=sitzung.pk)
 
 
 @xframe_options_exempt
 def antrag_oeffentlich_schritt(request, sitzung_pk):
     """Zeigt aktuellen Schritt einer anonymen Sitzung."""
     if not _anon_darf_sitzung(request, sitzung_pk):
-        return redirect("formulare:antrag_oeffentlich_fehler")
-    sitzung = get_object_or_404(
-        AntrSitzung, pk=sitzung_pk, user__isnull=True, status=AntrSitzung.STATUS_LAUFEND
-    )
+        return redirect("formulare_pub:antrag_oeffentlich_fehler")
+    sitzung = get_object_or_404(AntrSitzung, pk=sitzung_pk, user__isnull=True)
+    if sitzung.status == AntrSitzung.STATUS_ABGESCHLOSSEN:
+        return redirect("formulare_pub:antrag_oeffentlich_abgeschlossen", sitzung_pk=sitzung_pk)
+    if sitzung.status != AntrSitzung.STATUS_LAUFEND:
+        return redirect("formulare_pub:antrag_oeffentlich_fehler")
     schritt = sitzung.aktueller_schritt
     if not schritt:
-        return redirect("formulare:antrag_oeffentlich_fehler")
+        return redirect("formulare_pub:antrag_oeffentlich_fehler")
 
     felder_render = _substituiere_system_vars(schritt.felder(), sitzung.pfad)
     felder_render = _expandiere_quizpool(felder_render, sitzung)
@@ -3356,7 +3405,7 @@ def antrag_oeffentlich_schritt(request, sitzung_pk):
             vorheriger = get_object_or_404(AntrSchritt, pfad=sitzung.pfad, node_id=vorheriger_id)
             sitzung.aktueller_schritt = vorheriger
             sitzung.save(update_fields=["aktueller_schritt", "besuchte_schritte"])
-        return redirect("formulare:antrag_oeffentlich_schritt", sitzung_pk=sitzung.pk)
+        return redirect("formulare_pub:antrag_oeffentlich_schritt", sitzung_pk=sitzung.pk)
 
     if request.method == "POST":
         schritt_daten, fehler = _validiere_schritt(
@@ -3393,7 +3442,7 @@ def antrag_oeffentlich_schritt(request, sitzung_pk):
                     or request.META.get("REMOTE_ADDR") or None
                 ),
             )
-            return redirect("formulare:antrag_oeffentlich_abgeschlossen", sitzung_pk=sitzung.pk)
+            return redirect("formulare_pub:antrag_oeffentlich_abgeschlossen", sitzung_pk=sitzung.pk)
         transition = _naechster_schritt(schritt, sitzung.gesammelte_daten)
         if transition is None:
             return _render_pub(["Kein passender naechster Schritt gefunden."], request.POST)
@@ -3459,8 +3508,8 @@ def antrag_oeffentlich_schritt(request, sitzung_pk):
         if naechster.ist_ende and not naechster.felder():
             sitzung.abschliessen()
             _pruefe_unterzeichnungs_anforderung(sitzung)
-            return redirect("formulare:antrag_oeffentlich_abgeschlossen", sitzung_pk=sitzung.pk)
-        return redirect("formulare:antrag_oeffentlich_schritt", sitzung_pk=sitzung.pk)
+            return redirect("formulare_pub:antrag_oeffentlich_abgeschlossen", sitzung_pk=sitzung.pk)
+        return redirect("formulare_pub:antrag_oeffentlich_schritt", sitzung_pk=sitzung.pk)
 
     # Systemfeld-Werte für GET-Render vorberechnen (z.B. loop_zaehler)
     vorwerte_get_pub = dict(sitzung.gesammelte_daten)
@@ -3499,7 +3548,7 @@ def antrag_oeffentlich_schritt(request, sitzung_pk):
 def antrag_oeffentlich_abgeschlossen(request, sitzung_pk):
     """Abschluss-Seite anonymer Sitzungen."""
     if not _anon_darf_sitzung(request, sitzung_pk):
-        return redirect("formulare:antrag_oeffentlich_fehler")
+        return redirect("formulare_pub:antrag_oeffentlich_fehler")
     sitzung = get_object_or_404(AntrSitzung, pk=sitzung_pk, user__isnull=True)
     email_empfaenger = _versende_pdf_email(sitzung)
 

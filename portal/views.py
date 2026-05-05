@@ -778,6 +778,9 @@ def analyse_koordinaten_speichern(request, pk):
                     feld["loop_zeile_pct"] = round(float(k["loop_zeile_pct"] or 0), 4)
                 if "loop_y_offsets" in k:
                     feld["loop_y_offsets"] = [round(float(v), 4) for v in (k["loop_y_offsets"] or [])]
+                feld["nur_sachbearbeiter"] = bool(k.get("nur_sachbearbeiter", False))
+                feld["pflicht"]            = bool(k.get("pflicht", False))
+                feld["pdf_ausblenden"]     = bool(k.get("pdf_ausblenden", False))
 
     # Schrift-Einstellungen speichern
     if "pdf_font" in data:
@@ -814,6 +817,9 @@ def analyse_koordinaten_speichern(request, pk):
                         feld["loop_zeile_pct"] = round(float(k["loop_zeile_pct"] or 0), 4)
                     if "loop_y_offsets" in k:
                         feld["loop_y_offsets"] = [round(float(v), 4) for v in (k["loop_y_offsets"] or [])]
+                    feld["nur_sachbearbeiter"] = bool(k.get("nur_sachbearbeiter", False))
+                    feld["pflicht"]            = bool(k.get("pflicht", False))
+                    feld["pdf_ausblenden"]     = bool(k.get("pdf_ausblenden", False))
                     changed = True
             if changed:
                 schritt.felder_json = felder_json

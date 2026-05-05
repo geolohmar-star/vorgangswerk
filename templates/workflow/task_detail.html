@@ -79,13 +79,42 @@
         <div class="card-header d-flex justify-content-between align-items-center">
           <strong>Antragsdaten</strong>
           {% if sitzung %}
-          <div class="d-flex gap-1">
+          <div class="d-flex gap-1 flex-wrap">
             <a href="{% url 'formulare:sitzung_pdf' sitzung.pk %}" class="btn btn-sm btn-outline-primary" target="_blank">
               &#128196; PDF
             </a>
+            {% if hat_original_pdf %}
+            <a href="{% url 'formulare:sitzung_original_pdf' sitzung.pk %}" class="btn btn-sm btn-outline-success" target="_blank">
+              &#128196; Original-PDF ausgefüllt
+            </a>
+            {% endif %}
             <a href="{% url 'formulare:sitzung_gesamtakte' sitzung.pk %}" class="btn btn-sm btn-outline-secondary" title="Gesamtakte als ZIP herunterladen">
               &#128230; Gesamtakte
             </a>
+            {% if hat_sb_felder %}
+            <a href="{% url 'formulare:sachbearbeiter_nacherfassung' sitzung.pk %}?next=task&task_pk={{ task.pk }}"
+               class="btn btn-sm btn-warning">
+              &#128084; Sachbearbeiter-Felder ergänzen
+            </a>
+            {% endif %}
+            {% if sitzung %}
+            <a href="{% url 'datev:lodas_download' sitzung.pk %}" class="btn btn-sm btn-outline-success">
+              DATEV LODAS &#8595;
+            </a>
+            <button type="button" class="btn btn-sm btn-success"
+                    data-bs-toggle="modal" data-bs-target="#modalSteuerberater">
+              &#9993; An Steuerberater
+            </button>
+            {% endif %}
+            {% if hat_datev_token %}
+            <form method="post" action="{% url 'datev:uebertragen' sitzung.pk %}" class="d-inline">
+              {% csrf_token %}
+              <button type="submit" class="btn btn-sm btn-outline-success"
+                      onclick="return confirm('Daten direkt via HR:Exchange nach DATEV übertragen?')">
+                DATEV HR:Exchange
+              </button>
+            </form>
+            {% endif %}
           </div>
           {% endif %}
         </div>
@@ -301,6 +330,81 @@
     </div>
     {% endif %}
 
+    {# Direkt-Signaturen (signatur-Felder ohne weiterleitung_an) #}
+    {% if direkte_signaturen %}
+    <div class="card mb-4">
+      <div class="card-header"><strong>&#9998; Direkt unterzeichnen</strong></div>
+      <div class="card-body">
+        {% for ds in direkte_signaturen %}
+        <div class="mb-3" id="direkt-sig-block-{{ ds.feld_id }}">
+          <div class="d-flex align-items-center gap-2 mb-2">
+            <strong>{{ ds.label }}</strong>
+            {% if ds.unterschrieben %}
+            <span class="badge bg-success" id="direkt-sig-badge-{{ ds.feld_id }}">&#10003; Unterzeichnet</span>
+            {% else %}
+            <span class="badge bg-secondary" id="direkt-sig-badge-{{ ds.feld_id }}">Noch nicht unterzeichnet</span>
+            {% endif %}
+          </div>
+          {% if not ds.unterschrieben %}
+          <canvas id="canvas-{{ ds.feld_id }}"
+                  style="border:1px solid #ccc;border-radius:4px;cursor:crosshair;touch-action:none;"
+                  width="500" height="120"></canvas>
+          <div class="mt-1 d-flex gap-2">
+            <button type="button" class="btn btn-sm btn-outline-secondary"
+                    onclick="clearCanvas('{{ ds.feld_id }}')">Löschen</button>
+            <button type="button" class="btn btn-sm btn-success"
+                    onclick="speichereSignatur('{{ ds.feld_id }}', '{% url 'workflow:direkt_signatur_speichern' task.pk %}')">
+              &#10003; Unterschrift speichern
+            </button>
+          </div>
+          {% endif %}
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+
+    {# Signatur-Anfragen #}
+    {% if signatur_anfragen %}
+    <div class="card mb-4">
+      <div class="card-header"><strong>&#9998; Signaturanfragen</strong></div>
+      <div class="list-group list-group-flush">
+        {% for sa in signatur_anfragen %}
+        <div class="list-group-item">
+          <div class="d-flex justify-content-between align-items-center">
+            <div>
+              <strong>{{ sa.label }}</strong>
+              <small class="text-muted ms-2">{{ sa.empfaenger }}</small>
+              {% if sa.unterschrieben %}
+              <span class="badge bg-success ms-2">&#10003; Unterzeichnet</span>
+              {% elif sa.token %}
+              <span class="badge bg-warning text-dark ms-2">Ausstehend</span>
+              {% if sa.token.unterzeichnet_am %}
+              <small class="text-muted ms-1">{{ sa.token.unterzeichnet_am|date:"d.m.Y H:i" }}</small>
+              {% elif sa.token.erstellt_am %}
+              <small class="text-muted ms-1">Gesendet {{ sa.token.erstellt_am|date:"d.m.Y" }}</small>
+              {% endif %}
+              {% else %}
+              <span class="badge bg-secondary ms-2">Noch nicht gesendet</span>
+              {% endif %}
+            </div>
+            {% if not sa.unterschrieben %}
+            <form method="post" action="{% url 'workflow:signaturanfrage_senden' task.pk %}">
+              {% csrf_token %}
+              <input type="hidden" name="feld_id" value="{{ sa.feld_id }}">
+              <button type="submit" class="btn btn-sm btn-outline-primary"
+                      onclick="return confirm('Signaturanfrage an {{ sa.empfaenger }} senden?')">
+                {% if sa.token %}&#8635; Erneut senden{% else %}&#9993; Anfrage senden{% endif %}
+              </button>
+            </form>
+            {% endif %}
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+
     {# Sidebar: Workflow-Fortschritt #}
     <div class="col-lg-5">
       <div class="card mb-3">
@@ -334,10 +438,110 @@
 
   </div>
 </div>
+{% if sitzung %}
+<div class="modal fade" id="modalSteuerberater" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">&#9993; An Steuerberater senden</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <form method="post" action="{% url 'datev:an_steuerberater' sitzung.pk %}">
+        {% csrf_token %}
+        <input type="hidden" name="next" value="{% url 'workflow:task_detail' task.pk %}">
+        <div class="modal-body">
+          <p class="text-muted small mb-3">
+            Sendet den ausgefüllten Personalfragebogen (PDF) + DATEV LODAS ASCII-Datei als E-Mail-Anhang.
+          </p>
+          <label class="form-label fw-semibold">E-Mail Steuerberater</label>
+          <input type="email" name="steuerberater_email" class="form-control"
+                 value="{{ datev_steuerberater_email }}" placeholder="steuerberater@kanzlei.de" required>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Abbrechen</button>
+          <button type="submit" class="btn btn-success">&#9993; Jetzt senden</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endif %}
+
 {% endblock %}
 
 {% block extra_js %}
 <script>
+/* --- Direkt-Signatur-Pad --- */
+const _sigPads = {};
+
+function _initCanvas(feldId) {
+  if (_sigPads[feldId]) return _sigPads[feldId];
+  const canvas = document.getElementById("canvas-" + feldId);
+  if (!canvas) return null;
+  const ctx = canvas.getContext("2d");
+  ctx.strokeStyle = "#000";
+  ctx.lineWidth = 2;
+  ctx.lineCap = "round";
+  let drawing = false, lastX = 0, lastY = 0;
+
+  function pos(e) {
+    const r = canvas.getBoundingClientRect();
+    const src = e.touches ? e.touches[0] : e;
+    return [src.clientX - r.left, src.clientY - r.top];
+  }
+  function start(e) { e.preventDefault(); drawing = true; [lastX, lastY] = pos(e); }
+  function draw(e)  { e.preventDefault(); if (!drawing) return; const [x,y] = pos(e); ctx.beginPath(); ctx.moveTo(lastX, lastY); ctx.lineTo(x, y); ctx.stroke(); [lastX, lastY] = [x, y]; }
+  function stop()   { drawing = false; }
+
+  canvas.addEventListener("mousedown", start);
+  canvas.addEventListener("mousemove", draw);
+  canvas.addEventListener("mouseup", stop);
+  canvas.addEventListener("mouseleave", stop);
+  canvas.addEventListener("touchstart", start, {passive:false});
+  canvas.addEventListener("touchmove",  draw,  {passive:false});
+  canvas.addEventListener("touchend",   stop);
+  _sigPads[feldId] = {canvas, ctx};
+  return _sigPads[feldId];
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+  document.querySelectorAll("canvas[id^='canvas-']").forEach(c => {
+    _initCanvas(c.id.replace("canvas-", ""));
+  });
+});
+
+function clearCanvas(feldId) {
+  const pad = _sigPads[feldId];
+  if (!pad) return;
+  pad.ctx.clearRect(0, 0, pad.canvas.width, pad.canvas.height);
+}
+
+function speichereSignatur(feldId, url) {
+  const pad = _initCanvas(feldId);
+  if (!pad) return;
+  const data = pad.canvas.toDataURL("image/png");
+  // Leere Canvas prüfen
+  const blank = document.createElement("canvas");
+  blank.width = pad.canvas.width; blank.height = pad.canvas.height;
+  if (data === blank.toDataURL("image/png")) { alert("Bitte zuerst unterschreiben."); return; }
+
+  const csrf = document.cookie.match(/csrftoken=([^;]+)/)?.[1] || "";
+  const body = new URLSearchParams({feld_id: feldId, signatur_data: data});
+  fetch(url, {method:"POST", headers:{"X-CSRFToken": csrf}, body})
+    .then(r => r.json())
+    .then(d => {
+      if (d.ok) {
+        const block = document.getElementById("direkt-sig-block-" + feldId);
+        if (block) {
+          block.innerHTML = '<span class="badge bg-success">&#10003; Unterzeichnet – Seite wird neu geladen…</span>';
+        }
+        setTimeout(() => location.reload(), 800);
+      } else { alert("Fehler: " + (d.fehler || "Unbekannt")); }
+    })
+    .catch(() => alert("Netzwerkfehler"));
+}
+/* --- Ende Direkt-Signatur-Pad --- */
+
 function signiereBrief(briefPk, btn) {
   if (!confirm("Dokument jetzt als PDF konvertieren und mit Ihrer FES-Signatur versehen?")) return;
   btn.disabled = true;

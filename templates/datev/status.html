@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}DATEV-Verbindung{% endblock %}
+
+{% block content %}
+<div class="container py-4" style="max-width:640px">
+  <h2 class="mb-4">DATEV-Verbindung</h2>
+
+  {% if messages %}
+    {% for m in messages %}
+      <div class="alert alert-{{ m.tags|default:'info' }}">{{ m }}</div>
+    {% endfor %}
+  {% endif %}
+
+  {% if token and not token.ist_abgelaufen %}
+    <div class="card border-success mb-4">
+      <div class="card-body">
+        <h5 class="card-title text-success">&#10003; Verbunden</h5>
+        <dl class="row mb-0">
+          <dt class="col-sm-5">Benutzer</dt>
+          <dd class="col-sm-7">{{ token.user.username }}</dd>
+          {% if token.consultant_number %}
+          <dt class="col-sm-5">Beraternummer</dt>
+          <dd class="col-sm-7">{{ token.consultant_number }}</dd>
+          {% endif %}
+          {% if token.client_number %}
+          <dt class="col-sm-5">Mandantennummer</dt>
+          <dd class="col-sm-7">{{ token.client_number }}</dd>
+          {% endif %}
+          <dt class="col-sm-5">Token gültig bis</dt>
+          <dd class="col-sm-7">{{ token.expires_at|date:"d.m.Y H:i" }} Uhr</dd>
+          <dt class="col-sm-5">Zuletzt aktualisiert</dt>
+          <dd class="col-sm-7">{{ token.aktualisiert_am|date:"d.m.Y H:i" }} Uhr</dd>
+        </dl>
+      </div>
+    </div>
+    <form method="post" action="{% url 'datev:trennen' %}">
+      {% csrf_token %}
+      <button class="btn btn-outline-danger" onclick="return confirm('DATEV-Verbindung wirklich trennen?')">
+        Verbindung trennen
+      </button>
+    </form>
+  {% else %}
+    <div class="card border-warning mb-4">
+      <div class="card-body">
+        <h5 class="card-title text-warning">Nicht verbunden</h5>
+        <p class="mb-0">Es besteht keine aktive DATEV-Verbindung für diesen Account.</p>
+      </div>
+    </div>
+    <a href="{% url 'datev:connect' %}" class="btn btn-primary">
+      Mit DATEV verbinden
+    </a>
+  {% endif %}
+</div>
+{% endblock %}
