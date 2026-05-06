@@ -1,11 +1,11 @@
 # SPDX-License-Identifier: EUPL-1.2
 # Copyright (C) 2026 Georg Klein
 """
-FIT-Connect Ausgang – OAuth2 + Submission API Client.
+FIT-Connect Ausgang – OAuth2 + Submission API Client (v2).
 
 Testumgebung:
   Token:      https://auth-testing.fit-connect.fitko.dev/token
-  Submission: https://submission-api-testing.fit-connect.fitko.dev
+  Submission: https://test.fit-connect.fitko.dev/submission-api
 
 Produktion:
   Token:      https://auth.fit-connect.fitko.de/token
@@ -17,8 +17,10 @@ Konfiguration via .env:
   FITCONNECT_TOKEN_URL      (optional, default = Testing)
   FITCONNECT_SUBMISSION_URL (optional, default = Testing)
 """
+import hashlib
 import json
 import logging
+import uuid
 
 import requests
 from django.conf import settings
@@ -26,9 +28,10 @@ from django.core.cache import cache
 
 logger = logging.getLogger("vorgangswerk.fitconnect")
 
-_CACHE_KEY   = "fitconnect_access_token"
-_SCOPE       = "send:region:de"
-_TIMEOUT_S   = 15
+_CACHE_KEY  = "fitconnect_access_token"
+_SCOPE      = ""
+_TIMEOUT_S  = 15
+_META_SCHEMA = "https://schema.fitko.de/fit-connect/metadata/2.0.0/metadata.schema.json"
 
 
 class FitConnectConfigError(Exception):
@@ -44,12 +47,12 @@ class FitConnectSubmissionError(Exception):
 
 
 # ---------------------------------------------------------------------------
-# Interne Hilfsfunktionen
+# Hilfsfunktionen
 # ---------------------------------------------------------------------------
 
 def _credentials() -> tuple[str, str]:
-    client_id     = getattr(settings, "FITCONNECT_CLIENT_ID",     "")
-    client_secret = getattr(settings, "FITCONNECT_CLIENT_SECRET", "")
+    client_id     = getattr(settings, "FITCONNECT_CLIENT_ID",     "").strip()
+    client_secret = getattr(settings, "FITCONNECT_CLIENT_SECRET", "").strip()
     if not client_id or not client_secret:
         raise FitConnectConfigError(
             "FITCONNECT_CLIENT_ID und FITCONNECT_CLIENT_SECRET müssen in .env gesetzt sein."
@@ -58,8 +61,14 @@ def _credentials() -> tuple[str, str]:
 
 
 def _submission_base_url() -> str:
-    return getattr(settings, "FITCONNECT_SUBMISSION_URL",
-                   "https://submission-api-testing.fit-connect.fitko.dev")
+    return getattr(
+        settings, "FITCONNECT_SUBMISSION_URL",
+        "https://test.fit-connect.fitko.dev/submission-api",
+    ).rstrip("/")
+
+
+def _sha512_hex(data: bytes) -> str:
+    return hashlib.sha512(data).hexdigest()
 
 
 # ---------------------------------------------------------------------------
@@ -67,32 +76,28 @@ def _submission_base_url() -> str:
 # ---------------------------------------------------------------------------
 
 def get_token(force_refresh: bool = False) -> str:
-    """Gibt einen gültigen Bearer-Token zurück (aus Cache oder frisch vom FITKO-Server).
-
-    Der Token wird mit 60 Sekunden Puffer vor Ablauf erneuert.
-    """
+    """Gibt einen gültigen Bearer-Token zurück (aus Cache oder frisch vom FITKO-Server)."""
     if not force_refresh:
         cached = cache.get(_CACHE_KEY)
         if cached:
-            logger.debug("FIT-Connect Token aus Cache")
             return cached
 
     client_id, client_secret = _credentials()
-    token_url = getattr(settings, "FITCONNECT_TOKEN_URL",
-                        "https://auth-testing.fit-connect.fitko.dev/token")
+    token_url = getattr(
+        settings, "FITCONNECT_TOKEN_URL",
+        "https://auth-testing.fit-connect.fitko.dev/token",
+    )
 
     logger.info("FIT-Connect Token anfordern: %s", token_url)
     try:
-        resp = requests.post(
-            token_url,
-            data={
-                "grant_type":    "client_credentials",
-                "client_id":     client_id,
-                "client_secret": client_secret,
-                "scope":         _SCOPE,
-            },
-            timeout=_TIMEOUT_S,
-        )
+        body = {
+            "grant_type":    "client_credentials",
+            "client_id":     client_id,
+            "client_secret": client_secret,
+        }
+        if _SCOPE:
+            body["scope"] = _SCOPE
+        resp = requests.post(token_url, data=body, timeout=_TIMEOUT_S)
     except requests.RequestException as exc:
         raise FitConnectTokenError(f"Netzwerkfehler beim Token-Abruf: {exc}") from exc
 
@@ -101,29 +106,26 @@ def get_token(force_refresh: bool = False) -> str:
             f"Token-Abruf fehlgeschlagen: HTTP {resp.status_code} – {resp.text[:300]}"
         )
 
-    data = resp.json()
+    data       = resp.json()
     token      = data.get("access_token", "")
     expires_in = int(data.get("expires_in", 3600))
 
     if not token:
         raise FitConnectTokenError(f"Kein access_token in Antwort: {data}")
 
-    ttl = max(expires_in - 60, 30)
-    cache.set(_CACHE_KEY, token, timeout=ttl)
-    logger.info("FIT-Connect Token gespeichert (TTL %ds)", ttl)
+    cache.set(_CACHE_KEY, token, timeout=max(expires_in - 60, 30))
+    logger.info("FIT-Connect Token gespeichert (TTL %ds)", expires_in - 60)
     return token
 
 
 def token_info() -> dict:
     """Gibt Metadaten des aktuellen Tokens zurück (für Diagnose/Admin)."""
     client_id, _ = _credentials()
-    token_url    = getattr(settings, "FITCONNECT_TOKEN_URL", "")
-    sub_url      = getattr(settings, "FITCONNECT_SUBMISSION_URL", "")
-    cached       = cache.get(_CACHE_KEY)
+    cached = cache.get(_CACHE_KEY)
     return {
         "client_id":      client_id,
-        "token_url":      token_url,
-        "submission_url": sub_url,
+        "token_url":      getattr(settings, "FITCONNECT_TOKEN_URL", ""),
+        "submission_url": getattr(settings, "FITCONNECT_SUBMISSION_URL", ""),
         "scope":          _SCOPE,
         "token_cached":   bool(cached),
         "token_preview":  (cached[:12] + "…") if cached else None,
@@ -131,16 +133,19 @@ def token_info() -> dict:
 
 
 # ---------------------------------------------------------------------------
-# Destination-Key & JWE-Verschlüsselung (Schritt 3)
+# Destination-Key (v2)
 # ---------------------------------------------------------------------------
 
 def _hole_destination_enc_key(destination_id: str, token: str) -> dict:
-    """Holt den öffentlichen JWK (use=enc) der Empfangsbehörde."""
-    url = f"{_submission_base_url()}/v1/destinations/{destination_id}"
+    """Holt den öffentlichen Verschlüsselungs-JWK der Empfangsbehörde via v2 API."""
+    base_url = _submission_base_url()
+    headers  = {"Authorization": f"Bearer {token}"}
+
+    # Destination-Objekt holen → encryptionKid ermitteln
     try:
         resp = requests.get(
-            url,
-            headers={"Authorization": f"Bearer {token}"},
+            f"{base_url}/v2/destinations/{destination_id}",
+            headers=headers,
             timeout=_TIMEOUT_S,
         )
     except requests.RequestException as exc:
@@ -151,18 +156,48 @@ def _hole_destination_enc_key(destination_id: str, token: str) -> dict:
             f"Destination-Abfrage fehlgeschlagen: HTTP {resp.status_code} – {resp.text[:300]}"
         )
 
-    data = resp.json()
-    keys = data.get("destinationPublicKeys", [])
-    enc_keys = [k for k in keys if k.get("use") == "enc"]
-    if not enc_keys:
+    try:
+        dest = resp.json()
+    except Exception:
         raise FitConnectSubmissionError(
-            f"Kein Verschlüsselungs-Key für Destination {destination_id}. Antwort: {data}"
+            f"Destination-Antwort kein gültiges JSON (HTTP {resp.status_code}): {resp.text[:300]}"
         )
-    return enc_keys[0]
+
+    # Keys können direkt eingebettet oder über encryptionKid referenziert sein
+    enc_kid = dest.get("encryptionKid") or dest.get("encryptionKeyId")
+    keys    = dest.get("destinationPublicKeys") or dest.get("keys") or []
+
+    if keys:
+        enc_keys = [k for k in keys if k.get("use") == "enc" or k.get("key_ops") == ["wrapKey"]]
+        if enc_kid:
+            enc_keys = [k for k in enc_keys if k.get("kid") == enc_kid] or enc_keys
+        if enc_keys:
+            return enc_keys[0]
+
+    # Fallback: Key über separaten Endpunkt holen
+    if enc_kid:
+        try:
+            resp2 = requests.get(
+                f"{base_url}/v2/destinations/{destination_id}/keys/{enc_kid}",
+                headers=headers,
+                timeout=_TIMEOUT_S,
+            )
+            if resp2.status_code == 200:
+                return resp2.json()
+        except requests.RequestException:
+            pass
+
+    raise FitConnectSubmissionError(
+        f"Kein Verschlüsselungs-Key für Destination {destination_id}. Antwort: {dest}"
+    )
 
 
-def _jwe_verschluesseln(payload_bytes: bytes, public_jwk: dict) -> str:
-    """Verschlüsselt Bytes per JWE (RSA-OAEP-256 + A256GCM), gibt compact token zurück."""
+# ---------------------------------------------------------------------------
+# JWE-Verschlüsselung
+# ---------------------------------------------------------------------------
+
+def _jwe_verschluesseln(payload_bytes: bytes, public_jwk: dict, content_type: str = "application/json") -> str:
+    """Verschlüsselt Bytes per JWE Compact (RSA-OAEP-256 + A256GCM)."""
     try:
         from jwcrypto import jwk as jk, jwe
     except ImportError as exc:
@@ -170,13 +205,14 @@ def _jwe_verschluesseln(payload_bytes: bytes, public_jwk: dict) -> str:
             "jwcrypto nicht installiert. Bitte: pip install jwcrypto"
         ) from exc
 
-    key = jk.JWK(**public_jwk)
+    key   = jk.JWK(**public_jwk)
     token = jwe.JWE(
         plaintext=payload_bytes,
         protected=json.dumps({
             "alg": "RSA-OAEP-256",
             "enc": "A256GCM",
             "kid": public_jwk.get("kid", ""),
+            "cty": content_type,
         }),
     )
     token.add_recipient(key)
@@ -184,17 +220,67 @@ def _jwe_verschluesseln(payload_bytes: bytes, public_jwk: dict) -> str:
 
 
 # ---------------------------------------------------------------------------
-# PDF-Erzeugung (intern)
+# Metadaten (Schema 2.0.0)
+# ---------------------------------------------------------------------------
+
+def _baue_metadaten(
+    daten_json:         bytes,
+    anhaenge:           list[dict],  # [{"id": uuid, "filename": str, "mimetype": str, "bytes": bytes, "zweck": str}]
+    sitzung,
+) -> bytes:
+    """Baut den Metadatensatz gemäß FIT-Connect Metadata-Schema 2.0.0."""
+    schema_uri = (
+        getattr(settings, "VORGANGSWERK_BASE_URL", "https://vorgangswerk.georg-klein.com")
+        + "/api/fitconnect/schema/antrag/"
+    )
+
+    meta = {
+        "$schema": _META_SCHEMA,
+        "contentStructure": {
+            "data": {
+                "submissionSchema": {
+                    "schemaUri": schema_uri,
+                    "mimeType": "application/json",
+                },
+                "hash": {
+                    "type":    "sha512",
+                    "content": _sha512_hex(daten_json),
+                },
+            },
+            "attachments": [
+                {
+                    "attachmentId": a["id"],
+                    "filename":     a["filename"],
+                    "mimeType":     a["mimetype"],
+                    "purpose":      a.get("zweck", "report"),
+                    "description":  a.get("beschreibung", ""),
+                    "hash": {
+                        "type":    "sha512",
+                        "content": _sha512_hex(a["bytes"]),
+                    },
+                }
+                for a in anhaenge
+            ],
+        },
+        "additionalReferenceInfo": {
+            "senderReference": sitzung.vorgangsnummer or f"ANT-{sitzung.pk:05d}",
+        },
+    }
+
+    email = getattr(sitzung, "email", "") or (sitzung.gesammelte_daten or {}).get("email", "")
+    if email:
+        meta["replyChannel"] = {"eMail": {"address": email}}
+
+    return json.dumps(meta, ensure_ascii=False).encode("utf-8")
+
+
+# ---------------------------------------------------------------------------
+# PDF-Erzeugung
 # ---------------------------------------------------------------------------
 
 def _erzeuge_sitzung_pdf(sitzung) -> bytes:
-    """Erzeugt das ausgefüllte PDF für eine Sitzung.
-
-    Versucht zuerst AcroForm-Filling mit dem Original-PDF.
-    Fallback: WeasyPrint-HTML-Zusammenfassung.
-    """
+    """Erzeugt das ausgefüllte PDF für eine Sitzung (AcroForm → WeasyPrint-Fallback)."""
     pdf_bytes = None
-
     try:
         from portal.models import FormularAnalyse
         from portal.pdf_fill import fuelle_acroform
@@ -220,7 +306,7 @@ def _erzeuge_sitzung_pdf(sitzung) -> bytes:
         try:
             from weasyprint import HTML
             from django.template.loader import render_to_string
-            daten = sitzung.gesammelte_daten or {}
+            daten  = sitzung.gesammelte_daten or {}
             felder = []
             for schritt in sitzung.pfad.schritte.all():
                 for feld in schritt.felder():
@@ -228,85 +314,84 @@ def _erzeuge_sitzung_pdf(sitzung) -> bytes:
                         wert = daten.get(feld["id"], "")
                         if wert:
                             felder.append({"label": feld.get("label") or feld["id"], "wert": wert})
-            html_str = render_to_string("formulare/sitzung_pdf.html", {
-                "sitzung": sitzung,
-                "felder":  felder,
-            })
+            html_str  = render_to_string("formulare/sitzung_pdf.html", {"sitzung": sitzung, "felder": felder})
             pdf_bytes = HTML(string=html_str).write_pdf()
         except Exception as exc:
             logger.error("FIT-Connect PDF (WeasyPrint) fehlgeschlagen: %s", exc)
 
     if not pdf_bytes:
         raise FitConnectSubmissionError("PDF-Erzeugung für Submission fehlgeschlagen.")
-
     return pdf_bytes
 
 
 # ---------------------------------------------------------------------------
-# Submission (Schritt 2 + 3)
+# Submission (v2 – 3-Schritt-Ablauf)
 # ---------------------------------------------------------------------------
 
-def submit_sitzung(sitzung) -> str:
+def submit_sitzung(sitzung) -> tuple[str, str]:
     """
-    Reicht eine Antragssitzung per FIT-Connect Submission API ein.
+    Reicht eine Antragssitzung per FIT-Connect Submission API v2 ein.
 
     Ablauf:
       1. Token holen
-      2. Destination-Key (JWK) holen
+      2. Destination-JWK (enc) holen
       3. PDF erzeugen
-      4. POST /v1/submissions → Submission-ID
-      5. PDF JWE-verschlüsselt hochladen
-      6. Antragsdaten JSON JWE-verschlüsselt hochladen
-      7. POST /v1/submissions/{id}/submit → finalisieren
+      4. POST /v2/submissions  →  submissionId
+      5. PUT  /v2/submissions/{id}/attachments/{attachmentId}  (JWE-verschlüsselt)
+      6. PUT  /v2/submissions/{id}  mit encryptedMetadata + encryptedData
 
-    Gibt die Submission-ID (UUID) zurück.
-    Wirft FitConnectSubmissionError bei Fehlern.
+    Gibt (submission_id, status) zurück.
     """
     destination_id = getattr(sitzung.pfad, "fitconnect_destination_id", "").strip()
     if not destination_id:
+        destination_id = getattr(settings, "FITCONNECT_DESTINATION_ID", "").strip()
+    if not destination_id:
         raise FitConnectSubmissionError(
-            f"Kein FIT-Connect Destination-ID für Pfad '{sitzung.pfad.name}' konfiguriert. "
-            "Bitte im Formular-Editor unter Pfad-Einstellungen eintragen."
+            f"Kein FIT-Connect Destination-ID für Pfad '{sitzung.pfad.name}' konfiguriert."
         )
 
-    token = get_token()
-    auth_headers = {"Authorization": f"Bearer {token}"}
+    token    = get_token()
+    headers  = {"Authorization": f"Bearer {token}"}
     base_url = _submission_base_url()
 
-    # Destination-Key für JWE holen
     logger.info("FIT-Connect: hole Destination-Key für %s", destination_id)
     enc_key = _hole_destination_enc_key(destination_id, token)
 
-    # PDF erzeugen
     logger.info("FIT-Connect: erzeuge PDF für Sitzung %s", sitzung.pk)
     pdf_bytes = _erzeuge_sitzung_pdf(sitzung)
 
-    vorgangsnummer = sitzung.vorgangsnummer or f"ANT-{sitzung.pk:05d}"
-    leika = getattr(sitzung.pfad, "leika_schluessel", "").strip()
+    vorgangsnummer  = sitzung.vorgangsnummer or f"ANT-{sitzung.pk:05d}"
+    pdf_attachment_id = str(uuid.uuid4())
+    pdf_filename    = f"{vorgangsnummer}.pdf"
 
-    # Submission anlegen
+    daten_json = json.dumps(sitzung.gesammelte_daten or {}, ensure_ascii=False).encode("utf-8")
+
+    anhaenge = [{
+        "id":          pdf_attachment_id,
+        "filename":    pdf_filename,
+        "mimetype":    "application/pdf",
+        "bytes":       pdf_bytes,
+        "zweck":       "report",
+        "beschreibung": sitzung.pfad.name,
+    }]
+
+    # Schritt 4: Submission anlegen
+    leika = getattr(sitzung.pfad, "leika_schluessel", "").strip()
     announce_body: dict = {
         "destinationId": destination_id,
-        "announcedAttachments": [
-            {
-                "filename": f"{vorgangsnummer}.pdf",
-                "mimeType": "application/pdf",
-                "description": sitzung.pfad.name,
-            }
-        ],
+        "announcedAttachments": [pdf_attachment_id],
+        "publicService": {
+            "name":       sitzung.pfad.name or "Antrag",
+            "identifier": f"urn:de:fim:leistung:{leika}" if leika else "urn:de:fim:leistung:99010028",
+        },
     }
-    if leika:
-        announce_body["serviceType"] = {
-            "name": sitzung.pfad.name,
-            "identifier": f"urn:de:fim:leika:leistung:{leika}",
-        }
 
-    logger.info("FIT-Connect: POST /v1/submissions")
+    logger.info("FIT-Connect: POST /v2/submissions")
     try:
         resp = requests.post(
-            f"{base_url}/v1/submissions",
+            f"{base_url}/v2/submissions",
             json=announce_body,
-            headers={**auth_headers, "Content-Type": "application/json"},
+            headers={**headers, "Content-Type": "application/json"},
             timeout=_TIMEOUT_S,
         )
     except requests.RequestException as exc:
@@ -317,76 +402,61 @@ def submit_sitzung(sitzung) -> str:
             f"Submission anlegen fehlgeschlagen: HTTP {resp.status_code} – {resp.text[:400]}"
         )
 
-    sub_data = resp.json()
+    try:
+        sub_data = resp.json()
+    except Exception:
+        raise FitConnectSubmissionError(
+            f"Submissions-Antwort kein gültiges JSON (HTTP {resp.status_code}): {resp.text[:300]}"
+        )
     submission_id = sub_data.get("submissionId") or sub_data.get("id")
-    attachment_ids: dict = sub_data.get("attachmentIds", {})
-
     if not submission_id:
         raise FitConnectSubmissionError(f"Keine Submission-ID in Antwort: {sub_data}")
-
     logger.info("FIT-Connect: Submission-ID %s", submission_id)
 
-    # PDF hochladen (JWE-verschlüsselt)
-    pdf_filename = f"{vorgangsnummer}.pdf"
-    attachment_id = attachment_ids.get(pdf_filename)
-    if attachment_id:
-        logger.info("FIT-Connect: verschlüssele + lade PDF hoch")
-        pdf_jwe = _jwe_verschluesseln(pdf_bytes, enc_key)
+    # Schritt 5: Anhänge hochladen (je JWE-verschlüsselt)
+    for anhang in anhaenge:
+        logger.info("FIT-Connect: lade Anhang hoch %s", anhang["filename"])
+        jwe_bytes = _jwe_verschluesseln(anhang["bytes"], enc_key, anhang["mimetype"])
         try:
             resp = requests.put(
-                f"{base_url}/v1/submissions/{submission_id}/attachments/{attachment_id}",
-                data=pdf_jwe.encode("ascii"),
-                headers={**auth_headers, "Content-Type": "application/jose"},
+                f"{base_url}/v2/submissions/{submission_id}/attachments/{anhang['id']}",
+                data=jwe_bytes.encode("ascii"),
+                headers={**headers, "Content-Type": "application/jose"},
                 timeout=60,
             )
         except requests.RequestException as exc:
-            raise FitConnectSubmissionError(f"Netzwerkfehler beim PDF-Upload: {exc}") from exc
+            raise FitConnectSubmissionError(f"Netzwerkfehler beim Anhang-Upload: {exc}") from exc
 
         if resp.status_code not in (200, 201, 204):
             raise FitConnectSubmissionError(
-                f"PDF-Upload fehlgeschlagen: HTTP {resp.status_code} – {resp.text[:400]}"
+                f"Anhang-Upload fehlgeschlagen: HTTP {resp.status_code} – {resp.text[:400]}"
             )
-    else:
-        logger.warning("FIT-Connect: kein Attachment-Slot für '%s' – überspringe PDF", pdf_filename)
 
-    # Antragsdaten hochladen (JWE-verschlüsselt)
-    logger.info("FIT-Connect: verschlüssele + lade Antragsdaten hoch")
-    daten_json = json.dumps(sitzung.gesammelte_daten or {}, ensure_ascii=False).encode("utf-8")
-    daten_jwe = _jwe_verschluesseln(daten_json, enc_key)
+    # Schritt 6: Metadaten + Fachdaten JWE-verschlüsselt hochladen
+    logger.info("FIT-Connect: baue + verschlüssele Metadaten")
+    meta_bytes = _baue_metadaten(daten_json, anhaenge, sitzung)
+    meta_jwe   = _jwe_verschluesseln(meta_bytes, enc_key, "application/json")
+    daten_jwe  = _jwe_verschluesseln(daten_json, enc_key, "application/json")
+
+    logger.info("FIT-Connect: PUT /v2/submissions/%s", submission_id)
     try:
         resp = requests.put(
-            f"{base_url}/v1/submissions/{submission_id}/data",
-            data=daten_jwe.encode("ascii"),
-            headers={**auth_headers, "Content-Type": "application/jose"},
+            f"{base_url}/v2/submissions/{submission_id}",
+            json={"encryptedMetadata": meta_jwe, "encryptedData": daten_jwe},
+            headers={**headers, "Content-Type": "application/json"},
             timeout=_TIMEOUT_S,
         )
     except requests.RequestException as exc:
-        raise FitConnectSubmissionError(f"Netzwerkfehler beim Daten-Upload: {exc}") from exc
+        raise FitConnectSubmissionError(f"Netzwerkfehler beim finalen Upload: {exc}") from exc
 
     if resp.status_code not in (200, 201, 204):
         raise FitConnectSubmissionError(
-            f"Daten-Upload fehlgeschlagen: HTTP {resp.status_code} – {resp.text[:400]}"
+            f"Finaler Upload fehlgeschlagen: HTTP {resp.status_code} – {resp.text[:400]}"
         )
 
-    # Submission finalisieren
-    logger.info("FIT-Connect: POST /v1/submissions/%s/submit", submission_id)
+    status = "submitted"
     try:
-        resp = requests.post(
-            f"{base_url}/v1/submissions/{submission_id}/submit",
-            headers={**auth_headers, "Content-Type": "application/json"},
-            timeout=_TIMEOUT_S,
-        )
-    except requests.RequestException as exc:
-        raise FitConnectSubmissionError(f"Netzwerkfehler beim Submit: {exc}") from exc
-
-    if resp.status_code not in (200, 201, 204):
-        raise FitConnectSubmissionError(
-            f"Submit fehlgeschlagen: HTTP {resp.status_code} – {resp.text[:400]}"
-        )
-
-    status = "queued"
-    try:
-        status = resp.json().get("status", "queued")
+        status = resp.json().get("status", "submitted")
     except Exception:
         pass
 
@@ -395,19 +465,19 @@ def submit_sitzung(sitzung) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Status-Polling (Schritt 4 – Vorbereitung)
+# Status-Polling (v2)
 # ---------------------------------------------------------------------------
 
 def pruefe_submission_status(submission_id: str) -> str:
-    """Fragt den Status einer laufenden Submission ab.
+    """Fragt den Status einer laufenden Submission ab (v2).
 
-    Gibt einen der FITKO-Status zurück: queued | forwarded | delivered | rejected
+    Mögliche Werte: submitted | forwarded | delivered | rejected
     """
-    token = get_token()
+    token    = get_token()
     base_url = _submission_base_url()
     try:
         resp = requests.get(
-            f"{base_url}/v1/submissions/{submission_id}/status",
+            f"{base_url}/v2/submissions/{submission_id}",
             headers={"Authorization": f"Bearer {token}"},
             timeout=_TIMEOUT_S,
         )
