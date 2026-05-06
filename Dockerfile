@@ -4,7 +4,10 @@
 FROM python:3.12-slim-bookworm
 
 # Systemabhaengigkeiten (WeasyPrint + psycopg2)
-RUN apt-get update && apt-get install -y \
+RUN apt-get update && apt-get install -y curl gnupg2 lsb-release \
+    && curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | gpg --dearmor -o /usr/share/keyrings/pgdg.gpg \
+    && echo "deb [signed-by=/usr/share/keyrings/pgdg.gpg] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list \
+    && apt-get update && apt-get install -y \
     libpq-dev \
     gcc \
     libpango-1.0-0 \
@@ -13,7 +16,7 @@ RUN apt-get update && apt-get install -y \
     libffi-dev \
     libjpeg-dev \
     libopenjp2-7 \
-    postgresql-client \
+    postgresql-client-16 \
     poppler-utils \
     && rm -rf /var/lib/apt/lists/*
 
