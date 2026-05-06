@@ -129,17 +129,19 @@ Das Amt bekommt am Ende genau das PDF, das es kennt – vollständig ausgefüllt
 - OZG-Anforderung erfüllt: Kommunen benötigen kein eigenes Identity-Management
 
 ### FIT-Connect (OZG-Kanal / Super App)
-- **Inbound-Empfänger** – nimmt Submissions von der OZG-Super-App oder anderen FIT-Connect-Sendern entgegen
+
+**Eingang** – Vorgangswerk als Backend-Fachverfahren hinter der OZG-Super-App:
+- Nimmt Submissions von der OZG-Super-App oder anderen FIT-Connect-Sendern entgegen
 - Automatische Zuordnung über **LeiKa-Schlüssel** zum passenden Antragspfad
 - **FIM-Feldzuordnung** – FIM-IDs (`F6xxxxxxx`) werden auf interne Felder gemappt
 - JWE-Entschlüsselung mit RSA-4096 (Subscriber-Zertifikat der FITKO)
 - Workflow-Start, Benachrichtigungs-E-Mails und Audit-Log automatisch nach Eingang
-- **Export** bestehender Anträge als FIT-Connect Submission Payload (`/api/antrag/{nr}/fitconnect/`)
-- Positionierung: Vorgangswerk als **Backend-Fachverfahren** hinter der Super App – kein Widerspruch, sondern Ergänzung
+- Export bestehender Anträge als FIT-Connect Submission Payload (`/api/antrag/{nr}/fitconnect/`)
 
-- **Ausgang** – abgeschlossene Anträge werden strukturiert und JWE-verschlüsselt per FIT-Connect direkt an das Fachverfahren der Empfangsbehörde übermittelt
-- Kein PDF-Versand per E-Mail, kein manuelles Abtippen bei der Behörde
-- OAuth2 Client Credentials, Ende-zu-Ende-Verschlüsselung mit dem öffentlichen JWK der Empfangsbehörde, Metadata-Schema 2.0
+**Ausgang** – Anträge direkt ins Fachverfahren der Empfangsbehörde:
+- Abgeschlossene Anträge werden JWE-verschlüsselt per FIT-Connect übermittelt – kein PDF per E-Mail, kein Abtippen
+- OAuth2 Client Credentials, Ende-zu-Ende-Verschlüsselung mit dem öffentlichen JWK der Empfangsbehörde
+- Metadata-Schema 2.0, SHA-512 Inhaltsprüfung, Anhänge verschlüsselt übertragen
 - Manueller Versand per Button in der Auswertung; Destination-ID pro Formular konfigurierbar
 - Für Produktivbetrieb: Destination-ID der Empfangsbehörde eintragen – kein weiterer Codeaufwand
 
@@ -271,6 +273,10 @@ docker compose --profile onlyoffice up -d
 | `STRIPE_SECRET_KEY` | Nein | Stripe Secret |
 | `VERSCHLUESSEL_KEY` | Nein | AES-Key für sensible Dokumente |
 | `BENTOPDF_URL` | Nein | URL zu BentoPDF/Stirling-PDF |
+| `FITCONNECT_CLIENT_ID` | Nein | OAuth2 Client-ID für FIT-Connect Ausgang (Sender) |
+| `FITCONNECT_CLIENT_SECRET` | Nein | OAuth2 Client-Secret für FIT-Connect Ausgang |
+| `FITCONNECT_DESTINATION_ID` | Nein | Standard-Destination-ID (kann pro Formular überschrieben werden) |
+| `FITCONNECT_CALLBACK_SECRET` | Nein | HMAC-Secret für FIT-Connect Callback-Verifizierung |
 
 Eine vollständige Vorlage: `.env.example`
 
