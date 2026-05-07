@@ -70,6 +70,56 @@ _OPS = {
 }
 
 
+def _parse_zeit_zu_min(s):
+    s = str(s or "").strip()
+    if ":" in s:
+        try:
+            h, m = s.split(":", 1)
+            return int(h) * 60 + int(m)
+        except (ValueError, TypeError):
+            return 0
+    return 0
+
+
+def _pause_nach_arbzg(minuten):
+    """ArbZG §4: Pflichtpause in Minuten."""
+    if minuten > 540:
+        return 45
+    if minuten > 360:
+        return 30
+    return 0
+
+
+def _pause_gestaffelt(minuten):
+    """Gleitende Pausenstaffelung (PRIMA-Modell).
+
+    bis 6h (360 min):       0 min
+    6h–6:30h (360–390):     gleitend (brutto − 360)
+    6:30h–9h (390–540):     30 min fest
+    9h–9:15h (540–555):     gleitend 30 + (brutto − 540)
+    ab 9:15h (555+):        45 min fest
+    Max-Brutto: 13h (780 min)
+    """
+    minuten = min(minuten, 780)
+    if minuten <= 360:
+        return 0
+    if minuten <= 390:
+        return minuten - 360
+    if minuten <= 540:
+        return 30
+    if minuten <= 555:
+        return 30 + (minuten - 540)
+    return 45
+
+
+def _min_zu_zeit_str(minuten):
+    try:
+        minuten = int(round(float(minuten)))
+    except (ValueError, TypeError):
+        return "00:00"
+    return f"{minuten // 60:02d}:{minuten % 60:02d}"
+
+
 def _ast_eval(node, werte):
     if isinstance(node, ast.Constant):
         return node.value
@@ -156,6 +206,62 @@ def _berechne_formel(formel, werte):
         lambda m: _summe_loop(m.group(1)),
         formel.replace(";", ","),
     )
+
+    # ZEITDIFF(von_feld, bis_feld) → Differenz in Minuten (bare IDs oder {{}} Syntax)
+    def _zeitdiff(m):
+        von = _parse_zeit_zu_min(werte.get(m.group(1).strip(), ""))
+        bis = _parse_zeit_zu_min(werte.get(m.group(2).strip(), ""))
+        diff = bis - von
+        if diff < 0:
+            diff += 1440
+        return str(diff)
+    ausdruck = re.sub(r'ZEITDIFF\(\s*(?:\{\{)?(\w+)(?:\}\})?\s*,\s*(?:\{\{)?(\w+)(?:\}\})?\s*\)', _zeitdiff, ausdruck, flags=re.IGNORECASE)
+
+    def _parse_pause_arg(arg):
+        arg = arg.strip()
+        try:
+            return float(arg)
+        except ValueError:
+            try:
+                return float(str(werte.get(arg, 0) or 0).replace(",", "."))
+            except (ValueError, TypeError):
+                return 0
+
+    # PAUSE(minuten_oder_feldid) → ArbZG-Pflichtpause
+    ausdruck = re.sub(
+        r'PAUSE\(\s*([^)]+)\s*\)',
+        lambda m: str(_pause_nach_arbzg(_parse_pause_arg(m.group(1)))),
+        ausdruck,
+        flags=re.IGNORECASE,
+    )
+    # PAUSE_GESTAFFELT(minuten_oder_feldid) → gleitende Pausenstaffelung
+    ausdruck = re.sub(
+        r'PAUSE_GESTAFFELT\(\s*([^)]+)\s*\)',
+        lambda m: str(_pause_gestaffelt(_parse_pause_arg(m.group(1)))),
+        ausdruck,
+        flags=re.IGNORECASE,
+    )
+
+    # MINUTEN_ZU_ZEIT(minuten_oder_feld_oder_ausdruck) → "HH:MM"
+    def _min_zu_zeit(m):
+        arg = m.group(1).strip()
+        try:
+            minuten = float(arg)
+        except ValueError:
+            if re.match(r'^[\d\s\.\+\-\*\/\(\)]+$', arg):
+                try:
+                    tree = ast.parse(arg, mode="eval")
+                    minuten = float(_ast_eval(tree.body, {}))
+                except Exception:
+                    minuten = 0
+            else:
+                try:
+                    minuten = float(str(werte.get(arg, 0) or 0).replace(",", "."))
+                except (ValueError, TypeError):
+                    minuten = 0
+        return f'"{_min_zu_zeit_str(minuten)}"'
+    ausdruck = re.sub(r'MINUTEN_ZU_ZEIT\(\s*([^)]+)\s*\)', _min_zu_zeit, ausdruck, flags=re.IGNORECASE)
+
     # {{feld_id}}-Syntax ersetzen
     ausdruck = re.sub(r"\{\{(\w+)\}\}", _var_ersetzen, ausdruck)
     # Bare Feld-IDs ersetzen (z.B. monat_1 + monat_2, erzeugt vom KI-Import)

@@ -1224,8 +1224,81 @@ function zahlung_demo_bestaetigen(feldId) {
         return '"' + v.replace(/\\/g, "\\\\").replace(/"/g, '\\"') + '"';
     }
 
+    function _parseZeit(s) {
+        s = String(s || "").trim().replace(".", ":");
+        if (/^\d{4}$/.test(s)) s = s.slice(0, 2) + ":" + s.slice(2);
+        var parts = s.split(":");
+        if (parts.length === 2) {
+            var h = parseInt(parts[0], 10), m = parseInt(parts[1], 10);
+            if (!isNaN(h) && !isNaN(m)) return h * 60 + m;
+        }
+        return 0;
+    }
+
+    function _pauseMin(min) {
+        min = parseFloat(min) || 0;
+        if (min > 540) return 45;
+        if (min > 360) return 30;
+        return 0;
+    }
+
+    function _pauseMinGestaffelt(min) {
+        min = Math.min(parseFloat(min) || 0, 780);
+        if (min <= 360) return 0;
+        if (min <= 390) return min - 360;
+        if (min <= 540) return 30;
+        if (min <= 555) return 30 + (min - 540);
+        return 45;
+    }
+
+    function _minZuZeit(min) {
+        min = Math.round(parseFloat(min) || 0);
+        var h = Math.floor(min / 60), m = min % 60;
+        return (h < 10 ? "0" : "") + h + ":" + (m < 10 ? "0" : "") + m;
+    }
+
     function _berechne(formel) {
-        var ausdruck = formel.replace(/\{\{(\w+)\}\}/g, function (_, id) {
+        var ausdruck = formel.replace(/;/g, ",");
+
+        // ZEITDIFF(von_id, bis_id) → Differenz in Minuten (case-insensitiv, bare IDs oder geschweifte-Klammern-Syntax)
+        ausdruck = ausdruck.replace(/ZEITDIFF\(\s*(?:\{\{)?(\w+)(?:\}\})?\s*,\s*(?:\{\{)?(\w+)(?:\}\})?\s*\)/gi, function (_, vonId, bisId) {
+            var diff = _parseZeit(_feldWertRoh(bisId)) - _parseZeit(_feldWertRoh(vonId));
+            if (diff < 0) diff += 1440;
+            return String(diff);
+        });
+
+        // PAUSE_GESTAFFELT vor PAUSE (längerer Name zuerst, case-insensitiv)
+        ausdruck = ausdruck.replace(/PAUSE_GESTAFFELT\(\s*([^)]+)\s*\)/gi, function (_, arg) {
+            arg = arg.trim();
+            var min = parseFloat(arg);
+            if (isNaN(min)) min = parseFloat(_feldWertRoh(arg)) || 0;
+            return String(_pauseMinGestaffelt(min));
+        });
+
+        // PAUSE(minuten_oder_feldid) → ArbZG-Pflichtpause (case-insensitiv)
+        ausdruck = ausdruck.replace(/PAUSE\(\s*([^)]+)\s*\)/gi, function (_, arg) {
+            arg = arg.trim();
+            var min = parseFloat(arg);
+            if (isNaN(min)) min = parseFloat(_feldWertRoh(arg)) || 0;
+            return String(_pauseMin(min));
+        });
+
+        // MINUTEN_ZU_ZEIT – vor Variablensubstitution erkennen (gibt String zurück, case-insensitiv)
+        var mztMatch = /^MINUTEN_ZU_ZEIT\(\s*([\s\S]+?)\s*\)$/i.exec(ausdruck.trim());
+        if (mztMatch) {
+            var innerAusdruck = mztMatch[1].trim();
+            innerAusdruck = innerAusdruck.replace(/\b([a-zA-Z_]\w*)\b/g, function (_, id) {
+                var n = parseFloat(_feldWertRoh(id));
+                return isNaN(n) ? "0" : String(n);
+            });
+            if (!/^[\d\s\.\+\-\*\/\(\)]+$/.test(innerAusdruck)) return "";
+            try {
+                // eslint-disable-next-line no-new-func
+                return _minZuZeit(Math.round(Function('"use strict"; return (' + innerAusdruck + ')')()));
+            } catch (e) { return ""; }
+        }
+
+        ausdruck = ausdruck.replace(/\{\{(\w+)\}\}/g, function (_, id) {
             return _quote(_feldWertRoh(id));
         });
         ausdruck = ausdruck.replace(/\b([a-zA-Z_]\w*)\b(?=(?:[^"]*"[^"]*")*[^"]*$)/g, function (_, id) {
@@ -1243,15 +1316,18 @@ function zahlung_demo_bestaetigen(feldId) {
     }
 
     function _aktualisiereBerechnung() {
-        document.querySelectorAll("[data-berechnung-id]").forEach(function (hidden) {
-            var id = hidden.dataset.berechnungId;
-            var formel = hidden.dataset.formel || "";
+        document.querySelectorAll("[data-berechnung-id]").forEach(function (el) {
+            var id = el.dataset.berechnungId;
+            var formel = el.dataset.formel || "";
             if (!formel) return;
             var wert = _berechne(formel);
-            hidden.value = wert;
+            el.value = wert;
             // Sichtbares Anzeigefeld
             var anzeige = document.getElementById("berechnung-" + id);
             if (anzeige) anzeige.value = wert;
+            // Hidden-Input aktualisieren (wird von _feldWertRoh und Formularübertragung gelesen)
+            var hiddenEl = document.getElementById("berechnung-hidden-" + id);
+            if (hiddenEl) hiddenEl.value = wert;
         });
     }
 

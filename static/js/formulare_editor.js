@@ -1627,6 +1627,7 @@
             inp.checked = (parseInt(inp.value, 10) === breite);
         });
         toggleOptionenRow(typ);
+        _aktualisiereFormelSchrittFelder(feld ? feld.id : null);
         feldModal.show();
     }
 
@@ -3211,7 +3212,7 @@
         if (fSpan) {
             var namen = Object.keys(pfadVariablen).filter(function (n) { return pfadVariablen[n].typ === "zahl"; });
             if (namen.length === 0) {
-                fSpan.innerHTML = '<em class="text-muted small">Noch keine Zahl-Variablen definiert.</em>';
+                fSpan.innerHTML = '<em class="text-muted small">Keine Pfad-Variablen definiert.</em>';
             } else {
                 fSpan.innerHTML = "";
                 namen.forEach(function (name) {
@@ -3227,6 +3228,35 @@
                 });
             }
         }
+    }
+
+    function _aktualisiereFormelSchrittFelder(aktuellesFeldId) {
+        var fSpan = document.getElementById("formel-variablen-buttons");
+        if (!fSpan) return;
+        // Vorherige Schritt-Feld-Buttons entfernen
+        fSpan.querySelectorAll("[data-schritt-feld]").forEach(function (el) { el.remove(); });
+        var relevantTypen = ["uhrzeit", "zahl", "berechnung"];
+        var felder = schritteFelder.filter(function (f) {
+            return f.id && f.id !== aktuellesFeldId && relevantTypen.indexOf(f.typ) >= 0;
+        });
+        if (felder.length === 0) return;
+        var lbl = document.createElement("small");
+        lbl.className = "text-muted fw-semibold d-block mt-2 mb-1";
+        lbl.dataset.schrittFeld = "1";
+        lbl.textContent = "Felder dieses Schritts (klicken zum Einfügen):";
+        fSpan.appendChild(lbl);
+        felder.forEach(function (f) {
+            var btn = document.createElement("button");
+            btn.type = "button";
+            btn.dataset.schrittFeld = "1";
+            btn.dataset.action = "insert-formel-var-bare";
+            btn.dataset.varName = f.id;
+            var farbKlasse = f.typ === "uhrzeit" ? "btn-outline-info" : "btn-outline-secondary";
+            btn.className = "btn btn-sm " + farbKlasse + " me-1 mb-1";
+            btn.innerHTML = esc(f.id) + ' <code class="small text-muted">' + esc(f.typ) + '</code>';
+            btn.title = (f.label || f.id) + " (" + f.typ + ")";
+            fSpan.appendChild(btn);
+        });
     }
 
     document.addEventListener("DOMContentLoaded", function () {
@@ -3300,6 +3330,145 @@
             ta.value = ta.value.slice(0, start) + insertion + ta.value.slice(end);
             ta.focus();
             ta.setSelectionRange(start + insertion.length, start + insertion.length);
+        });
+
+        // Schritt-Feld-ID direkt in Formel einfügen (ohne {{}}, für ZEITDIFF etc.)
+        document.body.addEventListener("click", function (e) {
+            var btn = e.target.closest("[data-action='insert-formel-var-bare']");
+            if (!btn) return;
+            var varName = btn.dataset.varName;
+            var ta = document.getElementById("feld-formel");
+            if (!ta) return;
+            var start = ta.selectionStart, end = ta.selectionEnd;
+            ta.value = ta.value.slice(0, start) + varName + ta.value.slice(end);
+            ta.focus();
+            ta.setSelectionRange(start + varName.length, start + varName.length);
+        });
+
+        // Formel-Editor Modal öffnen
+        function _oeffneFormelEditorModal() {
+            var formelInput = document.getElementById("feld-formel");
+            var ta = document.getElementById("formel-modal-textarea");
+            if (ta && formelInput) ta.value = formelInput.value;
+            _populateFormelModal();
+            var modalEl = document.getElementById("formel-editor-modal");
+            if (modalEl) {
+                var m = bootstrap.Modal.getOrCreateInstance(modalEl);
+                m.show();
+                setTimeout(function () { if (ta) ta.focus(); }, 300);
+            }
+        }
+
+        function _populateFormelModal() {
+            var container = document.getElementById("formel-modal-felder");
+            if (!container) return;
+            container.innerHTML = "";
+
+            // Pfad-Variablen (Zahl) → mit {{}}
+            var varNamen = Object.keys(pfadVariablen).filter(function (n) { return pfadVariablen[n].typ === "zahl"; });
+            if (varNamen.length > 0) {
+                var lbl = document.createElement("small");
+                lbl.className = "text-muted fw-semibold d-block mb-1";
+                lbl.textContent = "Pfad-Variablen:";
+                container.appendChild(lbl);
+                varNamen.forEach(function (name) {
+                    var v = pfadVariablen[name];
+                    var btn = document.createElement("button");
+                    btn.type = "button";
+                    btn.className = "btn btn-sm btn-outline-warning me-1 mb-1";
+                    btn.dataset.action = "insert-formel-modal-var";
+                    btn.dataset.varName = name;
+                    btn.innerHTML = esc(name) + ' <code class="small">=' + esc(String(v.wert)) + '</code>';
+                    container.appendChild(btn);
+                });
+            }
+
+            // Schritt-Felder (uhrzeit, zahl, berechnung) → bare ID
+            var idVorschau = document.getElementById("feld-id-vorschau");
+            var aktuellesFeldId = idVorschau ? idVorschau.textContent.trim() : null;
+            var relevantTypen = ["uhrzeit", "zahl", "berechnung"];
+            var felder = schritteFelder.filter(function (f) {
+                return f.id && f.id !== aktuellesFeldId && relevantTypen.indexOf(f.typ) >= 0;
+            });
+            if (felder.length > 0) {
+                var lbl2 = document.createElement("small");
+                lbl2.className = "text-muted fw-semibold d-block mt-2 mb-1";
+                lbl2.textContent = "Felder dieses Schritts:";
+                container.appendChild(lbl2);
+                felder.forEach(function (f) {
+                    var btn = document.createElement("button");
+                    btn.type = "button";
+                    var farbKlasse = f.typ === "uhrzeit" ? "btn-outline-info" : (f.typ === "berechnung" ? "btn-outline-success" : "btn-outline-secondary");
+                    btn.className = "btn btn-sm " + farbKlasse + " me-1 mb-1";
+                    btn.dataset.action = "insert-formel-modal-bare";
+                    btn.dataset.varName = f.id;
+                    btn.innerHTML = esc(f.id) + ' <code class="small text-muted">' + esc(f.typ) + '</code>';
+                    btn.title = (f.label || f.id) + " (" + f.typ + ")";
+                    container.appendChild(btn);
+                });
+            }
+
+            if (varNamen.length === 0 && felder.length === 0) {
+                container.innerHTML = '<em class="text-muted small">Keine Felder verfügbar.</em>';
+            }
+        }
+
+        var btnOeffnen = document.getElementById("btn-formel-editor-oeffnen");
+        if (btnOeffnen) btnOeffnen.addEventListener("click", _oeffneFormelEditorModal);
+
+        var btnOeffnen2 = document.getElementById("btn-formel-editor-oeffnen2");
+        if (btnOeffnen2) btnOeffnen2.addEventListener("click", function (e) { e.preventDefault(); _oeffneFormelEditorModal(); });
+
+        // Formel-Modal: Übernehmen
+        var btnUebernehmen = document.getElementById("btn-formel-modal-uebernehmen");
+        if (btnUebernehmen) {
+            btnUebernehmen.addEventListener("click", function () {
+                var ta = document.getElementById("formel-modal-textarea");
+                var formelInput = document.getElementById("feld-formel");
+                if (ta && formelInput) formelInput.value = ta.value;
+                var modalEl = document.getElementById("formel-editor-modal");
+                if (modalEl) bootstrap.Modal.getInstance(modalEl).hide();
+            });
+        }
+
+        // Formel-Modal: Funktion einfügen (ZEITDIFF etc.)
+        document.body.addEventListener("click", function (e) {
+            var btn = e.target.closest("[data-action='insert-formel-func']");
+            if (!btn) return;
+            var ta = document.getElementById("formel-modal-textarea");
+            if (!ta) return;
+            var tmpl = btn.dataset.template || "";
+            var cursorOff = parseInt(btn.dataset.cursorOffset || tmpl.length, 10);
+            var start = ta.selectionStart, end = ta.selectionEnd;
+            ta.value = ta.value.slice(0, start) + tmpl + ta.value.slice(end);
+            ta.focus();
+            ta.setSelectionRange(start + cursorOff, start + cursorOff);
+        });
+
+        // Formel-Modal: Pfad-Variable mit {{}} einfügen
+        document.body.addEventListener("click", function (e) {
+            var btn = e.target.closest("[data-action='insert-formel-modal-var']");
+            if (!btn) return;
+            var ta = document.getElementById("formel-modal-textarea");
+            if (!ta) return;
+            var insertion = "{{" + btn.dataset.varName + "}}";
+            var start = ta.selectionStart, end = ta.selectionEnd;
+            ta.value = ta.value.slice(0, start) + insertion + ta.value.slice(end);
+            ta.focus();
+            ta.setSelectionRange(start + insertion.length, start + insertion.length);
+        });
+
+        // Formel-Modal: Schritt-Feld bare einfügen
+        document.body.addEventListener("click", function (e) {
+            var btn = e.target.closest("[data-action='insert-formel-modal-bare']");
+            if (!btn) return;
+            var ta = document.getElementById("formel-modal-textarea");
+            if (!ta) return;
+            var name = btn.dataset.varName;
+            var start = ta.selectionStart, end = ta.selectionEnd;
+            ta.value = ta.value.slice(0, start) + name + ta.value.slice(end);
+            ta.focus();
+            ta.setSelectionRange(start + name.length, start + name.length);
         });
 
         // Variable in Textblock einfügen

@@ -518,7 +518,7 @@ html, body { overflow: hidden; height: 100%; }
                 <div class="mb-3" id="formel-row" style="display:none;">
                     <label class="form-label fw-semibold">Formel *</label>
                     <div class="mb-2 p-2 bg-light border rounded" id="formel-variablen-bereich">
-                        <small class="text-muted fw-semibold d-block mb-1">Variablen (klicken zum Einfügen):</small>
+                        <small class="text-muted fw-semibold d-block mb-1">Felder (klicken zum Einfügen):</small>
                         <span id="formel-variablen-buttons">
                             <em class="text-muted small">Noch keine Variablen definiert.</em>
                         </span>
@@ -526,15 +526,17 @@ html, body { overflow: hidden; height: 100%; }
                     <div class="input-group">
                         <input type="text" class="form-control font-monospace" id="feld-formel"
                                placeholder="z.B. {{anzahl}} * {{preis}}">
+                        <button type="button" class="btn btn-outline-primary" id="btn-formel-editor-oeffnen"
+                                title="Formel-Editor mit Feldern und Funktionsreferenz öffnen">
+                            &#10530; Editor
+                        </button>
                         <button type="button" class="btn btn-outline-secondary" id="btn-summen-assistent"
                                 data-bs-toggle="tooltip" data-bs-placement="top"
                                 title="Alle Zahlenfelder des Pfades auswählen – die Formel wird automatisch zusammengestellt.">&#931; Summe</button>
                     </div>
                     <small class="text-muted">
                         Referenziert Feld-IDs mit <code>{{name}}</code>. Operatoren: + - * /
-                        <span class="ms-2" data-bs-toggle="tooltip" data-bs-placement="right" data-bs-html="true"
-                              title="&lt;b&gt;Zahlen addieren:&lt;/b&gt;&lt;br&gt;&lt;code&gt;{{betrag_a}} + {{betrag_b}}&lt;/code&gt;&lt;br&gt;&lt;br&gt;&lt;b&gt;Von–bis Datum in ein PDF-Feld:&lt;/b&gt;&lt;br&gt;&lt;code&gt;{{datum_von}} + &quot; - &quot; + {{datum_bis}}&lt;/code&gt;&lt;br&gt;Ergibt z.B.: &lt;em&gt;01.01.2026 - 31.12.2026&lt;/em&gt;&lt;br&gt;&lt;br&gt;Dazu: Typ = Berechnungsfeld, AcroForm-Name = PDF-Feldname, PDF ausblenden ✓"
-                              style="cursor:help;">&#9432;</span>
+                        &nbsp;·&nbsp; <a href="#" class="link-secondary small" id="btn-formel-editor-oeffnen2">Funktionsreferenz &amp; Editor &#8599;</a>
                     </small>
                 </div>
 
@@ -893,6 +895,10 @@ html, body { overflow: hidden; height: 100%; }
                 <div class="form-check mt-1" id="versteckt-row">
                     <input class="form-check-input" type="checkbox" id="feld-versteckt">
                     <label class="form-check-label" for="feld-versteckt">Feld verstecken (Wert wird trotzdem gespeichert)</label>
+                </div>
+                <div class="form-check mt-1" id="sachbearbeiter-row">
+                    <input class="form-check-input" type="checkbox" id="feld-sachbearbeiter">
+                    <label class="form-check-label" for="feld-sachbearbeiter">Nur Sachbearbeiter (Antragsteller sieht dieses Feld nicht)</label>
                 </div>
                 <!-- Autofill-Quelle (nur bei typ=autofill) -->
                 <div class="mt-2 p-2 border rounded bg-info-subtle" id="autofill-quelle-row" style="display:none;">
@@ -1369,6 +1375,128 @@ Was ist die Hauptstadt von Deutschland?;Berlin;München;Hamburg;Köln;Berlin ist
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Abbrechen</button>
                 <button type="button" class="btn btn-warning" id="btn-variablen-speichern">Übernehmen</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Formel-Editor Modal -->
+<div class="modal fade" id="formel-editor-modal" tabindex="-1">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">&#10530; Formel-Editor</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row g-0">
+                    <!-- Linke Spalte: Felder + Funktionen einfügen -->
+                    <div class="col-md-4 pe-3 border-end">
+                        <h6 class="fw-semibold mb-2">Felder einfügen</h6>
+                        <div id="formel-modal-felder" class="mb-3">
+                            <em class="text-muted small">Keine Felder verfügbar.</em>
+                        </div>
+
+                        <h6 class="fw-semibold mb-2">Funktionen einfügen</h6>
+                        <div class="d-flex flex-wrap gap-1 mb-1">
+                            <strong class="w-100 small text-muted mb-1">Uhrzeiten &amp; Arbeitszeit</strong>
+                            <button type="button" class="btn btn-sm btn-outline-info"
+                                    data-action="insert-formel-func" data-template="ZEITDIFF(, )" data-cursor-offset="8">
+                                ZEITDIFF(von, bis)
+                            </button>
+                            <button type="button" class="btn btn-sm btn-outline-info"
+                                    data-action="insert-formel-func" data-template="PAUSE()" data-cursor-offset="6">
+                                PAUSE(min)
+                            </button>
+                            <button type="button" class="btn btn-sm btn-outline-info"
+                                    data-action="insert-formel-func" data-template="PAUSE_GESTAFFELT()" data-cursor-offset="17">
+                                PAUSE_GESTAFFELT(min)
+                            </button>
+                            <button type="button" class="btn btn-sm btn-outline-info"
+                                    data-action="insert-formel-func" data-template="MINUTEN_ZU_ZEIT()" data-cursor-offset="16">
+                                MINUTEN_ZU_ZEIT(min)
+                            </button>
+                        </div>
+                        <div class="d-flex flex-wrap gap-1 mt-2">
+                            <strong class="w-100 small text-muted mb-1">Mathematik</strong>
+                            <button type="button" class="btn btn-sm btn-outline-secondary"
+                                    data-action="insert-formel-func" data-template="SUMME()" data-cursor-offset="6">
+                                SUMME(feld)
+                            </button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary"
+                                    data-action="insert-formel-func" data-template="RUNDEN(, 2)" data-cursor-offset="7">
+                                RUNDEN(wert, n)
+                            </button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary"
+                                    data-action="insert-formel-func" data-template="ABS()" data-cursor-offset="4">
+                                ABS(wert)
+                            </button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary"
+                                    data-action="insert-formel-func" data-template="WENN(, , )" data-cursor-offset="5">
+                                WENN(bed, ja, nein)
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Rechte Spalte: Textarea + Referenz -->
+                    <div class="col-md-8 ps-3">
+                        <label class="form-label fw-semibold">Formel</label>
+                        <textarea id="formel-modal-textarea" class="form-control font-monospace mb-3" rows="5"
+                                  placeholder="z.B. PAUSE_GESTAFFELT(ZEITDIFF(start_uhrzeit, ende_uhrzeit))"></textarea>
+
+                        <h6 class="fw-semibold mb-2">Funktionsreferenz</h6>
+                        <table class="table table-sm table-hover small mb-2">
+                            <thead class="table-light">
+                                <tr><th style="width:35%">Funktion</th><th>Beschreibung</th></tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td class="font-monospace text-nowrap">ZEITDIFF(von, bis)</td>
+                                    <td>Differenz zweier Uhrzeit-Felder in Minuten, auch über Mitternacht.<br>
+                                        Bsp.: <code>ZEITDIFF(beginn, ende)</code> → 540 (08:00–17:00)</td>
+                                </tr>
+                                <tr>
+                                    <td class="font-monospace text-nowrap">PAUSE(min)</td>
+                                    <td>Pflichtpause ArbZG §4: ≤ 6 h → 0 min · &gt; 6 h → 30 min · &gt; 9 h → 45 min</td>
+                                </tr>
+                                <tr>
+                                    <td class="font-monospace text-nowrap">PAUSE_GESTAFFELT(min)</td>
+                                    <td>Gleitende Staffelung: ≤ 6 h → 0 · 6–6:30 h → 0–30 (gleitend) · 6:30–9 h → 30 min · 9–9:15 h → 30–45 (gleitend) · &gt; 9:15 h → 45 min (max. 13 h)</td>
+                                </tr>
+                                <tr>
+                                    <td class="font-monospace text-nowrap">MINUTEN_ZU_ZEIT(min)</td>
+                                    <td>Wandelt Minuten → HH:MM. Bsp.: <code>MINUTEN_ZU_ZEIT(510)</code> → 08:30</td>
+                                </tr>
+                                <tr>
+                                    <td class="font-monospace text-nowrap">SUMME(feld_id)</td>
+                                    <td>Summiert alle Loop-Iterationen eines Feldes</td>
+                                </tr>
+                                <tr>
+                                    <td class="font-monospace text-nowrap">RUNDEN(wert, n)</td>
+                                    <td>Rundet auf n Dezimalstellen. Bsp.: <code>RUNDEN({{preis}} / 3, 2)</code></td>
+                                </tr>
+                                <tr>
+                                    <td class="font-monospace text-nowrap">ABS(wert)</td>
+                                    <td>Absolutbetrag</td>
+                                </tr>
+                                <tr>
+                                    <td class="font-monospace text-nowrap">WENN(bed, ja, nein)</td>
+                                    <td>Bsp.: <code>WENN({{anzahl}} &gt; 10, 5, 0)</code></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                        <div class="alert alert-info py-2 px-3 mb-0 small">
+                            <strong>Tipp – Arbeitszeiterfassung:</strong><br>
+                            <code>bruttozeit</code> = <code>ZEITDIFF(beginn, ende)</code><br>
+                            <code>nettozeit</code> = <code>bruttozeit - PAUSE_GESTAFFELT(bruttozeit)</code><br>
+                            <code>anzeige</code> = <code>MINUTEN_ZU_ZEIT(nettozeit)</code>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Abbrechen</button>
+                <button type="button" class="btn btn-primary" id="btn-formel-modal-uebernehmen">Übernehmen</button>
             </div>
         </div>
     </div>

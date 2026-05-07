@@ -46,10 +46,86 @@ document.addEventListener("DOMContentLoaded", function () {
         return werte;
     }
 
+    function parseZeit(s) {
+        if (!s) return 0;
+        s = String(s).trim().replace(".", ":");
+        if (/^\d{4}$/.test(s)) s = s.slice(0, 2) + ":" + s.slice(2);
+        var parts = s.split(":");
+        if (parts.length === 2) {
+            var h = parseInt(parts[0], 10);
+            var m = parseInt(parts[1], 10);
+            if (!isNaN(h) && !isNaN(m)) return h * 60 + m;
+        }
+        return 0;
+    }
+
+    function pauseMinuten(min) {
+        min = parseFloat(min) || 0;
+        if (min > 540) return 45;
+        if (min > 360) return 30;
+        return 0;
+    }
+
+    function pauseMinutenGestaffelt(min) {
+        min = Math.min(parseFloat(min) || 0, 780);
+        if (min <= 360) return 0;
+        if (min <= 390) return min - 360;
+        if (min <= 540) return 30;
+        if (min <= 555) return 30 + (min - 540);
+        return 45;
+    }
+
+    function minutenZuZeit(min) {
+        min = Math.round(parseFloat(min) || 0);
+        var h = Math.floor(min / 60);
+        var m = min % 60;
+        return (h < 10 ? "0" : "") + h + ":" + (m < 10 ? "0" : "") + m;
+    }
+
     function berechneFormel(formel, werte) {
         try {
+            var ausdruck = formel.replace(/;/g, ",");
+
+            // ZEITDIFF(von_id, bis_id) → Differenz in Minuten (case-insensitiv, bare IDs oder {{}} Syntax)
+            ausdruck = ausdruck.replace(/ZEITDIFF\(\s*(?:\{\{)?(\w+)(?:\}\})?\s*,\s*(?:\{\{)?(\w+)(?:\}\})?\s*\)/gi, function (_, vonId, bisId) {
+                var diff = parseZeit(werte[bisId]) - parseZeit(werte[vonId]);
+                if (diff < 0) diff += 1440;
+                return String(diff);
+            });
+
+            // PAUSE_GESTAFFELT vor PAUSE ersetzen (längerer Name zuerst, case-insensitiv)
+            ausdruck = ausdruck.replace(/PAUSE_GESTAFFELT\(\s*([^)]+)\s*\)/gi, function (_, arg) {
+                arg = arg.trim();
+                var min = parseFloat(arg);
+                if (isNaN(min)) min = parseFloat(werte[arg]) || 0;
+                return String(pauseMinutenGestaffelt(min));
+            });
+            // PAUSE(zahl_oder_feldid) → ArbZG-Pflichtpause in Minuten (case-insensitiv)
+            ausdruck = ausdruck.replace(/PAUSE\(\s*([^)]+)\s*\)/gi, function (_, arg) {
+                arg = arg.trim();
+                var min = parseFloat(arg);
+                if (isNaN(min)) min = parseFloat(werte[arg]) || 0;
+                return String(pauseMinuten(min));
+            });
+
+            // MINUTEN_ZU_ZEIT vor Variablensubstitution erkennen (gibt String zurück, case-insensitiv)
+            var mztMatch = /^MINUTEN_ZU_ZEIT\(\s*([\s\S]+?)\s*\)$/i.exec(ausdruck.trim());
+            if (mztMatch) {
+                var innerAusdruck = mztMatch[1].trim();
+                innerAusdruck = innerAusdruck.replace(/\b([a-zA-Z_]\w*)\b/g, function (_, id) {
+                    var v = werte[id];
+                    if (v === undefined || v === "") return "0";
+                    var n = parseFloat(String(v).replace(",", "."));
+                    return isNaN(n) ? "0" : String(n);
+                });
+                if (!/^[\d\s\.\+\-\*\/\(\)]+$/.test(innerAusdruck)) return null;
+                // eslint-disable-next-line no-new-func
+                var innerMin = Function('"use strict"; return (' + innerAusdruck + ')')();
+                return minutenZuZeit(Math.round(innerMin));
+            }
+
             // {{feld_id}} durch Wert ersetzen (Legacy-Syntax)
-            var ausdruck = formel.replace(/\{\{(\w+)\}\}/g, function (_, id) {
+            ausdruck = ausdruck.replace(/\{\{(\w+)\}\}/g, function (_, id) {
                 var v = werte[id];
                 if (v === undefined || v === "") return "0";
                 var n = parseFloat(String(v).replace(",", "."));
