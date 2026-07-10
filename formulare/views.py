@@ -2657,7 +2657,8 @@ def _schritt_kontext(sitzung, schritt):
 @login_required
 def pfad_schritt(request, sitzung_pk):
     """Zeigt den aktuellen Schritt und verarbeitet POST-Eingaben."""
-    sitzung = get_object_or_404(AntrSitzung, pk=sitzung_pk, user=request.user)
+    qs = AntrSitzung.objects if request.user.is_staff else AntrSitzung.objects.filter(user=request.user)
+    sitzung = get_object_or_404(qs, pk=sitzung_pk)
     if sitzung.status == AntrSitzung.STATUS_ABGESCHLOSSEN:
         return redirect("formulare:pfad_abgeschlossen", sitzung_pk=sitzung.pk)
     schritt = sitzung.aktueller_schritt
@@ -2927,7 +2928,8 @@ def _quiz_vorschau(schritt, sitzung):
 @login_required
 def pfad_abgeschlossen(request, sitzung_pk):
     """Abschluss-Seite nach erfolgreichem Durchlauf."""
-    sitzung = get_object_or_404(AntrSitzung, pk=sitzung_pk, user=request.user)
+    qs = AntrSitzung.objects if request.user.is_staff else AntrSitzung.objects.filter(user=request.user)
+    sitzung = get_object_or_404(qs, pk=sitzung_pk)
     email_empfaenger = _versende_pdf_email(sitzung)
     # Quiz-Ergebnis für Abschluss-Seite laden (falls vorhanden)
     quiz_ergebnis = None
