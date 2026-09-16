@@ -212,6 +212,15 @@ IMAP_BENACHRICHTIGE_STAFF = config("IMAP_BENACHRICHTIGE_STAFF", default=True, ca
 ONLYOFFICE_URL          = config("ONLYOFFICE_URL",          default="")
 ONLYOFFICE_INTERNAL_URL = config("ONLYOFFICE_INTERNAL_URL", default="http://host.docker.internal:8012")
 ONLYOFFICE_JWT_SECRET   = config("ONLYOFFICE_JWT_SECRET",   default="")
+# Ohne Secret wuerden dokumente/views.py::onlyoffice_dokument_laden/
+# onlyoffice_callback jede Anfrage ungeprueft durchlassen (unauthentifizierter
+# Dokument-Dump + SSRF ueber die Callback-URL) -- Fail-Fast statt eines
+# stillen, unsicheren Defaults (Sicherheits-Review 15.09.2026, gleicher Fund
+# wie in BRAINARCHIV/PRIMA, die dieses Muster geteilt haben).
+if ONLYOFFICE_URL and not ONLYOFFICE_JWT_SECRET:
+    raise ValueError(
+        "ONLYOFFICE_JWT_SECRET muss gesetzt sein, wenn ONLYOFFICE_URL konfiguriert ist."
+    )
 # Oeffentliche Basis-URL dieser Instanz
 VORGANGSWERK_BASE_URL   = config("VORGANGSWERK_BASE_URL",   default="http://localhost:8000")
 # Interne URL fuer OnlyOffice→Django-Callbacks (vom OO-Container erreichbar)

@@ -393,19 +393,22 @@ def onlyoffice_editor(request, pk):
 def onlyoffice_dokument_laden(request, pk):
     """Liefert den Dokumentinhalt an den OnlyOffice-Server (server-seitig, kein Browser).
 
-    Authentifizierung per JWT-Header (wenn ONLYOFFICE_JWT_SECRET konfiguriert).
+    Die JWT-Pruefung ist PFLICHT (kein Bypass mehr bei leerem Secret) --
+    config/settings.py stellt bereits sicher, dass ONLYOFFICE_JWT_SECRET
+    gesetzt ist, sobald ONLYOFFICE_URL konfiguriert ist. Ohne diese Pruefung
+    konnte jeder unauthentifiziert jedes Dokument abziehen (Sicherheits-Review
+    15.09.2026).
     """
     import jwt as pyjwt
 
     secret = getattr(settings, "ONLYOFFICE_JWT_SECRET", "")
-    if secret:
-        auth_header = request.headers.get("Authorization", "")
-        if not auth_header.startswith("Bearer "):
-            return HttpResponse("Unauthorized", status=401)
-        try:
-            pyjwt.decode(auth_header[7:], secret, algorithms=["HS256"])
-        except pyjwt.PyJWTError:
-            return HttpResponse("Unauthorized", status=401)
+    auth_header = request.headers.get("Authorization", "")
+    if not secret or not auth_header.startswith("Bearer "):
+        return HttpResponse("Unauthorized", status=401)
+    try:
+        pyjwt.decode(auth_header[7:], secret, algorithms=["HS256"])
+    except pyjwt.PyJWTError:
+        return HttpResponse("Unauthorized", status=401)
 
     dok = get_object_or_404(Dokument, pk=pk)
     return HttpResponse(bytes(dok.inhalt), content_type=dok.dateityp or "application/octet-stream")
@@ -428,16 +431,20 @@ def onlyoffice_callback(request, pk):
     except json.JSONDecodeError:
         return JsonResponse({"error": 1})
 
-    # JWT pruefen
+    # JWT pruefen: PFLICHT, kein Bypass mehr bei leerem Secret (siehe
+    # onlyoffice_dokument_laden und Sicherheits-Review 15.09.2026). Ohne diese
+    # Pruefung konnte jeder unauthentifiziert eine beliebige URL vom Server
+    # abrufen lassen (SSRF) und deren Inhalt als neue Dokumentversion einschleusen.
     secret = getattr(settings, "ONLYOFFICE_JWT_SECRET", "")
-    if secret:
-        auth_header = request.headers.get("Authorization", "")
-        if auth_header.startswith("Bearer "):
-            try:
-                pyjwt.decode(auth_header[7:], secret, algorithms=["HS256"])
-            except pyjwt.PyJWTError:
-                logger.warning("OnlyOffice Callback: ungueltige JWT fuer Dok %s", pk)
-                return JsonResponse({"error": 1})
+    auth_header = request.headers.get("Authorization", "")
+    if not secret or not auth_header.startswith("Bearer "):
+        logger.warning("OnlyOffice Callback: fehlende/ungueltige JWT fuer Dok %s", pk)
+        return JsonResponse({"error": 1})
+    try:
+        pyjwt.decode(auth_header[7:], secret, algorithms=["HS256"])
+    except pyjwt.PyJWTError:
+        logger.warning("OnlyOffice Callback: ungueltige JWT fuer Dok %s", pk)
+        return JsonResponse({"error": 1})
 
     status = daten.get("status")
     if status not in (2, 6):
@@ -453,6 +460,16 @@ def onlyoffice_callback(request, pk):
     oo_internal = getattr(settings, "ONLYOFFICE_INTERNAL_URL", "").rstrip("/")
     if oo_public and oo_internal and download_url.startswith(oo_public):
         download_url = download_url.replace(oo_public, oo_internal, 1)
+
+    # SSRF-Schutz: download_url muss auf die konfigurierte OnlyOffice-Instanz
+    # zeigen. Ohne diese Pruefung koennte eine untergeschobene "url" im
+    # JSON-Body den Server dazu bringen, eine beliebige interne/externe
+    # Adresse abzurufen (Host+Protokoll frei waehlbar) und deren Antwort als
+    # Dokumentinhalt zu speichern (Sicherheits-Review 15.09.2026).
+    erlaubte_praefixe = tuple(p for p in (oo_public, oo_internal) if p)
+    if not erlaubte_praefixe or not download_url.startswith(erlaubte_praefixe):
+        logger.warning("OnlyOffice Callback: verdaechtige download-url abgelehnt fuer Dok %s: %s", pk, download_url)
+        return JsonResponse({"error": 1})
 
     dok = get_object_or_404(Dokument, pk=pk)
 
